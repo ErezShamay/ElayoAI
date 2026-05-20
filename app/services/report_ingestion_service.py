@@ -6,6 +6,10 @@ from app.services.finding_extraction_service import (
     FindingExtractionService,
 )
 
+from app.repositories.finding_repository import (
+    FindingRepository
+)
+
 from app.repositories.weekly_report_repository import (
     WeeklyReportRepository
 )
@@ -25,6 +29,10 @@ class ReportIngestionService:
 
         self.report_repository = (
             WeeklyReportRepository()
+        )
+
+        self.finding_repository = (
+            FindingRepository()
         )
 
         self.classifier = (
@@ -149,12 +157,17 @@ class ReportIngestionService:
             )
         )
 
+        created_findings = (
+            self.finding_repository
+            .create_findings(
+                findings
+            )
+        )
+
         print("\n=== FINDINGS ===")
 
-        for finding in findings:
-            print(
-                finding.model_dump()
-            )
+        for finding in created_findings:
+            print(finding)
 
         return {
             "status":
@@ -173,5 +186,5 @@ class ReportIngestionService:
                 created_report,
 
             "findings":
-                findings
+                created_findings
         }

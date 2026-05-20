@@ -3,27 +3,64 @@ from app.schemas.finding import Finding
 
 class FindingExtractionService:
 
-    FINDING_RULES = [
-        {
-            "keywords": ["עיכוב", "מתעכב", "טרם"],
-            "finding_type": "schedule_delay",
+    FINDING_PATTERNS = {
+        "approval_delay": {
+            "signals": {
+                "אישור": 4,
+                "היתר": 4,
+                "טרם התקבל": 5,
+                "ממתין": 3,
+            },
             "severity": "medium",
         },
-        {
-            "keywords": ["אישור", "היתר"],
-            "finding_type": "approval_delay",
+
+        "schedule_delay": {
+            "signals": {
+                "עיכוב": 4,
+                "מתעכב": 4,
+                "לוחות זמנים": 5,
+                "מעכב": 3,
+            },
             "severity": "medium",
         },
-        {
-            "keywords": ["חריגה", "ליקוי"],
-            "finding_type": "quality_issue",
+
+        "quality_issue": {
+            "signals": {
+                "ליקוי": 5,
+                "ביצוע": 2,
+                "אי התאמה": 4,
+                "חריגה": 1,
+            },
             "severity": "high",
         },
-        {
-            "keywords": ["בטיחות", "סיכון"],
-            "finding_type": "safety_issue",
+
+        "safety_issue": {
+            "signals": {
+                "בטיחות": 5,
+                "סכנה": 5,
+                "מפגע": 4,
+                "סיכון": 3,
+            },
             "severity": "critical",
         },
+
+        "documentation_gap": {
+            "signals": {
+                "חסר מסמך": 5,
+                "לא הוצג": 4,
+                "חסר אישור": 4,
+                "לא נמסר": 4,
+            },
+            "severity": "medium",
+        },
+    }
+
+    PREFIXES = [
+        "ב",
+        "ל",
+        "כ",
+        "ו",
+        "ה",
     ]
 
     def extract_findings(
@@ -33,49 +70,201 @@ class FindingExtractionService:
         project_id: str,
     ) -> list[Finding]:
 
-        findings: list[Finding] = []
+        findings = []
 
-        lines = [
-            line.strip()
-            for line in report_text.splitlines()
-            if line.strip()
-        ]
+        lines = self._split_text(
+            report_text
+        )
 
         for line in lines:
 
-            matched_rule = self._match_rule(line)
+            classification = (
+                self._classify_line(line)
+            )
 
-            if not matched_rule:
+            if not classification:
                 continue
 
             finding = Finding(
                 report_id=report_id,
+
                 project_id=project_id,
-                finding_type=matched_rule["finding_type"],
-                severity=matched_rule["severity"],
-                title=self._generate_title(line),
+
+                finding_type=classification[
+                    "finding_type"
+                ],
+
+                severity=classification[
+                    "severity"
+                ],
+
+                title=self._generate_title(
+                    line
+                ),
+
                 summary=line,
+
                 source_text=line,
             )
 
-            findings.append(finding)
+            findings.append(
+                finding
+            )
 
         return findings
 
-    def _match_rule(self, text: str):
+    def _split_text(
+        self,
+        text: str
+    ) -> list[str]:
 
-        for rule in self.FINDING_RULES:
+        lines = []
 
-            for keyword in rule["keywords"]:
+        for raw_line in (
+            text.splitlines()
+        ):
 
-                if keyword in text:
-                    return rule
+            line = raw_line.strip()
 
-        return None
+            if not line:
+                continue
 
-    def _generate_title(self, text: str) -> str:
+            lines.append(line)
 
-        if len(text) <= 60:
+        return lines
+
+    def _normalize_word(
+        self,
+        word: str
+    ) -> str:
+
+        normalized_word = word
+
+        for prefix in self.PREFIXES:
+
+            if (
+                word.startswith(prefix)
+                and len(word) > 3
+            ):
+
+                normalized_word = (
+                    word[1:]
+                )
+
+                break
+
+        return normalized_word
+
+    def _normalize_text(
+        self,
+        text: str
+    ) -> str:
+
+        words = text.split()
+
+        normalized_words = []
+
+        for word in words:
+
+            normalized_words.append(
+                self._normalize_word(
+                    word
+                )
+            )
+
+        return " ".join(
+            normalized_words
+        )
+
+    def _classify_line(
+        self,
+        text: str
+    ):
+
+        normalized_text = (
+            self._normalize_text(
+                text
+            )
+        )
+
+        normalized_words = (
+            normalized_text.split()
+        )
+
+        scores = {}
+
+        for (
+            finding_type,
+            config
+        ) in (
+            self.FINDING_PATTERNS
+            .items()
+        ):
+
+            score = 0
+
+            for (
+                signal,
+                weight
+            ) in (
+                config["signals"]
+                .items()
+            ):
+
+                if " " in signal:
+
+                    if signal in normalized_text:
+                        score += weight
+
+                else:
+
+                    for word in normalized_words:
+
+                        if signal == word:
+                            score += weight
+
+            if score > 0:
+
+                scores[
+                    finding_type
+                ] = {
+                    "score": score,
+
+                    "severity":
+                    config["severity"]
+                }
+
+        if not scores:
+            return None
+
+        best_match = max(
+            scores.items(),
+            key=lambda item:
+            item[1]["score"]
+        )
+
+        finding_type = (
+            best_match[0]
+        )
+
+        severity = (
+            best_match[1]["severity"]
+        )
+
+        return {
+            "finding_type":
+                finding_type,
+
+            "severity":
+                severity
+        }
+
+    def _generate_title(
+        self,
+        text: str
+    ) -> str:
+
+        if len(text) <= 80:
             return text
 
-        return text[:57] + "..."
+        return text[:77] + "..."
