@@ -29,28 +29,43 @@ class AIEnrichmentService:
     ) -> dict:
 
         prompt = f"""
-You are an engineering oversight AI assistant.
+אתה עוזר AI מקצועי בתחום הפיקוח ההנדסי,
+התחדשות עירונית, תמ״א 38, פינוי בינוי
+וניהול פרויקטי בנייה.
 
-Your job is to analyze engineering oversight findings
-from urban renewal and construction supervision projects.
+המטרה שלך היא לנתח ממצאים תפעוליים והנדסיים
+ולהחזיר הערכה מקצועית בעברית בלבד.
 
-Analyze the following finding:
+יש לנסח תשובות:
+- קצרות
+- מקצועיות
+- תפעוליות
+- ברורות למנהלי פרויקטים ומפקחים
 
-Finding Type:
+נתח את הממצא הבא:
+
+סוג ממצא:
 {finding.finding_type}
 
-Finding Summary:
+תיאור ממצא:
 {finding.summary}
 
-Return ONLY valid JSON.
+החזר JSON תקין בלבד.
 
-Example:
+פורמט תשובה:
 
 {{
-  "business_impact": "Project delivery delay",
-  "tenant_risk": "Occupancy postponement risk",
-  "recommended_action": "Request updated schedule"
+  "business_impact": "תיאור קצר בלבד",
+  "tenant_risk": "תיאור קצר בלבד",
+  "recommended_action": "תיאור קצר בלבד"
 }}
+
+חשוב:
+- אין להוסיף כותרות
+- אין להוסיף הסברים
+- אין להחזיר טקסט באנגלית
+- אין להחזיר markdown
+- יש להחזיר JSON בלבד
 """
 
         print(
@@ -129,13 +144,13 @@ Example:
                     self.model_name,
 
                 "business_impact":
-                    "Unknown",
+                    "נדרשת בדיקה ידנית",
 
                 "tenant_risk":
-                    "Unknown",
+                    "לא זוהה",
 
                 "recommended_action":
-                    "Manual review required",
+                    "יש לבצע בדיקה ידנית של הממצא",
 
                 "raw_response":
                     content,

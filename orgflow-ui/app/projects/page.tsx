@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type Project = {
   id: string;
@@ -13,8 +12,7 @@ type Project = {
   created_at: string;
 };
 
-export default function HomePage() {
-
+export default function ProjectsPage() {
   const [projects, setProjects] =
     useState<Project[]>([]);
 
@@ -26,35 +24,25 @@ export default function HomePage() {
   }, []);
 
   async function loadProjects() {
-
     try {
-
       const response = await fetch(
         "http://127.0.0.1:8000/projects"
       );
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       setProjects(data);
-
     } catch (error) {
-
       console.error(error);
-
     } finally {
-
       setLoading(false);
-
     }
   }
 
   function getStatusLabel(
     status: string
   ) {
-
     switch (status) {
-
       case "ACTIVE":
         return "פעיל";
 
@@ -74,62 +62,24 @@ export default function HomePage() {
         dark:text-zinc-100
       "
     >
+      <div className="mb-10">
 
-      {/* HEADER */}
+        <h1 className="text-5xl font-bold">
+          פרויקטים
+        </h1>
 
-      <div
-        className="
-          flex
-          justify-between
-          items-center
-          mb-10
-        "
-      >
-
-        <div>
-
-          <h1
-            className="
-              text-5xl
-              font-bold
-            "
-          >
-            פרויקטים
-          </h1>
-
-          <p
-            className="
-              mt-3
-              text-lg
-              text-zinc-600
-              dark:text-zinc-400
-            "
-          >
-            סביבת ניהול ותפעול פרויקטים
-          </p>
-
-        </div>
-
-        <button
+        <p
           className="
-            bg-zinc-900
-            text-white
-            dark:bg-white
-            dark:text-black
-            px-6
-            py-4
-            rounded-2xl
-            font-semibold
-            hover:opacity-90
-            transition-opacity
+            mt-3
+            text-lg
+            text-zinc-600
+            dark:text-zinc-400
           "
         >
-          פרויקט חדש
-        </button>
+          ניהול פרויקטים הנדסיים במערכת
+        </p>
 
       </div>
-
-      {/* LOADING */}
 
       {loading && (
         <div>
@@ -137,11 +87,8 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* EMPTY */}
-
       {!loading &&
         projects.length === 0 && (
-
           <div
             className="
               bg-white
@@ -150,31 +97,19 @@ export default function HomePage() {
               border-zinc-200
               dark:border-zinc-800
               rounded-3xl
-              p-10
+              p-8
             "
           >
-            אין פרויקטים במערכת
+            אין פרויקטים
           </div>
+        )}
 
-      )}
-
-      {/* PROJECTS GRID */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          lg:grid-cols-2
-          xl:grid-cols-3
-          gap-6
-        "
-      >
+      <div className="grid gap-6">
 
         {projects.map((project) => (
 
-          <Link
+          <div
             key={project.id}
-            href={`/projects/${project.id}`}
             className="
               bg-white
               dark:bg-zinc-900
@@ -184,9 +119,6 @@ export default function HomePage() {
               rounded-3xl
               p-8
               shadow-sm
-              hover:shadow-lg
-              transition-all
-              hover:-translate-y-1
             "
           >
 
@@ -204,7 +136,7 @@ export default function HomePage() {
                 <h2
                   className="
                     text-2xl
-                    font-bold
+                    font-semibold
                   "
                 >
                   {project.project_name}
@@ -212,8 +144,8 @@ export default function HomePage() {
 
                 <p
                   className="
-                    mt-2
                     text-zinc-500
+                    mt-2
                   "
                 >
                   {project.supervisor_name}
@@ -247,35 +179,14 @@ export default function HomePage() {
 
                 <h3
                   className="
-                    text-sm
                     font-semibold
-                    text-zinc-500
-                    mb-1
+                    mb-2
                   "
                 >
-                  מפקח אחראי
+                  אימייל מפקח
                 </h3>
 
                 <p>
-                  {project.supervisor_name}
-                </p>
-
-              </div>
-
-              <div>
-
-                <h3
-                  className="
-                    text-sm
-                    font-semibold
-                    text-zinc-500
-                    mb-1
-                  "
-                >
-                  אימייל
-                </h3>
-
-                <p className="break-all">
                   {project.supervisor_email}
                 </p>
 
@@ -285,10 +196,8 @@ export default function HomePage() {
 
                 <h3
                   className="
-                    text-sm
                     font-semibold
-                    text-zinc-500
-                    mb-1
+                    mb-2
                   "
                 >
                   תאריך יצירה
@@ -306,7 +215,7 @@ export default function HomePage() {
 
             </div>
 
-          </Link>
+          </div>
 
         ))}
 
@@ -314,4 +223,4 @@ export default function HomePage() {
 
     </main>
   );
-}
+} 

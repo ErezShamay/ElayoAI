@@ -26,6 +26,10 @@ from app.services.operational_action_service import (
     OperationalActionService
 )
 
+from app.repositories.project_repository import (
+    ProjectRepository
+)
+
 app = FastAPI()
 
 # ==========================================
@@ -68,6 +72,10 @@ ai_review_service = (
 
 operational_action_service = (
     OperationalActionService()
+)
+
+project_repository = (
+    ProjectRepository()
 )
 
 
@@ -214,4 +222,42 @@ def get_escalations():
     return (
         operational_action_service
         .get_escalations()
+    )
+
+# ==========================================
+# PROJECT APIs
+# ==========================================
+
+@app.get("/projects")
+def get_projects():
+
+    return (
+        project_repository
+        .get_all_projects()
+    )
+
+@app.get("/projects/{project_id}")
+def get_project(
+    project_id: str
+):
+
+    return (
+        project_repository
+        .get_project_by_id(
+            project_id
+        )
+    )
+
+@app.get(
+    "/projects/{project_id}/reviews"
+)
+def get_project_reviews(
+    project_id: str
+):
+
+    return (
+        ai_review_service
+        .get_reviews_by_project(
+            project_id
+        )
     )

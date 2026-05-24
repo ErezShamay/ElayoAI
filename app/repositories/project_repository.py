@@ -127,3 +127,21 @@ class ProjectRepository:
             "projects":
                 projects
         }
+
+        def get_project_by_id(
+            self,
+            project_id: str
+        ):
+            response = (
+                self.client
+                .table("projects")
+                .select("*")
+                .eq("id", project_id)
+                .limit(1)
+                .execute()
+            )
+
+            if not response.data:
+                return None
+
+            return response.data[0]

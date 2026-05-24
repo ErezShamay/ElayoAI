@@ -126,3 +126,26 @@ class AIInterpretationRepository:
         )
 
         return response.data[0]
+
+    def get_reviews_by_project(
+    self,
+    project_id: str
+):
+
+    response = (
+        self.client
+        .table("ai_interpretations")
+        .select("""
+            *,
+            findings!inner(
+                project_id
+            )
+        """)
+        .eq(
+            "findings.project_id",
+            project_id
+        )
+        .execute()
+    )
+
+    return response.data

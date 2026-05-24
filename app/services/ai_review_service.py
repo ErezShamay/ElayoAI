@@ -120,3 +120,15 @@ class AIReviewService:
                     review_notes
             )
         )
+
+    def get_reviews_by_project(
+    self,
+    project_id: str
+):
+
+    return (
+        self.repository
+        .get_reviews_by_project(
+            project_id
+        )
+    )
