@@ -2,16 +2,8 @@ from app.repositories.ai_interpretation_repository import (
     AIInterpretationRepository
 )
 
-from app.repositories.finding_repository import (
-    FindingRepository
-)
-
 from app.repositories.operational_action_repository import (
     OperationalActionRepository
-)
-
-from app.services.action_generation_service import (
-    ActionGenerationService
 )
 
 
@@ -23,21 +15,11 @@ class AIReviewService:
             AIInterpretationRepository()
         )
 
-        self.finding_repository = (
-            FindingRepository()
-        )
-
-        self.action_repository = (
+        self.operational_repository = (
             OperationalActionRepository()
         )
 
-        self.action_generation_service = (
-            ActionGenerationService()
-        )
-
-    def get_pending_reviews(
-        self
-    ):
+    def get_pending_reviews(self):
 
         return (
             self.repository
@@ -48,10 +30,10 @@ class AIReviewService:
         self,
         interpretation_id: str,
         reviewed_by: str,
-        review_notes: str | None = None
+        review_notes: str
     ):
 
-        approved = (
+        approved_interpretation = (
             self.repository
             .approve_interpretation(
                 interpretation_id=
@@ -61,74 +43,50 @@ class AIReviewService:
                     reviewed_by,
 
                 review_notes=
-                    review_notes
-            )
-        )
-
-        finding = (
-            self.finding_repository
-            .get_finding_by_id(
-                approved[
-                    "finding_id"
-                ]
-            )
-        )
-
-        action = (
-            self.action_generation_service
-            .generate_action(
-                interpretation=
-                    approved,
-
-                finding=
-                    finding
+                    review_notes,
             )
         )
 
         created_action = (
-            self.action_repository
-            .create_action(
-                action
-            )
+            self.operational_repository
+            .create_action({
+                "interpretation_id":
+                    interpretation_id,
+
+                "action_type":
+                    "ESCALATION",
+
+                "title":
+                    approved_interpretation[
+                        "recommended_action"
+                    ],
+
+                "description":
+                    approved_interpretation[
+                        "business_impact"
+                    ],
+
+                "status":
+                    "OPEN",
+            })
         )
 
         return {
             "approved_interpretation":
-                approved,
+                approved_interpretation,
 
             "created_action":
-                created_action
+                created_action,
         }
 
-    def reject_review(
+    def get_reviews_by_project(
         self,
-        interpretation_id: str,
-        reviewed_by: str,
-        review_notes: str | None = None
+        project_id: str
     ):
 
         return (
             self.repository
-            .reject_interpretation(
-                interpretation_id=
-                    interpretation_id,
-
-                reviewed_by=
-                    reviewed_by,
-
-                review_notes=
-                    review_notes
+            .get_reviews_by_project(
+                project_id
             )
         )
-
-    def get_reviews_by_project(
-    self,
-    project_id: str
-):
-
-    return (
-        self.repository
-        .get_reviews_by_project(
-            project_id
-        )
-    )

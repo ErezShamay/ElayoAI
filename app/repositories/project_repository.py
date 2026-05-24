@@ -14,46 +14,45 @@ class ProjectRepository:
 
     def create_project(
         self,
-        project_name: str,
-        supervisor_name: str,
-        supervisor_email: str = None
+        project
     ):
-
-        existing = (
-            self.client
-            .table("projects")
-            .select("*")
-            .eq(
-                "project_name",
-                project_name
-            )
-            .limit(1)
-            .execute()
-        )
-
-        if existing.data:
-            return existing.data[0]
 
         response = (
             self.client
             .table("projects")
             .insert({
                 "project_name":
-                    project_name,
+                    project.project_name,
 
                 "supervisor_name":
-                    supervisor_name,
+                    project.supervisor_name,
 
                 "supervisor_email":
-                    supervisor_email,
+                    project.supervisor_email,
+
+                "organization_id":
+                    project.organization_id,
 
                 "status":
-                    "ACTIVE"
+                    project.status,
             })
             .execute()
         )
 
         return response.data[0]
+
+    def get_all_projects(
+        self,
+    ):
+
+        response = (
+            self.client
+            .table("projects")
+            .select("*")
+            .execute()
+        )
+
+        return response.data
 
     def get_projects_by_organization(
         self,
@@ -71,91 +70,26 @@ class ProjectRepository:
             .execute()
         )
 
-    return response.data
+        return response.data
+
+    def get_project_by_id(
+        self,
+        project_id: str
+    ):
 
         response = (
             self.client
             .table("projects")
             .select("*")
+            .eq(
+                "id",
+                project_id
+            )
+            .limit(1)
             .execute()
         )
 
-        return response.data
+        if not response.data:
+            return None
 
-    def find_by_name(
-        self,
-        project_name: str
-    ):
-
-        normalized = (
-            project_name
-            .replace(
-                "פרויקט",
-                ""
-            )
-            .strip()
-        )
-
-        response = (
-            self.client
-            .table("projects")
-            .select("*")
-            .ilike(
-                "project_name",
-                f"%{normalized}%"
-            )
-            .execute()
-        )
-
-        return response.data
-
-    # backward compatibility
-    def find_project_by_name(
-        self,
-        project_name: str
-    ):
-
-        projects = (
-            self.find_by_name(
-                project_name
-            )
-        )
-
-        if not projects:
-
-            return {
-                "match_status":
-                    "NOT_FOUND",
-
-                "projects":
-                    []
-            }
-
-        return {
-            "match_status":
-                "EXACT_MATCH",
-
-            "project":
-                projects[0],
-
-            "projects":
-                projects
-        }
-
-        def get_project_by_id(
-            self,
-            project_id: str
-        ):
-            response = (
-                self.client
-                .table("projects")
-                .select("*")
-                .eq("id", project_id)
-                .limit(1)
-                .execute()
-            )
-
-            if not response.data:
-                return None
-
-            return response.data[0]
+        return response.data[0]

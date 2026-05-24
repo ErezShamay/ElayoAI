@@ -1,11 +1,5 @@
-from datetime import datetime
-
 from app.db.supabase_client import (
     SupabaseClient
-)
-
-from app.schemas.ai_interpretation import (
-    AIInterpretation
 )
 
 
@@ -18,37 +12,46 @@ class AIInterpretationRepository:
             .get_client()
         )
 
-        self.table_name = (
-            "ai_interpretations"
-        )
-
     def create_interpretation(
         self,
-        interpretation: AIInterpretation
+        interpretation
     ):
-
-        payload = (
-            interpretation.model_dump(
-                exclude_none=True
-            )
-        )
 
         response = (
             self.client
-            .table(self.table_name)
-            .insert(payload)
+            .table("ai_interpretations")
+            .insert({
+                "finding_id":
+                    interpretation.finding_id,
+
+                "model_name":
+                    interpretation.model_name,
+
+                "business_impact":
+                    interpretation.business_impact,
+
+                "tenant_risk":
+                    interpretation.tenant_risk,
+
+                "recommended_action":
+                    interpretation.recommended_action,
+
+                "raw_response":
+                    interpretation.raw_response,
+
+                "review_status":
+                    "PENDING",
+            })
             .execute()
         )
 
         return response.data[0]
 
-    def get_pending_reviews(
-        self
-    ):
+    def get_pending_reviews(self):
 
         response = (
             self.client
-            .table(self.table_name)
+            .table("ai_interpretations")
             .select("*")
             .eq(
                 "review_status",
@@ -63,12 +66,12 @@ class AIInterpretationRepository:
         self,
         interpretation_id: str,
         reviewed_by: str,
-        review_notes: str | None = None
+        review_notes: str
     ):
 
         response = (
             self.client
-            .table(self.table_name)
+            .table("ai_interpretations")
             .update({
                 "review_status":
                     "APPROVED",
@@ -76,76 +79,49 @@ class AIInterpretationRepository:
                 "reviewed_by":
                     reviewed_by,
 
-                "reviewed_at":
-                    datetime.utcnow()
-                    .isoformat(),
-
                 "review_notes":
-                    review_notes
+                    review_notes,
             })
             .eq(
                 "id",
                 interpretation_id
             )
-            .select("*")
             .execute()
         )
 
-        return response.data[0]
+        updated_response = (
+            self.client
+            .table("ai_interpretations")
+            .select("*")
+            .eq(
+                "id",
+                interpretation_id
+            )
+            .limit(1)
+            .execute()
+        )
 
-    def reject_interpretation(
+        return updated_response.data[0]
+
+    def get_reviews_by_project(
         self,
-        interpretation_id: str,
-        reviewed_by: str,
-        review_notes: str | None = None
+        project_id: str
     ):
 
         response = (
             self.client
-            .table(self.table_name)
-            .update({
-                "review_status":
-                    "REJECTED",
-
-                "reviewed_by":
-                    reviewed_by,
-
-                "reviewed_at":
-                    datetime.utcnow()
-                    .isoformat(),
-
-                "review_notes":
-                    review_notes
-            })
+            .table("ai_interpretations")
+            .select("""
+                *,
+                findings!inner(
+                    project_id
+                )
+            """)
             .eq(
-                "id",
-                interpretation_id
+                "findings.project_id",
+                project_id
             )
-            .select("*")
             .execute()
         )
 
-        return response.data[0]
-
-    def get_reviews_by_project(
-    self,
-    project_id: str
-):
-
-    response = (
-        self.client
-        .table("ai_interpretations")
-        .select("""
-            *,
-            findings!inner(
-                project_id
-            )
-        """)
-        .eq(
-            "findings.project_id",
-            project_id
-        )
-        .execute()
-    )
-
-    return response.data
+        return response.data

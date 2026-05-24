@@ -38,21 +38,32 @@ class WeeklyReportRepository:
         )
 
         return response.data[0]
-    
+
+    def get_all_reports(self):
+
+        response = (
+            self.client
+            .table("weekly_reports")
+            .select("*")
+            .execute()
+        )
+
+        return response.data
+
     def get_reports_by_project(
         self,
         project_id: str
     ):
 
-    response = (
-        self.client
-        .table("weekly_reports")
-        .select("*")
-        .eq(
-            "project_id",
-            project_id
+        response = (
+            self.client
+            .table("weekly_reports")
+            .select("*")
+            .eq(
+                "project_id",
+                project_id
+            )
+            .execute()
         )
-        .execute()
-    )
 
-    return response.data
+        return response.data
