@@ -433,7 +433,7 @@ export default function ProjectDetailsPage() {
               mb-3
             "
           >
-            הסלמות
+            נקודות סיכון
           </p>
 
           <h2

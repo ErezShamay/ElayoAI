@@ -121,7 +121,7 @@ export default function HomePage() {
                 tracking-tight
               "
             >
-              OrgFlow
+              Supervisor AI
             </h1>
 
             <p
@@ -136,7 +136,7 @@ export default function HomePage() {
             >
               פלטפורמת AI לניהול תפעולי,
               פיקוח הנדסי, בקרת פרויקטים,
-              ניתוח חריגות והסלמות
+              ניתוח חריגות ונקודות סיכון
               בפרויקטי התחדשות עירונית ובנייה.
             </p>
 
@@ -180,7 +180,7 @@ export default function HomePage() {
                 mb-3
               "
             >
-              חברות פעילות
+              ביקורות AI
             </p>
 
             <h2
@@ -189,7 +189,7 @@ export default function HomePage() {
                 font-black
               "
             >
-              {totalOrganizations}
+              148
             </h2>
 
           </div>

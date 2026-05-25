@@ -12,116 +12,83 @@ class AIInterpretationRepository:
             .get_client()
         )
 
-    def create_interpretation(
-        self,
-        interpretation
-    ):
-
-        response = (
-            self.client
-            .table("ai_interpretations")
-            .insert({
-                "finding_id":
-                    interpretation.finding_id,
-
-                "model_name":
-                    interpretation.model_name,
-
-                "business_impact":
-                    interpretation.business_impact,
-
-                "tenant_risk":
-                    interpretation.tenant_risk,
-
-                "recommended_action":
-                    interpretation.recommended_action,
-
-                "raw_response":
-                    interpretation.raw_response,
-
-                "review_status":
-                    "PENDING",
-            })
-            .execute()
-        )
-
-        return response.data[0]
-
-    def get_pending_reviews(self):
-
-        response = (
-            self.client
-            .table("ai_interpretations")
-            .select("*")
-            .eq(
-                "review_status",
-                "PENDING"
-            )
-            .execute()
-        )
-
-        return response.data
-
-    def approve_interpretation(
-        self,
-        interpretation_id: str,
-        reviewed_by: str,
-        review_notes: str
-    ):
-
-        response = (
-            self.client
-            .table("ai_interpretations")
-            .update({
-                "review_status":
-                    "APPROVED",
-
-                "reviewed_by":
-                    reviewed_by,
-
-                "review_notes":
-                    review_notes,
-            })
-            .eq(
-                "id",
-                interpretation_id
-            )
-            .execute()
-        )
-
-        updated_response = (
-            self.client
-            .table("ai_interpretations")
-            .select("*")
-            .eq(
-                "id",
-                interpretation_id
-            )
-            .limit(1)
-            .execute()
-        )
-
-        return updated_response.data[0]
-
     def get_reviews_by_project(
         self,
         project_id: str
     ):
 
-        response = (
+        # =========================
+        # GET REPORT IDS
+        # =========================
+
+        reports_response = (
             self.client
-            .table("ai_interpretations")
-            .select("""
-                *,
-                findings!inner(
-                    project_id
-                )
-            """)
+            .table("reports")
+            .select("id")
             .eq(
-                "findings.project_id",
+                "project_id",
                 project_id
             )
             .execute()
         )
 
-        return response.data
+        reports = (
+            reports_response.data
+            or []
+        )
+
+        report_ids = [
+            report["id"]
+            for report in reports
+        ]
+
+        if not report_ids:
+            return []
+
+        # =========================
+        # GET FINDING IDS
+        # =========================
+
+        findings_response = (
+            self.client
+            .table("findings")
+            .select("id")
+            .in_(
+                "report_id",
+                report_ids
+            )
+            .execute()
+        )
+
+        findings = (
+            findings_response.data
+            or []
+        )
+
+        finding_ids = [
+            finding["id"]
+            for finding in findings
+        ]
+
+        if not finding_ids:
+            return []
+
+        # =========================
+        # GET AI REVIEWS
+        # =========================
+
+        reviews_response = (
+            self.client
+            .table("ai_interpretations")
+            .select("*")
+            .in_(
+                "finding_id",
+                finding_ids
+            )
+            .execute()
+        )
+
+        return (
+            reviews_response.data
+            or []
+        )

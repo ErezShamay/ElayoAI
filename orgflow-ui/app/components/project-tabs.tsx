@@ -23,7 +23,7 @@ export default function ProjectTabs({
       href: `/projects/${projectId}/reviews`,
     },
     {
-      label: "הסלמות",
+      label: "נקודות סיכון",
       href: `/projects/${projectId}/escalations`,
     },
     {

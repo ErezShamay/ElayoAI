@@ -16,8 +16,6 @@ export default function ProjectsLayout({
       "
     >
 
-      <Sidebar />
-
       <main className="flex-1">
         {children}
       </main>

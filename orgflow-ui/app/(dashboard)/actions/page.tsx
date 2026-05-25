@@ -41,7 +41,7 @@ export default function ActionsPage() {
   ) {
     switch (type) {
       case "ESCALATION":
-        return "הסלמה";
+        return "נקודת סיכון";
 
       default:
         return type;

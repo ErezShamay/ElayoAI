@@ -48,7 +48,7 @@ export default function EscalationsPage() {
       <div className="mb-10">
 
         <h1 className="text-5xl font-bold">
-          הסלמות
+          נקודות סיכון
         </h1>
 
         <p
@@ -66,7 +66,7 @@ export default function EscalationsPage() {
 
       {loading && (
         <div>
-          טוען הסלמות...
+          טוען נקודות סיכון...
         </div>
       )}
 
@@ -83,7 +83,7 @@ export default function EscalationsPage() {
               p-8
             "
           >
-            אין הסלמות פתוחות
+            אין נקודות סיכון פתוחות
           </div>
         )}
 

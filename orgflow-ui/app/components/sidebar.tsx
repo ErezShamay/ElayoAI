@@ -8,7 +8,7 @@ export default function Sidebar() {
 
   const links = [
     {
-      href: "/",
+      href: "/reviews",
       label: "ביקורות AI",
     },
     {
@@ -17,7 +17,7 @@ export default function Sidebar() {
     },
     {
       href: "/escalations",
-      label: "הסלמות",
+      label: "נקודות סיכון",
     },
     {
       href: "/projects",
@@ -40,9 +40,11 @@ export default function Sidebar() {
     >
       <div className="mb-10">
 
-        <h1 className="text-3xl font-bold">
-          OrgFlow
+      <Link href="/">
+        <h1 className="text-3xl font-bold cursor-pointer">
+          Supervisor AI
         </h1>
+      </Link>
 
         <p
           className="
@@ -51,7 +53,7 @@ export default function Sidebar() {
             mt-2
           "
         >
-          מרכז תפעול מבוסס AI
+          שליטה ובקרה לפרויקטים
         </p>
 
       </div>
