@@ -1,18 +1,7 @@
 "use client";
 
-import {
-  use,
-  useEffect,
-  useState,
-} from "react";
-
-type Review = {
-  id: string;
-  business_impact: string;
-  tenant_risk: string;
-  recommended_action: string;
-  review_status: string;
-};
+import { use } from "react";
+import { useProjectWorkspace } from "@/hooks/useProjectWorkspace";
 
 type Props = {
   params: Promise<{
@@ -30,40 +19,16 @@ export default function ReviewsPage({
   const projectId =
     resolvedParams.id;
 
-  const [reviews, setReviews] =
-    useState<Review[]>([]);
+  const {
+  reviews,
+  loading,
+  setReviews,
+  reloadWorkspace,
+} = useProjectWorkspace(
+  projectId
+);
 
-  const [loading, setLoading] =
-    useState(true);
 
-  useEffect(() => {
-    loadReviews();
-  }, []);
-
-  async function loadReviews() {
-
-    try {
-
-      const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/reviews`
-        );
-
-      const data =
-        await response.json();
-
-      setReviews(data);
-
-    } catch (error) {
-
-      console.error(error);
-
-    } finally {
-
-      setLoading(false);
-
-    }
-  }
 
   async function approveReview(
     reviewId: string
@@ -98,6 +63,8 @@ export default function ReviewsPage({
               review.id !== reviewId
           )
       );
+
+      await reloadWorkspace();
 
     } catch (error) {
 

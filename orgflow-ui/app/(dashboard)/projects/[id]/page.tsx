@@ -1,32 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { useParams } from "next/navigation";
 
-type Project = {
-  id: string;
-  project_name: string;
-  supervisor_name: string;
-  supervisor_email: string;
-  status: string;
-  created_at: string;
-};
-
-type Review = {
-  id: string;
-  business_impact: string;
-  tenant_risk: string;
-  recommended_action: string;
-  review_status: string;
-};
-
-type Summary = {
-  reviews_count: number;
-  actions_count: number;
-  escalations_count: number;
-  reports_count: number;
-};
+import { useProjectWorkspace } from "@/hooks/useProjectWorkspace";
 
 export default function ProjectDetailsPage() {
 
@@ -35,88 +11,14 @@ export default function ProjectDetailsPage() {
   const projectId =
     params.id as string;
 
-  const [project, setProject] =
-    useState<Project | null>(null);
-
-  const [reviews, setReviews] =
-    useState<Review[]>([]);
-
-  const [summary, setSummary] =
-    useState<Summary>({
-      reviews_count: 0,
-      actions_count: 0,
-      escalations_count: 0,
-      reports_count: 0,
-    });
-
-  const [loading, setLoading] =
-    useState(true);
-
-  useEffect(() => {
-
-    if (!projectId) {
-      return;
-    }
-
-    loadProject();
-
-  }, [projectId]);
-
-  async function loadProject() {
-
-    try {
-
-      // =========================
-      // PROJECT
-      // =========================
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}`
-      );
-
-      const data =
-        await response.json();
-
-      setProject(data);
-
-      // =========================
-      // PROJECT REVIEWS
-      // =========================
-
-      const reviewsResponse =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/reviews`
-        );
-
-      const reviewsData =
-        await reviewsResponse.json();
-
-      setReviews(reviewsData);
-
-      // =========================
-      // PROJECT SUMMARY
-      // =========================
-
-      const summaryResponse =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/summary`
-        );
-
-      const summaryData =
-        await summaryResponse.json();
-
-      setSummary(summaryData);
-
-    } catch (error) {
-
-      console.error(error);
-
-    } finally {
-
-      setLoading(false);
-
-    }
-  }
+  const {
+  project,
+  reviews,
+  summary,
+  loading,
+} = useProjectWorkspace(
+  projectId
+);
 
   function getStatusLabel(
     status: string

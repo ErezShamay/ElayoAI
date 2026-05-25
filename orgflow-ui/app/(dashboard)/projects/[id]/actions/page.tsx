@@ -1,20 +1,7 @@
 "use client";
 
-import {
-  use,
-  useEffect,
-  useState,
-} from "react";
-
-type Action = {
-  id: string;
-  action_type: string;
-  title: string;
-  description: string;
-  status: string;
-  assigned_to: string | null;
-  due_date: string | null;
-};
+import { use } from "react";
+import { useProjectWorkspace } from "@/hooks/useProjectWorkspace";
 
 type Props = {
   params: Promise<{
@@ -32,40 +19,14 @@ export default function ProjectActionsPage({
   const projectId =
     resolvedParams.id;
 
-  const [actions, setActions] =
-    useState<Action[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  useEffect(() => {
-    loadActions();
-  }, []);
-
-  async function loadActions() {
-
-    try {
-
-      const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/actions`
-        );
-
-      const data =
-        await response.json();
-
-      setActions(data);
-
-    } catch (error) {
-
-      console.error(error);
-
-    } finally {
-
-      setLoading(false);
-
-    }
-  }
+    const {
+  actions,
+  loading,
+  setActions,
+  reloadWorkspace,
+} = useProjectWorkspace(
+  projectId
+);
 
   async function closeAction(
     actionId: string
@@ -87,6 +48,8 @@ export default function ProjectActionsPage({
               action.id !== actionId
           )
       );
+
+      await reloadWorkspace();
 
     } catch (error) {
 
