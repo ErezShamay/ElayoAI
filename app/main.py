@@ -5,12 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from fastapi import (
-    FastAPI,
-    UploadFile,
-    File,
-    Form,
-)
+from fastapi import (FastAPI, UploadFile, File, Form,)
 
 from fastapi.middleware.cors import (
     CORSMiddleware
@@ -68,6 +63,10 @@ from app.repositories.workspace_activity_repository import (
 
 from app.services.report_processing_service import (
     ReportProcessingService,
+)
+
+from app.services.operational_action_service import (
+    OperationalActionService,
 )
 
 # ==========================================
@@ -151,6 +150,10 @@ operational_action_repository = (
 
 weekly_report_repository = (
     WeeklyReportRepository()
+)
+
+operational_action_service = (
+    OperationalActionService()
 )
 
 # ==========================================
@@ -364,6 +367,65 @@ def assign_action(
     )
 
     return result
+
+@app.post(
+    "/actions/{action_id}/start"
+)
+def start_action(
+    action_id: str
+):
+
+    return (
+        operational_action_service
+        .start_action(
+            action_id
+        )
+    )
+
+
+@app.post(
+    "/actions/{action_id}/block"
+)
+def block_action(
+    action_id: str
+):
+
+    return (
+        operational_action_service
+        .block_action(
+            action_id
+        )
+    )
+
+
+@app.post(
+    "/actions/{action_id}/complete"
+)
+def complete_action(
+    action_id: str
+):
+
+    return (
+        operational_action_service
+        .complete_action(
+            action_id
+        )
+    )
+
+
+@app.post(
+    "/actions/{action_id}/escalate"
+)
+def escalate_action(
+    action_id: str
+):
+
+    return (
+        operational_action_service
+        .escalate_action(
+            action_id
+        )
+    )
 
 # ==========================================
 # REPORT UPLOAD API

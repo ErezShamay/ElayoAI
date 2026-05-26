@@ -1,0 +1,19 @@
+OPEN = "OPEN"
+
+IN_PROGRESS = (
+    "IN_PROGRESS"
+)
+
+BLOCKED = "BLOCKED"
+
+ESCALATED = (
+    "ESCALATED"
+)
+
+COMPLETED = (
+    "COMPLETED"
+)
+
+CANCELLED = (
+    "CANCELLED"
+)

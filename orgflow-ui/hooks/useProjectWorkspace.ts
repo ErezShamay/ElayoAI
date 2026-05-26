@@ -133,10 +133,6 @@ export function useProjectWorkspace(
           WorkspaceResponse =
             await response.json();
 
-        // =========================
-        // UPDATE STATE
-        // =========================
-
         setProject(
           workspace.project
         );
@@ -170,6 +166,10 @@ export function useProjectWorkspace(
         console.error(
           "Failed loading workspace:",
           error
+        );
+
+        toast.error(
+          "שגיאה בטעינת סביבת העבודה"
         );
 
       } finally {
@@ -233,10 +233,6 @@ export function useProjectWorkspace(
     if (!existingReview) {
       return;
     }
-
-    // =========================
-    // OPTIMISTIC UPDATE
-    // =========================
 
     setReviews(current =>
       current.filter(
@@ -316,10 +312,6 @@ export function useProjectWorkspace(
     actionId: string
   ) {
 
-    // =========================
-    // OPTIMISTIC UPDATE
-    // =========================
-
     setActions(current =>
       current.filter(
         action => action.id !== actionId
@@ -374,6 +366,182 @@ export function useProjectWorkspace(
     }
   }
 
+  // =========================
+  // START ACTION
+  // =========================
+
+  async function startAction(
+    actionId: string
+  ) {
+
+    try {
+
+      const response =
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/start`,
+          {
+            method: "POST",
+          }
+        );
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Failed starting action"
+        );
+      }
+
+      await loadWorkspace();
+
+      toast.success(
+        "הפעולה התחילה"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Failed starting action:",
+        error
+      );
+
+      toast.error(
+        "שגיאה בהתחלת הפעולה"
+      );
+    }
+  }
+
+  // =========================
+  // BLOCK ACTION
+  // =========================
+
+  async function blockAction(
+    actionId: string
+  ) {
+
+    try {
+
+      const response =
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/block`,
+          {
+            method: "POST",
+          }
+        );
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Failed blocking action"
+        );
+      }
+
+      await loadWorkspace();
+
+      toast.success(
+        "הפעולה סומנה כחסומה"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Failed blocking action:",
+        error
+      );
+
+      toast.error(
+        "שגיאה בחסימת הפעולה"
+      );
+    }
+  }
+
+  // =========================
+  // COMPLETE ACTION
+  // =========================
+
+  async function completeAction(
+    actionId: string
+  ) {
+
+    try {
+
+      const response =
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/complete`,
+          {
+            method: "POST",
+          }
+        );
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Failed completing action"
+        );
+      }
+
+      await loadWorkspace();
+
+      toast.success(
+        "הפעולה הושלמה"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Failed completing action:",
+        error
+      );
+
+      toast.error(
+        "שגיאה בהשלמת הפעולה"
+      );
+    }
+  }
+
+  // =========================
+  // ESCALATE ACTION
+  // =========================
+
+  async function escalateAction(
+    actionId: string
+  ) {
+
+    try {
+
+      const response =
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/escalate`,
+          {
+            method: "POST",
+          }
+        );
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Failed escalating action"
+        );
+      }
+
+      await loadWorkspace();
+
+      toast.success(
+        "הפעולה הוסלמה"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Failed escalating action:",
+        error
+      );
+
+      toast.error(
+        "שגיאה בהסלמת הפעולה"
+      );
+    }
+  }
+
   return {
     project,
     reviews,
@@ -388,6 +556,12 @@ export function useProjectWorkspace(
       loadWorkspace,
 
     approveReview,
+
     closeAction,
+
+    startAction,
+    blockAction,
+    completeAction,
+    escalateAction,
   };
 }
