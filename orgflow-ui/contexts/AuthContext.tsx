@@ -80,6 +80,10 @@ export function AuthProvider({
     setLoading
   ] = useState(true);
 
+  const FORCE_LOGIN =
+    process.env.NEXT_PUBLIC_FORCE_LOGIN
+    === "true";
+
   useEffect(() => {
 
     loadSession();
@@ -130,6 +134,21 @@ export function AuthProvider({
     const {
       data,
     } = await supabase.auth.getSession();
+
+    if (
+      FORCE_LOGIN
+      && data.session?.user
+    ) {
+
+      await supabase.auth.signOut();
+
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+
+      return;
+    }
 
     setSession(
       data.session

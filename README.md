@@ -22,3 +22,12 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+```
+
+## Frontend development
+
+In `orgflow-ui/.env.local` you can control the auth behavior for local development:
+
+- `NEXT_PUBLIC_API_URL` should point to the backend, e.g. `http://127.0.0.1:8000`
+- `NEXT_PUBLIC_FORCE_LOGIN=false` means existing sessions will be respected
+- `NEXT_PUBLIC_FORCE_LOGIN=true` forces the app to sign out any session and show the login page on startup

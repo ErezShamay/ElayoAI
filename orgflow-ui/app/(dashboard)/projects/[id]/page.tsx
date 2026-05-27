@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useEffect } from "react";
 
 import { useProjectWorkspace } from "@/hooks/useProjectWorkspace";
 
@@ -36,6 +37,12 @@ export default function ProjectDetailsPage() {
   } = useProjectWorkspace(
     projectId
   );
+
+  useEffect(() => {
+    if (!loading) {
+      window.scrollTo({ top: 0, left: 0 });
+    }
+  }, [loading, projectId]);
 
   function getStatusLabel(
     status: string
