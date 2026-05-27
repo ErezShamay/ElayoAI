@@ -134,6 +134,51 @@ export function useProjectWorkspace(
   const [loading, setLoading] =
     useState(true);
 
+  function getApiUrl() {
+    return (
+      process.env.NEXT_PUBLIC_API_URL ||
+      "http://localhost:8000"
+    );
+  }
+
+  function getAlternateApiUrl(
+    url: string
+  ) {
+    if (url.includes("127.0.0.1")) {
+      return url.replace(
+        "127.0.0.1",
+        "localhost"
+      );
+    }
+
+    if (url.includes("localhost")) {
+      return url.replace(
+        "localhost",
+        "127.0.0.1"
+      );
+    }
+
+    return url;
+  }
+
+  async function tryFetch(
+    url: string,
+    options?: RequestInit
+  ) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      const altUrl =
+        getAlternateApiUrl(url);
+
+      if (altUrl === url) {
+        throw error;
+      }
+
+      return await fetch(altUrl, options);
+    }
+  }
+
   // =========================
   // LOAD WORKSPACE
   // =========================
@@ -158,11 +203,11 @@ export function useProjectWorkspace(
           summaryResponse,
         ] = await Promise.all([
 
-          fetch(
+          tryFetch(
             `${apiUrl}/projects/${projectId}/workspace`
           ),
 
-          fetch(
+          tryFetch(
             `${apiUrl}/projects/${projectId}/operational-summary`
           ),
         ]);
@@ -316,8 +361,8 @@ export function useProjectWorkspace(
     try {
 
       const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/reviews/${reviewId}/approve`,
+        await tryFetch(
+          `${getApiUrl()}/reviews/${reviewId}/approve`,
           {
             method: "POST",
 
@@ -391,8 +436,8 @@ export function useProjectWorkspace(
     try {
 
       const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/close`,
+        await tryFetch(
+          `${getApiUrl()}/actions/${actionId}/close`,
           {
             method: "POST",
           }
@@ -437,8 +482,8 @@ export function useProjectWorkspace(
     try {
 
       const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/start`,
+        await tryFetch(
+          `${getApiUrl()}/actions/${actionId}/start`,
           {
             method: "POST",
           }
@@ -481,8 +526,8 @@ export function useProjectWorkspace(
     try {
 
       const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/block`,
+        await tryFetch(
+          `${getApiUrl()}/actions/${actionId}/block`,
           {
             method: "POST",
           }
@@ -525,8 +570,8 @@ export function useProjectWorkspace(
     try {
 
       const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/complete`,
+        await tryFetch(
+          `${getApiUrl()}/actions/${actionId}/complete`,
           {
             method: "POST",
           }
@@ -569,8 +614,8 @@ export function useProjectWorkspace(
     try {
 
       const response =
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/actions/${actionId}/escalate`,
+        await tryFetch(
+          `${getApiUrl()}/actions/${actionId}/escalate`,
           {
             method: "POST",
           }
