@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import UserMenu from "@/components/auth/UserMenu";
 
 import { useEffect, useState } from "react";
 
@@ -75,6 +76,12 @@ export default function HomePage() {
     >
 
       {/* HERO */}
+
+      <div className="px-10 pt-6">
+        <div className="max-w-7xl mx-auto flex justify-end">
+          <UserMenu />
+        </div>
+      </div>
 
       <section
         className="
