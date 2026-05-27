@@ -112,3 +112,24 @@ class AutomationMonitoringService:
             "error_count":
                 error_count,
         }
+
+    # ==========================================
+    # GET CIRCUIT BREAKERS
+    # ==========================================
+
+    def get_circuit_breakers(
+        self,
+    ):
+
+        response = (
+            self.client
+            .table("circuit_breakers")
+            .select("*")
+            .order(
+                "breaker_key",
+                desc=False
+            )
+            .execute()
+        )
+
+        return response.data

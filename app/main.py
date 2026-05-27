@@ -346,3 +346,14 @@ def get_automation_stats():
         automation_monitoring_service
         .get_automation_stats()
     )
+
+
+@app.get(
+    "/automation/circuit-breakers"
+)
+def get_automation_circuit_breakers():
+
+    return (
+        automation_monitoring_service
+        .get_circuit_breakers()
+    )

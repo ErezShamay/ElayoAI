@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -37,6 +38,17 @@ type AutomationRun = {
   error_count: number;
 };
 
+type CircuitBreaker = {
+
+  breaker_key: string;
+
+  state: string;
+
+  failure_count: number;
+
+  cooldown_until: string | null;
+};
+
 export default function AutomationPage() {
 
   const [
@@ -54,23 +66,25 @@ export default function AutomationPage() {
   >([]);
 
   const [
+    breakers,
+    setBreakers
+  ] = useState<
+    CircuitBreaker[]
+  >([]);
+
+  const [
     loading,
     setLoading
   ] = useState(true);
 
-  useEffect(() => {
-
-    loadData();
-
-  }, []);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
 
     try {
 
       const [
         statsResponse,
         runsResponse,
+        breakersResponse,
       ] = await Promise.all([
 
         fetch(
@@ -80,6 +94,10 @@ export default function AutomationPage() {
         fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/automation/runs`
         ),
+
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/automation/circuit-breakers`
+        ),
       ]);
 
       const statsData =
@@ -88,12 +106,19 @@ export default function AutomationPage() {
       const runsData =
         await runsResponse.json();
 
+      const breakersData =
+        await breakersResponse.json();
+
       setStats(
         statsData
       );
 
       setRuns(
         runsData
+      );
+
+      setBreakers(
+        breakersData
       );
 
     } catch (error) {
@@ -104,7 +129,22 @@ export default function AutomationPage() {
 
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+
+    const timeoutId = window.setTimeout(
+      loadData,
+      0
+    );
+
+    return () => {
+      window.clearTimeout(
+        timeoutId
+      );
+    };
+
+  }, [loadData]);
 
   if (loading) {
 
@@ -208,6 +248,129 @@ export default function AutomationPage() {
             )
           }
         />
+
+      </div>
+
+      {/* CIRCUIT BREAKERS */}
+
+      <div className="mt-12">
+
+        <h2
+          className="
+            text-3xl
+            font-bold
+            mb-6
+          "
+        >
+          Circuit Breakers
+        </h2>
+
+        <div
+          className="
+            grid
+            grid-cols-1
+            lg:grid-cols-3
+            gap-5
+          "
+        >
+
+          {breakers.map(
+            (breaker) => (
+
+              <div
+                key={breaker.breaker_key}
+                className="
+                  bg-white
+                  dark:bg-zinc-900
+                  border
+                  border-zinc-200
+                  dark:border-zinc-800
+                  rounded-3xl
+                  p-7
+                "
+              >
+
+                <div
+                  className="
+                    flex
+                    items-start
+                    justify-between
+                    gap-4
+                  "
+                >
+
+                  <div>
+
+                    <h3
+                      className="
+                        text-xl
+                        font-black
+                      "
+                    >
+                      {breaker.breaker_key}
+                    </h3>
+
+                    <p
+                      className="
+                        mt-2
+                        text-sm
+                        text-zinc-500
+                      "
+                    >
+                      Failures: {breaker.failure_count}
+                    </p>
+
+                  </div>
+
+                  <BreakerBadge
+                    state={breaker.state}
+                  />
+
+                </div>
+
+                <div className="mt-6">
+
+                  <InfoCard
+                    title="Cooldown Until"
+                    value={
+                      breaker.cooldown_until
+
+                        ? new Date(
+                            breaker.cooldown_until
+                          ).toLocaleString(
+                            "he-IL"
+                          )
+
+                        : "-"
+                    }
+                  />
+
+                </div>
+
+              </div>
+
+            )
+          )}
+
+          {breakers.length === 0 && (
+
+            <div
+              className="
+                bg-white
+                dark:bg-zinc-900
+                border
+                border-zinc-200
+                dark:border-zinc-800
+                rounded-3xl
+                p-7
+                text-zinc-500
+              "
+            >
+              No circuit breakers recorded yet.
+            </div>
+          )}
+
+        </div>
 
       </div>
 
@@ -422,6 +585,47 @@ function InfoCard({
       </h3>
 
     </div>
+  );
+}
+
+function BreakerBadge({
+  state,
+}: {
+  state: string;
+}) {
+
+  const styles = {
+
+    CLOSED:
+      "bg-green-100 text-green-700",
+
+    HALF_OPEN:
+      "bg-yellow-100 text-yellow-700",
+
+    OPEN:
+      "bg-red-100 text-red-700",
+  };
+
+  return (
+
+    <span
+      className={`
+        px-4
+        py-2
+        rounded-full
+        font-semibold
+
+        ${
+          styles[
+            state as keyof typeof styles
+          ]
+          || "bg-zinc-100 text-zinc-700"
+        }
+      `}
+    >
+      {state}
+    </span>
+
   );
 }
 
