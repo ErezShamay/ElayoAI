@@ -159,7 +159,7 @@ class AIExecutionLogRepository:
         self,
         log_id: str,
         retry_count: int,
-        next_retry_at: datetime | None = None,
+        next_retry_at: datetime,
     ):
 
         payload = {
@@ -171,13 +171,10 @@ class AIExecutionLogRepository:
                 datetime.now(
                     timezone.utc
                 ).isoformat(),
-        }
 
-        if next_retry_at:
-
-            payload["next_retry_at"] = (
+            "next_retry_at":
                 next_retry_at.isoformat()
-            )
+        }
 
         self.client \
             .table(self.table_name) \
