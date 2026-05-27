@@ -81,6 +81,10 @@ from app.services.operational_summary_service import (
     OperationalSummaryService
 )
 
+from app.services.portfolio_insights_service import (
+    PortfolioInsightsService
+)
+
 # ==========================================
 # ENV
 # ==========================================
@@ -170,6 +174,10 @@ project_workspace_service = (
 
 operational_summary_service = (
     OperationalSummaryService()
+)
+
+portfolio_insights_service = (
+    PortfolioInsightsService()
 )
 
 # ==========================================
@@ -582,3 +590,13 @@ def get_operational_summary(
 async def startup_event():
 
     start_scheduler()
+
+@app.get(
+    "/portfolio/summary"
+)
+def get_portfolio_summary():
+
+    return (
+        portfolio_insights_service
+        .generate_portfolio_summary()
+    )

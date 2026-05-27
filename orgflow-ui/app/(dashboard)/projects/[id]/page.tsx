@@ -21,8 +21,11 @@ export default function ProjectDetailsPage() {
     actions,
     activities,
     insights,
+
     summary,
     health,
+    operationalSummary,
+
     loading,
 
     startAction,
@@ -386,6 +389,71 @@ export default function ProjectDetailsPage() {
 
           </div>
 
+        </div>
+
+      </div>
+
+      {/* AI OPERATIONAL SUMMARY */}
+
+      <div
+        className="
+          mt-10
+          bg-white
+          dark:bg-zinc-900
+          border
+          border-zinc-200
+          dark:border-zinc-800
+          rounded-3xl
+          p-10
+        "
+      >
+
+        <div
+          className="
+            flex
+            items-center
+            justify-between
+            mb-6
+          "
+        >
+
+          <div>
+
+            <p
+              className="
+                text-zinc-500
+                mb-2
+              "
+            >
+              AI Executive Summary
+            </p>
+
+            <h2
+              className="
+                text-3xl
+                font-black
+              "
+            >
+              סיכום תפעולי חכם
+            </h2>
+
+          </div>
+
+        </div>
+
+        <div
+          className="
+            whitespace-pre-wrap
+            leading-8
+            text-lg
+            text-zinc-700
+            dark:text-zinc-300
+          "
+        >
+          {
+            operationalSummary
+            ?.summary
+          }
         </div>
 
       </div>
