@@ -31,7 +31,15 @@ type Action = {
   title: string;
   description: string;
   status: string;
-  assigned_to: string | null;
+
+  assigned_to:
+    string | null;
+
+  due_date:
+    string | null;
+
+  priority:
+    string;
 };
 
 type Summary = {
@@ -39,6 +47,11 @@ type Summary = {
   actions_count: number;
   escalations_count: number;
   reports_count: number;
+};
+
+type Health = {
+  score: number;
+  status: string;
 };
 
 type Activity = {
@@ -55,6 +68,11 @@ type Insight = {
   description: string;
 };
 
+type OperationalSummary = {
+  project_id: string;
+  summary: string;
+};
+
 type WorkspaceResponse = {
   project: Project;
   reviews: Review[];
@@ -63,6 +81,7 @@ type WorkspaceResponse = {
   activities: Activity[];
   insights: Insight[];
   summary: Summary;
+  health: Health;
 };
 
 export function useProjectWorkspace(
@@ -91,12 +110,25 @@ export function useProjectWorkspace(
   const [insights, setInsights] =
     useState<Insight[]>([]);
 
+  const [
+    operationalSummary,
+    setOperationalSummary
+  ] = useState<
+    OperationalSummary | null
+  >(null);
+
   const [summary, setSummary] =
     useState<Summary>({
       reviews_count: 0,
       actions_count: 0,
       escalations_count: 0,
       reports_count: 0,
+    });
+
+  const [health, setHealth] =
+    useState<Health>({
+      score: 100,
+      status: "HEALTHY",
     });
 
   const [loading, setLoading] =
@@ -117,12 +149,24 @@ export function useProjectWorkspace(
 
         setLoading(true);
 
-        const response =
-          await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/workspace`
-          );
+        const [
+          workspaceResponse,
+          summaryResponse,
+        ] = await Promise.all([
 
-        if (!response.ok) {
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/workspace`
+          ),
+
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/operational-summary`
+          ),
+        ]);
+
+        if (
+          !workspaceResponse.ok
+          || !summaryResponse.ok
+        ) {
 
           throw new Error(
             "Failed loading workspace"
@@ -131,7 +175,11 @@ export function useProjectWorkspace(
 
         const workspace:
           WorkspaceResponse =
-            await response.json();
+            await workspaceResponse.json();
+
+        const operationalSummaryData:
+          OperationalSummary =
+            await summaryResponse.json();
 
         setProject(
           workspace.project
@@ -159,6 +207,14 @@ export function useProjectWorkspace(
 
         setSummary(
           workspace.summary
+        );
+
+        setHealth(
+          workspace.health
+        );
+
+        setOperationalSummary(
+          operationalSummaryData
         );
 
       } catch (error) {
@@ -549,7 +605,11 @@ export function useProjectWorkspace(
     exceptions,
     activities,
     insights,
+
     summary,
+    health,
+    operationalSummary,
+
     loading,
 
     reloadWorkspace:

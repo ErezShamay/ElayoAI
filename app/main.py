@@ -69,6 +69,18 @@ from app.services.operational_action_service import (
     OperationalActionService,
 )
 
+from app.services.project_workspace_service import (
+    ProjectWorkspaceService
+)
+
+from app.jobs.scheduler import (
+    start_scheduler
+)
+
+from app.services.operational_summary_service import (
+    OperationalSummaryService
+)
+
 # ==========================================
 # ENV
 # ==========================================
@@ -152,8 +164,12 @@ weekly_report_repository = (
     WeeklyReportRepository()
 )
 
-operational_action_service = (
-    OperationalActionService()
+project_workspace_service = (
+    ProjectWorkspaceService()
+)
+
+operational_summary_service = (
+    OperationalSummaryService()
 )
 
 # ==========================================
@@ -513,79 +529,12 @@ def get_project_workspace(
     project_id: str
 ):
 
-    project = (
-        project_repository
-        .get_project_by_id(
+    return (
+        project_workspace_service
+        .get_workspace(
             project_id
         )
     )
-
-    reviews = (
-        ai_review_service
-        .get_reviews_by_project(
-            project_id
-        )
-    )
-
-    actions = (
-        operational_action_repository
-        .get_open_actions_by_project(
-            project_id
-        )
-    )
-
-    exceptions = (
-        operational_action_repository
-        .get_exceptions_by_project(
-            project_id
-        )
-    )
-
-    activities = (
-        WorkspaceActivityRepository
-        .get_project_activity(
-            project_id
-        )
-    )
-
-    insights = (
-        ProjectInsightsService
-        .generate_project_insights(
-            project_id
-        )
-    )
-
-    reports = (
-        weekly_report_repository
-        .get_reports_by_project(
-            project_id
-        )
-    )
-
-    summary = {
-
-        "reviews_count":
-            len(reviews),
-
-        "actions_count":
-            len(actions),
-
-        "escalations_count":
-            len(exceptions),
-
-        "reports_count":
-            len(reports),
-    }
-
-    return {
-        "project": project,
-        "reviews": reviews,
-        "actions": actions,
-        "exceptions": exceptions,
-        "activities": activities,
-        "insights": insights,
-        "summary": summary,
-    }
 
 # ==========================================
 # ORGANIZATION APIs
@@ -598,3 +547,38 @@ def get_organizations():
         organization_repository
         .get_all_organizations()
     )
+
+# ==========================================
+# OPERATIONS APIs
+# ==========================================
+
+@app.post(
+    "/operations/run-escalations"
+)
+def run_escalations():
+
+    return (
+        action_escalation_service
+        .escalate_overdue_actions()
+    )
+
+@app.get(
+    "/projects/{project_id}/operational-summary"
+)
+def get_operational_summary(
+    project_id: str
+):
+
+    return (
+        operational_summary_service
+        .generate_project_summary(
+            project_id
+        )
+    )
+
+@app.on_event(
+    "startup"
+)
+async def startup_event():
+
+    start_scheduler()

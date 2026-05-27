@@ -18,10 +18,18 @@ export default function ProjectDetailsPage() {
   const {
     project,
     reviews,
+    actions,
     activities,
     insights,
     summary,
+    health,
     loading,
+
+    startAction,
+    blockAction,
+    completeAction,
+    escalateAction,
+
   } = useProjectWorkspace(
     projectId
   );
@@ -41,6 +49,46 @@ export default function ProjectDetailsPage() {
       default:
         return status;
     }
+  }
+
+  function getActionStatusLabel(
+    status: string
+  ) {
+
+    switch (status) {
+
+      case "OPEN":
+        return "פתוח";
+
+      case "IN_PROGRESS":
+        return "בטיפול";
+
+      case "BLOCKED":
+        return "חסום";
+
+      case "ESCALATED":
+        return "הוסלם";
+
+      case "COMPLETED":
+        return "הושלם";
+
+      default:
+        return status;
+    }
+  }
+
+  function isOverdue(
+    dueDate: string | null
+  ) {
+
+    if (!dueDate) {
+      return false;
+    }
+
+    return (
+      new Date(dueDate)
+      < new Date()
+    );
   }
 
   if (loading) {
@@ -159,81 +207,26 @@ export default function ProjectDetailsPage() {
           "
         >
 
-          <div
-            className="
-              bg-zinc-50
-              dark:bg-zinc-800/50
-              rounded-2xl
-              p-6
-            "
-          >
+          <InfoCard
+            title="מפקח אחראי"
+            value={project.supervisor_name}
+          />
 
-            <h3
-              className="
-                font-semibold
-                mb-3
-              "
-            >
-              מפקח אחראי
-            </h3>
+          <InfoCard
+            title="אימייל מפקח"
+            value={project.supervisor_email}
+          />
 
-            <p>
-              {project.supervisor_name}
-            </p>
-
-          </div>
-
-          <div
-            className="
-              bg-zinc-50
-              dark:bg-zinc-800/50
-              rounded-2xl
-              p-6
-            "
-          >
-
-            <h3
-              className="
-                font-semibold
-                mb-3
-              "
-            >
-              אימייל מפקח
-            </h3>
-
-            <p>
-              {project.supervisor_email}
-            </p>
-
-          </div>
-
-          <div
-            className="
-              bg-zinc-50
-              dark:bg-zinc-800/50
-              rounded-2xl
-              p-6
-            "
-          >
-
-            <h3
-              className="
-                font-semibold
-                mb-3
-              "
-            >
-              תאריך יצירה
-            </h3>
-
-            <p>
-              {new Date(
+          <InfoCard
+            title="תאריך יצירה"
+            value={
+              new Date(
                 project.created_at
               ).toLocaleDateString(
                 "he-IL"
-              )}
-            </p>
-
-          </div>
+              )
+            }
+          />
 
         </div>
 
@@ -290,29 +283,110 @@ export default function ProjectDetailsPage() {
         "
       >
 
-        <p
+        <div
           className="
-            text-zinc-500
-            mb-3
+            flex
+            justify-between
+            items-center
+            gap-8
+            flex-wrap
           "
         >
-          מצב הפרויקט
-        </p>
 
-        <h2
-          className="
-            text-4xl
-            font-black
-          "
-        >
-          {summary.escalations_count > 3
-            ? "קריטי"
+          <div>
 
-            : summary.escalations_count > 0
-            ? "דורש טיפול"
+            <p
+              className="
+                text-zinc-500
+                mb-3
+              "
+            >
+              מצב הפרויקט
+            </p>
 
-            : "יציב"}
-        </h2>
+            <h2
+              className="
+                text-4xl
+                font-black
+              "
+            >
+              {
+                health.status ===
+                "HEALTHY"
+
+                  ? "יציב"
+
+                  : health.status ===
+                    "WARNING"
+
+                  ? "דורש טיפול"
+
+                  : "קריטי"
+              }
+            </h2>
+
+          </div>
+
+          <div
+            className="
+              text-center
+            "
+          >
+
+            <div
+              className={`
+                w-32
+                h-32
+                rounded-full
+                flex
+                items-center
+                justify-center
+                text-4xl
+                font-black
+
+                ${
+                  health.score >= 80
+
+                    ? `
+                      bg-green-100
+                      text-green-700
+                      dark:bg-green-900/30
+                      dark:text-green-300
+                    `
+
+                    : health.score >= 50
+
+                    ? `
+                      bg-yellow-100
+                      text-yellow-700
+                      dark:bg-yellow-900/30
+                      dark:text-yellow-300
+                    `
+
+                    : `
+                      bg-red-100
+                      text-red-700
+                      dark:bg-red-900/30
+                      dark:text-red-300
+                    `
+                }
+              `}
+            >
+              {health.score}
+            </div>
+
+            <p
+              className="
+                mt-4
+                text-zinc-500
+              "
+            >
+              Health Score
+            </p>
+
+          </div>
+
+        </div>
 
       </div>
 
@@ -333,6 +407,297 @@ export default function ProjectDetailsPage() {
         <ProjectActivityTimeline
           activities={activities}
         />
+
+      </div>
+
+      {/* ACTIONS */}
+
+      <div className="mt-10">
+
+        <h2
+          className="
+            text-3xl
+            font-bold
+            mb-6
+          "
+        >
+          פעולות תפעוליות
+        </h2>
+
+        {actions.length === 0 && (
+
+          <div
+            className="
+              bg-white
+              dark:bg-zinc-900
+              border
+              border-zinc-200
+              dark:border-zinc-800
+              rounded-3xl
+              p-8
+            "
+          >
+            אין פעולות פתוחות
+          </div>
+
+        )}
+
+        <div className="grid gap-6">
+
+          {actions.map((action) => (
+
+            <div
+              key={action.id}
+              className="
+                bg-white
+                dark:bg-zinc-900
+                border
+                border-zinc-200
+                dark:border-zinc-800
+                rounded-3xl
+                p-8
+              "
+            >
+
+              <div
+                className="
+                  flex
+                  justify-between
+                  items-start
+                  gap-6
+                "
+              >
+
+                <div className="flex-1">
+
+                  <div
+                    className="
+                      flex
+                      items-center
+                      gap-3
+                      mb-4
+                    "
+                  >
+
+                    <h3
+                      className="
+                        text-xl
+                        font-bold
+                      "
+                    >
+                      {action.title}
+                    </h3>
+
+                    <span
+                      className="
+                        text-xs
+                        px-3
+                        py-1
+                        rounded-full
+                        bg-zinc-100
+                        dark:bg-zinc-800
+                      "
+                    >
+                      {getActionStatusLabel(
+                        action.status
+                      )}
+                    </span>
+
+                  </div>
+
+                  <p
+                    className="
+                      text-zinc-600
+                      dark:text-zinc-400
+                    "
+                  >
+                    {action.description}
+                  </p>
+
+                  <div
+                    className="
+                      flex
+                      gap-3
+                      mt-4
+                      flex-wrap
+                    "
+                  >
+
+                    <span
+                      className="
+                        text-xs
+                        px-3
+                        py-1
+                        rounded-full
+                        bg-zinc-100
+                        dark:bg-zinc-800
+                      "
+                    >
+                      עדיפות:
+                      {" "}
+                      {action.priority}
+                    </span>
+
+                    {action.due_date && (
+
+                      <span
+                        className={`
+                          text-xs
+                          px-3
+                          py-1
+                          rounded-full
+
+                          ${
+                            isOverdue(
+                              action.due_date
+                            )
+
+                              ? `
+                                bg-red-100
+                                text-red-700
+                                dark:bg-red-900/30
+                                dark:text-red-300
+                              `
+
+                              : `
+                                bg-blue-100
+                                text-blue-700
+                                dark:bg-blue-900/30
+                                dark:text-blue-300
+                              `
+                          }
+                        `}
+                      >
+                        יעד:
+                        {" "}
+
+                        {
+                          new Date(
+                            action.due_date
+                          ).toLocaleDateString(
+                            "he-IL"
+                          )
+                        }
+
+                      </span>
+
+                    )}
+
+                    {isOverdue(
+                      action.due_date
+                    ) && (
+
+                      <span
+                        className="
+                          text-xs
+                          px-3
+                          py-1
+                          rounded-full
+                          bg-red-600
+                          text-white
+                        "
+                      >
+                        באיחור
+                      </span>
+
+                    )}
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* ACTION CONTROLS */}
+
+              <div
+                className="
+                  flex
+                  flex-wrap
+                  gap-3
+                  mt-6
+                "
+              >
+
+                {action.status === "OPEN" && (
+
+                  <>
+                    <ActionButton
+                      label="התחל"
+                      onClick={() =>
+                        startAction(
+                          action.id
+                        )
+                      }
+                    />
+
+                    <DangerButton
+                      label="הסלם"
+                      onClick={() =>
+                        escalateAction(
+                          action.id
+                        )
+                      }
+                    />
+                  </>
+
+                )}
+
+                {action.status === "IN_PROGRESS" && (
+
+                  <>
+                    <SuccessButton
+                      label="השלם"
+                      onClick={() =>
+                        completeAction(
+                          action.id
+                        )
+                      }
+                    />
+
+                    <WarningButton
+                      label="חסום"
+                      onClick={() =>
+                        blockAction(
+                          action.id
+                        )
+                      }
+                    />
+                  </>
+
+                )}
+
+                {action.status === "BLOCKED" && (
+
+                  <>
+                    <ActionButton
+                      label="המשך טיפול"
+                      onClick={() =>
+                        startAction(
+                          action.id
+                        )
+                      }
+                    />
+
+                    <DangerButton
+                      label="הסלם"
+                      onClick={() =>
+                        escalateAction(
+                          action.id
+                        )
+                      }
+                    />
+                  </>
+
+                )}
+
+              </div>
+
+            </div>
+
+          ))}
+
+        </div>
 
       </div>
 
@@ -518,6 +883,148 @@ function KpiCard({
       </h2>
 
     </div>
+
+  );
+}
+
+type InfoCardProps = {
+  title: string;
+  value: string;
+};
+
+function InfoCard({
+  title,
+  value,
+}: InfoCardProps) {
+
+  return (
+
+    <div
+      className="
+        bg-zinc-50
+        dark:bg-zinc-800/50
+        rounded-2xl
+        p-6
+      "
+    >
+
+      <h3
+        className="
+          font-semibold
+          mb-3
+        "
+      >
+        {title}
+      </h3>
+
+      <p>{value}</p>
+
+    </div>
+
+  );
+}
+
+type ButtonProps = {
+  label: string;
+  onClick: () => void;
+};
+
+function ActionButton({
+  label,
+  onClick,
+}: ButtonProps) {
+
+  return (
+
+    <button
+      onClick={onClick}
+      className="
+        px-4
+        py-2
+        rounded-xl
+        bg-blue-600
+        text-white
+        hover:bg-blue-700
+        transition
+      "
+    >
+      {label}
+    </button>
+
+  );
+}
+
+function SuccessButton({
+  label,
+  onClick,
+}: ButtonProps) {
+
+  return (
+
+    <button
+      onClick={onClick}
+      className="
+        px-4
+        py-2
+        rounded-xl
+        bg-green-600
+        text-white
+        hover:bg-green-700
+        transition
+      "
+    >
+      {label}
+    </button>
+
+  );
+}
+
+function WarningButton({
+  label,
+  onClick,
+}: ButtonProps) {
+
+  return (
+
+    <button
+      onClick={onClick}
+      className="
+        px-4
+        py-2
+        rounded-xl
+        bg-yellow-500
+        text-white
+        hover:bg-yellow-600
+        transition
+      "
+    >
+      {label}
+    </button>
+
+  );
+}
+
+function DangerButton({
+  label,
+  onClick,
+}: ButtonProps) {
+
+  return (
+
+    <button
+      onClick={onClick}
+      className="
+        px-4
+        py-2
+        rounded-xl
+        bg-red-600
+        text-white
+        hover:bg-red-700
+        transition
+      "
+    >
+      {label}
+    </button>
 
   );
 }
