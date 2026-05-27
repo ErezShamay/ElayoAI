@@ -198,6 +198,25 @@ class AIAutomationService:
                 "Project missing id"
             )
 
+            self.log_ai_execution(
+
+                execution_type=
+                    "PROJECT_PROCESSING_SKIPPED",
+
+                status=
+                    "SKIPPED",
+
+                details={
+                    "reason":
+                        "missing_project_id",
+
+                    "project_name":
+                        project.get(
+                            "project_name"
+                        ),
+                },
+            )
+
             return
 
         workspace = (
@@ -331,6 +350,39 @@ class AIAutomationService:
         )
 
         if not is_critical:
+
+            self.log_ai_execution(
+
+                project_id=
+                    project["id"],
+
+                execution_type=
+                    "AI_DECISION",
+
+                status=
+                    "NO_ACTION_NEEDED",
+
+                confidence=
+                    confidence,
+
+                details={
+                    "decision":
+                        "NO_ACTION_NEEDED",
+
+                    "reason":
+                        "project_not_critical",
+
+                    "status":
+                        status,
+
+                    "score":
+                        score,
+
+                    "risk_level":
+                        risk_level,
+                },
+            )
+
             return
 
         self.create_critical_project_activity(
@@ -435,6 +487,29 @@ class AIAutomationService:
             )
 
             return
+
+        self.log_ai_execution(
+
+            project_id=
+                project["id"],
+
+            execution_type=
+                "AUTO_EXECUTION_APPROVED",
+
+            status=
+                "SUCCESS",
+
+            confidence=
+                confidence,
+
+            details={
+                "decision":
+                    "AUTO_EXECUTE",
+
+                "reason":
+                    "confidence_above_threshold",
+            },
+        )
 
         self.create_ai_operational_action(
 
@@ -560,6 +635,15 @@ class AIAutomationService:
             .get_best_assignee(
                 project["id"]
             )
+        )
+
+        self.log_ai_assignment_decision(
+
+            project=
+                project,
+
+            best_assignee=
+                best_assignee,
         )
 
         assigned_to = (
@@ -798,6 +882,67 @@ class AIAutomationService:
 
             f"Action assigned to: "
             f"{best_assignee.get('full_name')}"
+        )
+
+    # ==========================================
+    # LOG AI ASSIGNMENT DECISION
+    # ==========================================
+
+    def log_ai_assignment_decision(
+        self,
+        project: dict,
+        best_assignee: dict | None,
+    ):
+
+        if not best_assignee:
+
+            self.log_ai_execution(
+
+                project_id=
+                    project["id"],
+
+                execution_type=
+                    "AI_ASSIGNMENT_DECISION",
+
+                status=
+                    "SKIPPED",
+
+                details={
+                    "decision":
+                        "NO_ASSIGNEE",
+
+                    "reason":
+                        "no_best_assignee_found",
+                },
+            )
+
+            return
+
+        self.log_ai_execution(
+
+            project_id=
+                project["id"],
+
+            execution_type=
+                "AI_ASSIGNMENT_DECISION",
+
+            status=
+                "SUCCESS",
+
+            details={
+                "decision":
+                    "ASSIGN",
+
+                "assigned_to":
+                    best_assignee.get(
+                        "id"
+                    ),
+
+                "assigned_to_name":
+                    best_assignee.get(
+                        "full_name"
+                    ),
+            },
         )
 
     # ==========================================
