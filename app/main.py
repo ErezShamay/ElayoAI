@@ -8,6 +8,8 @@ from fastapi import (
     HTTPException,
     Depends,
     Request,
+    WebSocket,
+    WebSocketDisconnect,
     UploadFile,
     File,
     Form,
@@ -94,6 +96,10 @@ from app.services.project_workspace_service import (
     ProjectWorkspaceService
 )
 
+from app.services.workspace_activity_service import (
+    WorkspaceActivityService
+)
+
 from app.services.operational_summary_service import (
     OperationalSummaryService
 )
@@ -116,6 +122,39 @@ from app.services.alert_engine_service import (
 
 from app.services.automation_monitoring_service import (
     AutomationMonitoringService
+)
+from app.services.automation_cron_management_service import (
+    AutomationCronManagementService
+)
+from app.services.automation_replay_service import (
+    AutomationReplayService
+)
+from app.services.automation_control_service import (
+    AutomationControlService
+)
+from app.services.automation_job_queue_service import (
+    AutomationJobQueueService
+)
+from app.services.automation_retry_policy_service import (
+    AutomationRetryPolicyService
+)
+from app.services.automation_worker_service import (
+    AutomationWorkerService
+)
+from app.services.automation_scheduler_guard_service import (
+    AutomationSchedulerGuardService
+)
+from app.services.automation_governance_service import (
+    AutomationGovernanceService
+)
+from app.services.workflow_versioning_service import (
+    WorkflowVersioningService
+)
+from app.services.workflow_execution_log_service import (
+    WorkflowExecutionLogService
+)
+from app.services.dynamic_automation_builder_service import (
+    DynamicAutomationBuilderService
 )
 
 # ==========================================
@@ -144,6 +183,46 @@ from app.automation.jobs import (
 
 automation_monitoring_service = (
     AutomationMonitoringService()
+)
+automation_cron_management_service = (
+    AutomationCronManagementService()
+)
+automation_replay_service = (
+    AutomationReplayService()
+)
+automation_control_service = (
+    AutomationControlService()
+)
+automation_job_queue_service = (
+    AutomationJobQueueService()
+)
+automation_retry_policy_service = (
+    AutomationRetryPolicyService()
+)
+automation_worker_service = (
+    AutomationWorkerService(
+        queue_service=automation_job_queue_service,
+        retry_policy_service=automation_retry_policy_service,
+    )
+)
+automation_worker_service.register_worker(
+    "worker-default",
+    capabilities=["sla_monitoring", "ai_automation", "ai_recovery"],
+)
+automation_scheduler_guard_service = (
+    AutomationSchedulerGuardService()
+)
+automation_governance_service = (
+    AutomationGovernanceService()
+)
+workflow_versioning_service = (
+    WorkflowVersioningService()
+)
+workflow_execution_log_service = (
+    WorkflowExecutionLogService()
+)
+dynamic_automation_builder_service = (
+    DynamicAutomationBuilderService()
 )
 
 # ==========================================
@@ -177,6 +256,70 @@ app.state.startup_complete = False
 DEMO_ORGANIZATION_ID = (
     "bb2c760b-81cb-4e49-b057-4426406d5e71"
 )
+
+
+class WorkspaceConnectionManager:
+    def __init__(self):
+        self._project_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, project_id: str, websocket: WebSocket):
+        await websocket.accept()
+        self._project_connections.setdefault(project_id, []).append(websocket)
+
+    def disconnect(self, project_id: str, websocket: WebSocket):
+        sockets = self._project_connections.get(project_id, [])
+        self._project_connections[project_id] = [
+            candidate for candidate in sockets if candidate is not websocket
+        ]
+
+    async def broadcast_activity(self, project_id: str, activity: dict):
+        sockets = list(self._project_connections.get(project_id, []))
+        disconnected: list[WebSocket] = []
+        for websocket in sockets:
+            try:
+                await websocket.send_json(
+                    {
+                        "event": "workspace.activity.created",
+                        "project_id": project_id,
+                        "activity": activity,
+                    }
+                )
+            except RuntimeError:
+                disconnected.append(websocket)
+        for websocket in disconnected:
+            self.disconnect(project_id, websocket)
+
+
+class NotificationConnectionManager:
+    def __init__(self):
+        self._profile_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, profile_id: str, websocket: WebSocket):
+        await websocket.accept()
+        self._profile_connections.setdefault(profile_id, []).append(websocket)
+
+    def disconnect(self, profile_id: str, websocket: WebSocket):
+        sockets = self._profile_connections.get(profile_id, [])
+        self._profile_connections[profile_id] = [
+            candidate for candidate in sockets if candidate is not websocket
+        ]
+
+    async def broadcast_notification(self, profile_id: str, notification: dict):
+        sockets = list(self._profile_connections.get(profile_id, []))
+        disconnected: list[WebSocket] = []
+        for websocket in sockets:
+            try:
+                await websocket.send_json(
+                    {
+                        "event": "notification.created",
+                        "profile_id": profile_id,
+                        "notification": notification,
+                    }
+                )
+            except RuntimeError:
+                disconnected.append(websocket)
+        for websocket in disconnected:
+            self.disconnect(profile_id, websocket)
 
 # ==========================================
 # MIDDLEWARE
@@ -304,6 +447,15 @@ notification_service = (
 report_processing_service = (
     ReportProcessingService()
 )
+workspace_activity_service = (
+    WorkspaceActivityService()
+)
+workspace_connection_manager = (
+    WorkspaceConnectionManager()
+)
+notification_connection_manager = (
+    NotificationConnectionManager()
+)
 
 # ==========================================
 # AUTOMATION ENGINE
@@ -362,6 +514,52 @@ class AssignActionRequest(
 ):
 
     assigned_to: str
+
+
+class AssignReviewerRequest(
+    BaseModel
+):
+
+    reviewer_id: str
+
+
+class HumanOverrideRequest(
+    BaseModel
+):
+
+    overridden_by: str
+    override_reason: str
+
+
+class RecommendationReviewRequest(
+    BaseModel
+):
+
+    reviewed_by: str
+    decision: str
+    review_notes: str | None = None
+
+
+class ReviewCommentRequest(
+    BaseModel
+):
+    author: str
+    comment: str
+
+
+class ReviewNotificationRequest(
+    BaseModel
+):
+    recipient_id: str
+    message: str
+    channel: str = "IN_APP"
+
+
+class ManualApprovalRequest(
+    BaseModel
+):
+    requested_by: str
+    notes: str | None = None
 
 
 class CreateProjectRequest(
@@ -427,6 +625,236 @@ class ReportTagsRequest(
     BaseModel
 ):
     tags: list[str]
+
+
+class ActionRecurringRequest(
+    BaseModel
+):
+    title: str
+    recurrence_rule: str
+    created_by: str
+
+
+class ActionBulkRequest(
+    BaseModel
+):
+    actions: list[dict]
+
+
+class ActionAttachmentRequest(
+    BaseModel
+):
+    filename: str
+    uploaded_by: str
+
+
+class ActionNotificationRequest(
+    BaseModel
+):
+    recipient_id: str
+    message: str
+    channel: str = "IN_APP"
+
+
+class NotificationCreateRequest(
+    BaseModel
+):
+    title: str
+    message: str
+    notification_type: str = "GENERAL"
+    channel: str = "IN_APP"
+    channels: list[str] | None = None
+    category: str | None = None
+    priority: str = "NORMAL"
+    banner: bool = False
+    max_attempts: int = 3
+    force_fail_channels: list[str] = Field(default_factory=list)
+
+
+class NotificationReadSyncRequest(
+    BaseModel
+):
+    read_ids: list[str]
+
+
+class NotificationPreferenceRequest(
+    BaseModel
+):
+    channels: dict[str, bool] = Field(default_factory=dict)
+    categories: dict[str, bool] = Field(default_factory=dict)
+
+
+class NotificationEscalationRequest(
+    BaseModel
+):
+    title: str
+    message: str
+    escalation_level: str
+
+
+class ActionCommentRequest(
+    BaseModel
+):
+    comment: str
+    created_by: str
+
+
+class ActionRetryRequest(
+    BaseModel
+):
+    reason: str
+
+
+class ActionOwnerRequest(
+    BaseModel
+):
+    owner_id: str
+
+
+class ActionEscalationRequest(
+    BaseModel
+):
+    level: str
+    reason: str
+
+
+class ActionAIGenerationRequest(
+    BaseModel
+):
+    context: str
+
+
+class ActionTemplateRequest(
+    BaseModel
+):
+    name: str
+    title: str
+    description: str
+    category: str
+
+
+class ActionTemplateApplyRequest(
+    BaseModel
+):
+    created_by: str
+
+
+class ActionCategoryRequest(
+    BaseModel
+):
+    category: str
+
+
+class WorkspaceActivityCreateRequest(
+    BaseModel
+):
+    activity_type: str
+    title: str
+    description: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    actor_id: str | None = None
+
+
+class WorkspaceLayoutRequest(
+    BaseModel
+):
+    layout: dict
+
+
+class WorkspaceWidgetsRequest(
+    BaseModel
+):
+    widgets: list[dict]
+
+
+class CrossProjectWorkspaceRequest(
+    BaseModel
+):
+    project_ids: list[str]
+    limit: int = 50
+
+
+class AutomationCronScheduleRequest(
+    BaseModel
+):
+    cron: str
+    enabled: bool = True
+
+
+class AutomationJobStatusRequest(
+    BaseModel
+):
+    enabled: bool
+
+
+class AutomationQueueRequest(
+    BaseModel
+):
+    job_name: str
+    payload: dict = Field(default_factory=dict)
+    priority: int = 5
+    idempotency_key: str | None = None
+
+
+class AutomationWorkerProcessRequest(
+    BaseModel
+):
+    worker_id: str = "worker-default"
+
+
+class AutomationRetryPolicyRequest(
+    BaseModel
+):
+    max_attempts: int
+    backoff_seconds: int
+    multiplier: int = 2
+
+
+class AutomationRetryEvaluationRequest(
+    BaseModel
+):
+    attempts: int
+
+
+class AutomationSchedulerClaimRequest(
+    BaseModel
+):
+    job_name: str
+    owner_id: str = "scheduler"
+    window_seconds: int = 30
+
+
+class AutomationGovernanceRequest(
+    BaseModel
+):
+    job_name: str
+    payload: dict = Field(default_factory=dict)
+    actor: str = "system"
+
+
+class WorkflowVersionCreateRequest(
+    BaseModel
+):
+    workflow_name: str
+    definition: dict = Field(default_factory=dict)
+    published_by: str
+    activate: bool = True
+
+
+class WorkflowExecutionLogCreateRequest(
+    BaseModel
+):
+    level: str
+    message: str
+    context: dict = Field(default_factory=dict)
+
+
+class DynamicWorkflowBuilderRequest(
+    BaseModel
+):
+    workflow_name: str
+    created_by: str
+    steps: list[dict]
 
 
 # ==========================================
@@ -643,6 +1071,304 @@ def get_pending_reviews():
         .get_pending_reviews()
     )
 
+
+@app.get("/reviews/dashboard")
+def get_review_dashboard(limit: int = 20):
+
+    return (
+        ai_review_service
+        .get_review_dashboard(
+            recent_limit=limit
+        )
+    )
+
+
+@app.post("/reviews/{interpretation_id}/assign")
+def assign_review_reviewer(
+    interpretation_id: str,
+    request: AssignReviewerRequest,
+):
+    assignment = (
+        ai_review_service
+        .assign_reviewer(
+            interpretation_id=
+                interpretation_id,
+            reviewer_id=
+                request.reviewer_id,
+        )
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+    return assignment
+
+
+@app.get("/reviews/sla")
+def get_reviews_sla_tracking(target_hours: int = 48):
+    return (
+        ai_review_service
+        .get_review_sla_tracking(
+            target_hours=target_hours
+        )
+    )
+
+
+@app.get("/reviews/{interpretation_id}/confidence")
+def get_review_confidence(
+    interpretation_id: str,
+):
+    confidence_payload = (
+        ai_review_service
+        .get_review_confidence(
+            interpretation_id
+        )
+    )
+
+    if not confidence_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+    return confidence_payload
+
+
+@app.post("/reviews/{interpretation_id}/override")
+def apply_review_human_override(
+    interpretation_id: str,
+    request: HumanOverrideRequest,
+):
+    override_payload = (
+        ai_review_service
+        .apply_human_override(
+            interpretation_id=
+                interpretation_id,
+            overridden_by=
+                request.overridden_by,
+            override_reason=
+                request.override_reason,
+        )
+    )
+
+    if not override_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+    return override_payload
+
+
+@app.get("/reviews/analytics")
+def get_review_analytics():
+    return (
+        ai_review_service
+        .get_review_analytics()
+    )
+
+
+@app.get("/reviews/{interpretation_id}/explainability")
+def get_review_explainability(
+    interpretation_id: str,
+):
+    explainability_payload = (
+        ai_review_service
+        .get_review_explainability(
+            interpretation_id
+        )
+    )
+
+    if not explainability_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+    return explainability_payload
+
+
+@app.get("/reviews/{interpretation_id}/audit-logs")
+def get_review_audit_logs(
+    interpretation_id: str,
+):
+    audit_payload = (
+        ai_review_service
+        .get_review_audit_logs(
+            interpretation_id
+        )
+    )
+
+    if not audit_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+    return audit_payload
+
+
+@app.post("/reviews/{interpretation_id}/escalate")
+def run_review_escalation(
+    interpretation_id: str,
+    force: bool = False,
+):
+    escalation_payload = (
+        ai_review_service
+        .run_review_escalation_logic(
+            interpretation_id=
+                interpretation_id,
+            force=
+                force,
+        )
+    )
+
+    if not escalation_payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+    return escalation_payload
+
+
+@app.post("/reviews/{interpretation_id}/recommendation/review")
+def review_ai_recommendation(
+    interpretation_id: str,
+    request: RecommendationReviewRequest,
+):
+    try:
+        payload = (
+            ai_review_service
+            .review_ai_recommendation(
+                interpretation_id=
+                    interpretation_id,
+                decision=
+                    request.decision,
+                reviewed_by=
+                    request.reviewed_by,
+                review_notes=
+                    request.review_notes,
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        ) from exc
+
+    if not payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+    return payload
+
+
+@app.post("/reviews/{interpretation_id}/comments")
+def add_review_comment(
+    interpretation_id: str,
+    request: ReviewCommentRequest,
+):
+    payload = (
+        ai_review_service
+        .add_review_comment(
+            interpretation_id=
+                interpretation_id,
+            author=
+                request.author,
+            comment=
+                request.comment,
+        )
+    )
+    if not payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+    return payload
+
+
+@app.get("/reviews/{interpretation_id}/comments")
+def list_review_comments(
+    interpretation_id: str,
+):
+    payload = (
+        ai_review_service
+        .list_review_comments(
+            interpretation_id
+        )
+    )
+    if not payload:
+        raise HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+    return payload
+
+
+@app.post("/reviews/{interpretation_id}/notifications")
+def send_review_notification(
+    interpretation_id: str,
+    request: ReviewNotificationRequest,
+):
+    payload = (
+        ai_review_service
+        .send_review_notification(
+            interpretation_id=
+                interpretation_id,
+            recipient_id=
+                request.recipient_id,
+            message=
+                request.message,
+            channel=
+                request.channel,
+        )
+    )
+    if not payload:
+        raise HTTPException(status_code=404, detail="Review not found")
+    return payload
+
+
+@app.get("/reviews/{interpretation_id}/notifications")
+def list_review_notifications(
+    interpretation_id: str,
+):
+    payload = (
+        ai_review_service
+        .list_review_notifications(
+            interpretation_id
+        )
+    )
+    if not payload:
+        raise HTTPException(status_code=404, detail="Review not found")
+    return payload
+
+
+@app.post("/reviews/{interpretation_id}/manual-approval")
+def create_manual_approval_workflow(
+    interpretation_id: str,
+    request: ManualApprovalRequest,
+):
+    payload = (
+        ai_review_service
+        .create_manual_approval_workflow(
+            interpretation_id=
+                interpretation_id,
+            requested_by=
+                request.requested_by,
+            notes=
+                request.notes,
+        )
+    )
+    if not payload:
+        raise HTTPException(status_code=404, detail="Review not found")
+    return payload
+
 @app.get("/organizations")
 def get_organizations():
 
@@ -669,12 +1395,99 @@ def get_profile(profile_id: str):
     return profile
 
 @app.get("/profiles/{profile_id}/notifications")
-def get_profile_notifications(profile_id: str):
+def get_profile_notifications(profile_id: str, unread_only: bool = False):
+    return notification_service.get_notifications(profile_id, unread_only=unread_only)
 
-    return (
-        notification_service
-        .get_notifications(profile_id)
+
+@app.post("/profiles/{profile_id}/notifications")
+async def create_profile_notification(profile_id: str, request: NotificationCreateRequest):
+    payload = notification_service.create_notification(
+        profile_id=profile_id,
+        title=request.title,
+        message=request.message,
+        notification_type=request.notification_type,
+        channel=request.channel,
+        channels=request.channels,
+        category=request.category,
+        priority=request.priority,
+        banner=request.banner,
+        max_attempts=request.max_attempts,
+        force_fail_channels=request.force_fail_channels,
     )
+    await notification_connection_manager.broadcast_notification(profile_id, payload)
+    return payload
+
+
+@app.websocket("/profiles/{profile_id}/notifications/stream")
+async def stream_profile_notifications(profile_id: str, websocket: WebSocket):
+    await notification_connection_manager.connect(profile_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        notification_connection_manager.disconnect(profile_id, websocket)
+
+
+@app.get("/profiles/{profile_id}/notifications/unread")
+def get_profile_unread_notifications(profile_id: str):
+    items = notification_service.get_unread_notifications(profile_id)
+    return {"profile_id": profile_id, "total": len(items), "items": items}
+
+
+@app.get("/profiles/{profile_id}/notifications/digest")
+def get_profile_notification_digest(profile_id: str):
+    return notification_service.get_digest(profile_id)
+
+
+@app.put("/profiles/{profile_id}/notifications/preferences")
+def set_profile_notification_preferences(profile_id: str, request: NotificationPreferenceRequest):
+    return notification_service.set_preferences(
+        profile_id=profile_id,
+        channels=request.channels,
+        categories=request.categories,
+    )
+
+
+@app.get("/profiles/{profile_id}/notifications/preferences")
+def get_profile_notification_preferences(profile_id: str):
+    return notification_service.get_preferences(profile_id)
+
+
+@app.get("/profiles/{profile_id}/notifications/categories")
+def get_profile_notification_categories(profile_id: str):
+    return notification_service.list_categories(profile_id)
+
+
+@app.get("/profiles/{profile_id}/notification-center")
+def get_notification_center(profile_id: str):
+    return notification_service.get_notifications(profile_id, include_center=True)
+
+
+@app.post("/profiles/{profile_id}/notifications/retry")
+def retry_profile_notifications(profile_id: str):
+    return notification_service.retry_pending_notifications(profile_id)
+
+
+@app.patch("/profiles/{profile_id}/notifications/read-sync")
+def sync_profile_notification_read_state(profile_id: str, request: NotificationReadSyncRequest):
+    return notification_service.sync_read_state(profile_id, request.read_ids)
+
+
+@app.post("/profiles/{profile_id}/notifications/escalation")
+async def create_escalation_notification(profile_id: str, request: NotificationEscalationRequest):
+    payload = notification_service.create_escalation_notification(
+        profile_id=profile_id,
+        title=request.title,
+        message=request.message,
+        escalation_level=request.escalation_level,
+    )
+    await notification_connection_manager.broadcast_notification(profile_id, payload)
+    return payload
+
+
+@app.get("/profiles/{profile_id}/notifications/delivery-log")
+def get_profile_notification_delivery_log(profile_id: str):
+    return notification_service.get_delivery_log(profile_id)
 
 
 @app.post("/projects")
@@ -873,6 +1686,54 @@ async def upload_report(
     return result
 
 
+@app.post("/reports/upload/bulk")
+async def upload_reports_bulk(
+    project_id: str = Form(...),
+    files: list[UploadFile] = File(...),
+):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    upload_dir = Path("tmp_uploads")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    uploads: list[dict] = []
+
+    try:
+        for file in files:
+            timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S%f")
+            target_path = upload_dir / f"{timestamp}_{file.filename or 'report'}"
+            with target_path.open("wb") as target_file:
+                shutil.copyfileobj(file.file, target_file)
+            uploads.append(
+                {
+                    "filename": file.filename or target_path.name,
+                    "file_path": str(target_path),
+                }
+            )
+
+        return report_processing_service.process_bulk_uploaded_reports(
+            project_id=project_id,
+            uploads=uploads,
+        )
+    finally:
+        for item in uploads:
+            path = Path(item["file_path"])
+            if path.exists():
+                path.unlink()
+
+
+@app.get("/projects/{project_id}/reports/upload-jobs/{job_id}")
+def get_reports_bulk_upload_progress(project_id: str, job_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    progress = report_processing_service.get_bulk_upload_progress(project_id, job_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+    return progress
+
+
 @app.get("/projects/{project_id}/reports/timeline")
 def get_project_report_timeline(project_id: str):
     project = project_repository.get_project_by_id(project_id)
@@ -952,11 +1813,19 @@ def list_report_tags(project_id: str, report_id: str):
 
 
 @app.get("/projects/{project_id}/reports/search")
-def search_reports_by_tag(project_id: str, tag: str):
+def search_reports(project_id: str, q: str | None = None, tag: str | None = None, classification: str | None = None, limit: int = 20):
     project = project_repository.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return report_processing_service.search_reports_by_tag(project_id, tag)
+    if q is None and tag and not classification:
+        return report_processing_service.search_reports_by_tag(project_id, tag)
+    return report_processing_service.search_reports(
+        project_id,
+        query=q,
+        tag=tag,
+        classification=classification,
+        limit=limit,
+    )
 
 
 @app.get("/projects/{project_id}/reports/index")
@@ -995,6 +1864,176 @@ def get_project_workspace(project_id: str):
         .get_workspace(project_id)
     )
 
+
+@app.get("/projects/{project_id}/workspace/activities")
+def list_workspace_activities(
+    project_id: str,
+    activity_type: str | None = None,
+    actor_id: str | None = None,
+    search: str | None = None,
+    before: str | None = None,
+    limit: int = 50,
+):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.list_activities(
+        project_id=project_id,
+        activity_type=activity_type,
+        actor_id=actor_id,
+        search=search,
+        before=before,
+        limit=limit,
+    )
+
+
+@app.post("/projects/{project_id}/workspace/activities")
+async def create_workspace_activity(project_id: str, request: WorkspaceActivityCreateRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    activity = workspace_activity_service.create_activity(
+        project_id=project_id,
+        activity_type=request.activity_type,
+        title=request.title,
+        description=request.description,
+        metadata=request.metadata,
+        actor_id=request.actor_id,
+    )
+    await workspace_connection_manager.broadcast_activity(project_id, activity)
+    return activity
+
+
+@app.websocket("/projects/{project_id}/workspace/stream")
+async def stream_workspace_activity(project_id: str, websocket: WebSocket):
+    await workspace_connection_manager.connect(project_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        workspace_connection_manager.disconnect(project_id, websocket)
+
+
+@app.get("/projects/{project_id}/workspace/activities/search")
+def search_workspace_activities(project_id: str, q: str, limit: int = 50):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.list_activities(
+        project_id=project_id,
+        search=q,
+        limit=limit,
+    )
+
+
+@app.get("/projects/{project_id}/workspace/feed")
+def get_workspace_dynamic_feed(project_id: str, since: str | None = None, limit: int = 50):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.list_activities(
+        project_id=project_id,
+        before=since,
+        limit=limit,
+    )
+
+
+@app.get("/projects/{project_id}/workspace/live-operational-feed")
+def get_live_operational_feed(project_id: str, limit: int = 20):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    feed = workspace_activity_service.list_activities(project_id=project_id, limit=limit * 3)
+    activities = [
+        item
+        for item in feed["activities"]
+        if "ACTION" in item.get("activity_type", "")
+        or "ESCALATION" in item.get("activity_type", "")
+        or "OPERATIONAL" in item.get("activity_type", "")
+    ][:limit]
+    return {
+        "project_id": project_id,
+        "total": len(activities),
+        "activities": activities,
+    }
+
+
+@app.get("/projects/{project_id}/workspace/analytics")
+def get_workspace_analytics(project_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.get_analytics(project_id)
+
+
+@app.get("/projects/{project_id}/workspace/grouped")
+def get_grouped_workspace_activities(project_id: str, group_by: str = "activity_type"):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.group_activities(project_id, group_by=group_by)
+
+
+@app.get("/projects/{project_id}/workspace/layout")
+def get_workspace_layout(project_id: str, auth_context=Depends(get_auth_context)):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.get_layout(project_id, auth_context.actor_user_id)
+
+
+@app.put("/projects/{project_id}/workspace/layout")
+def save_workspace_layout(project_id: str, request: WorkspaceLayoutRequest, auth_context=Depends(get_auth_context)):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.save_layout(project_id, auth_context.actor_user_id, request.layout)
+
+
+@app.get("/projects/{project_id}/workspace/widgets")
+def get_workspace_widgets(project_id: str, auth_context=Depends(get_auth_context)):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.get_widgets(project_id, auth_context.actor_user_id)
+
+
+@app.put("/projects/{project_id}/workspace/widgets")
+def save_workspace_widgets(project_id: str, request: WorkspaceWidgetsRequest, auth_context=Depends(get_auth_context)):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return workspace_activity_service.save_widgets(project_id, auth_context.actor_user_id, request.widgets)
+
+
+@app.get("/projects/{project_id}/workspace/permissions")
+def get_workspace_permissions(project_id: str, auth_context=Depends(get_auth_context)):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    can_edit = auth_context.role in {"MANAGER", "ADMIN"}
+    return {
+        "project_id": project_id,
+        "user_id": auth_context.actor_user_id,
+        "role": auth_context.role,
+        "permissions": {
+            "can_view": True,
+            "can_edit_layout": can_edit,
+            "can_customize_widgets": can_edit,
+            "can_create_activity": can_edit,
+        },
+    }
+
+
+@app.post("/workspace/cross-project")
+def get_cross_project_workspace(request: CrossProjectWorkspaceRequest, _: object = Depends(require_permission("projects:read"))):
+    valid_projects: list[str] = []
+    for project_id in request.project_ids:
+        project = project_repository.get_project_by_id(project_id)
+        if project:
+            valid_projects.append(project_id)
+    return workspace_activity_service.list_cross_project_activities(valid_projects, limit=request.limit)
+
 @app.get("/projects/{project_id}/exceptions")
 def get_project_exceptions(project_id: str):
 
@@ -1002,6 +2041,215 @@ def get_project_exceptions(project_id: str):
         operational_action_repository
         .get_exceptions_by_project(project_id)
     )
+
+
+@app.get("/projects/{project_id}/actions/priorities")
+def get_action_priorities(project_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.get_action_priorities(project_id)
+
+
+@app.get("/projects/{project_id}/actions/dependency-graph")
+def get_action_dependency_graph(project_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.get_dependency_graph(project_id)
+
+
+@app.post("/projects/{project_id}/actions/recurring")
+def create_recurring_action(project_id: str, request: ActionRecurringRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.create_recurring_action(
+        project_id=project_id,
+        title=request.title,
+        recurrence_rule=request.recurrence_rule,
+        created_by=request.created_by,
+    )
+
+
+@app.get("/projects/{project_id}/actions/recurring")
+def list_recurring_actions(project_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.list_recurring_actions(project_id)
+
+
+@app.post("/projects/{project_id}/actions/bulk")
+def bulk_create_actions(project_id: str, request: ActionBulkRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.bulk_create_actions(project_id, request.actions)
+
+
+@app.post("/projects/{project_id}/actions/{action_id}/attachments")
+def add_action_attachment(project_id: str, action_id: str, request: ActionAttachmentRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.add_attachment(action_id, request.filename, request.uploaded_by)
+
+
+@app.get("/projects/{project_id}/actions/{action_id}/attachments")
+def list_action_attachments(project_id: str, action_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"attachments": operational_action_service.list_attachments(action_id)}
+
+
+@app.delete("/projects/{project_id}/actions/{action_id}/attachments/{attachment_id}")
+def delete_action_attachment(project_id: str, action_id: str, attachment_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    deleted = operational_action_service.delete_attachment(action_id, attachment_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    return {"deleted": True}
+
+
+@app.post("/projects/{project_id}/actions/{action_id}/notifications")
+def create_action_notification(project_id: str, action_id: str, request: ActionNotificationRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.create_notification(
+        action_id=action_id,
+        recipient_id=request.recipient_id,
+        message=request.message,
+        channel=request.channel,
+    )
+
+
+@app.get("/projects/{project_id}/actions/{action_id}/notifications")
+def list_action_notifications(project_id: str, action_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"notifications": operational_action_service.list_notifications(action_id)}
+
+
+@app.get("/projects/{project_id}/actions/analytics")
+def get_action_analytics(project_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.get_action_analytics(project_id)
+
+
+@app.post("/projects/{project_id}/actions/{action_id}/comments")
+def add_action_comment(project_id: str, action_id: str, request: ActionCommentRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.add_comment(action_id, request.comment, request.created_by)
+
+
+@app.get("/projects/{project_id}/actions/{action_id}/comments")
+def list_action_comments(project_id: str, action_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"comments": operational_action_service.list_comments(action_id)}
+
+
+@app.get("/projects/{project_id}/actions/{action_id}/history")
+def get_action_history(project_id: str, action_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"history": operational_action_service.get_history(action_id)}
+
+
+@app.get("/projects/{project_id}/actions/sla")
+def get_action_sla_dashboard(project_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.get_sla_dashboard(project_id)
+
+
+@app.post("/projects/{project_id}/actions/{action_id}/retry")
+def retry_action(project_id: str, action_id: str, request: ActionRetryRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.retry_action(action_id, request.reason)
+
+
+@app.patch("/projects/{project_id}/actions/{action_id}/owner")
+def set_action_owner(project_id: str, action_id: str, request: ActionOwnerRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.set_owner(action_id, request.owner_id)
+
+
+@app.post("/projects/{project_id}/actions/{action_id}/escalate")
+def escalate_action_with_hierarchy(project_id: str, action_id: str, request: ActionEscalationRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.escalate_with_hierarchy(action_id, request.level, request.reason)
+
+
+@app.post("/projects/{project_id}/actions/ai-generate")
+def generate_ai_actions(project_id: str, request: ActionAIGenerationRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.generate_ai_actions(project_id, request.context)
+
+
+@app.post("/projects/{project_id}/actions/templates")
+def create_action_template(project_id: str, request: ActionTemplateRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.create_template(
+        project_id=project_id,
+        name=request.name,
+        title=request.title,
+        description=request.description,
+        category=request.category,
+    )
+
+
+@app.get("/projects/{project_id}/actions/templates")
+def list_action_templates(project_id: str):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return operational_action_service.list_templates(project_id)
+
+
+@app.post("/projects/{project_id}/actions/templates/{template_id}/apply")
+def apply_action_template(project_id: str, template_id: str, request: ActionTemplateApplyRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    payload = operational_action_service.apply_template(project_id, template_id, request.created_by)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Action template not found")
+    return payload
+
+
+@app.patch("/projects/{project_id}/actions/{action_id}/category")
+def categorize_action(project_id: str, action_id: str, request: ActionCategoryRequest):
+    project = project_repository.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    payload = operational_action_service.categorize_action(action_id, request.category)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Action not found")
+    return payload
 
 @app.get("/projects/{project_id}/operational-summary")
 def get_project_operational_summary(project_id: str):
@@ -1087,3 +2335,264 @@ def get_automation_ai_execution_logs():
         automation_monitoring_service
         .get_ai_execution_logs_dashboard()
     )
+
+
+@app.get(
+    "/automation/schedules"
+)
+def get_automation_schedules():
+    return {
+        "jobs":
+            automation_cron_management_service
+            .list_job_schedules()
+    }
+
+
+@app.put(
+    "/automation/schedules/{job_id}"
+)
+def update_automation_schedule(
+    job_id: str,
+    request: AutomationCronScheduleRequest,
+):
+    try:
+        return (
+            automation_cron_management_service
+            .set_job_cron(
+                job_id=job_id,
+                cron_expression=request.cron,
+                enabled=request.enabled,
+            )
+        )
+    except (KeyError, LookupError) as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+
+@app.patch(
+    "/automation/schedules/{job_id}/status"
+)
+def set_automation_schedule_status(
+    job_id: str,
+    request: AutomationJobStatusRequest,
+):
+    try:
+        return (
+            automation_cron_management_service
+            .set_job_enabled(
+                job_id=job_id,
+                enabled=request.enabled,
+            )
+        )
+    except (KeyError, LookupError) as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post(
+    "/automation/runs/{run_id}/replay"
+)
+def replay_automation_run(
+    run_id: str,
+):
+    try:
+        return (
+            automation_replay_service
+            .replay_run(run_id)
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+
+@app.get(
+    "/automation/control/status"
+)
+def get_automation_control_status():
+    return (
+        automation_control_service
+        .get_status()
+    )
+
+
+@app.post(
+    "/automation/control/pause"
+)
+def pause_automation_scheduler():
+    return (
+        automation_control_service
+        .pause()
+    )
+
+
+@app.post(
+    "/automation/control/resume"
+)
+def resume_automation_scheduler():
+    return (
+        automation_control_service
+        .resume()
+    )
+
+
+@app.get("/automation/queue")
+def list_automation_queue(status: str | None = None):
+    return {
+        "items": automation_job_queue_service.list_items(status=status),
+    }
+
+
+@app.post("/automation/queue")
+def enqueue_automation_job(request: AutomationQueueRequest):
+    return automation_job_queue_service.enqueue(
+        job_name=request.job_name,
+        payload=request.payload,
+        priority=request.priority,
+        idempotency_key=request.idempotency_key,
+    )
+
+
+@app.get("/automation/workers/stats")
+def get_automation_worker_stats():
+    return automation_worker_service.get_worker_stats()
+
+
+@app.post("/automation/workers/process-next")
+def process_next_automation_queue_item(request: AutomationWorkerProcessRequest):
+    handlers = {
+        "sla_monitoring": lambda payload: {
+            "handled": True,
+            "job_name": "sla_monitoring",
+            "payload": payload,
+        },
+        "ai_automation": lambda payload: {
+            "handled": True,
+            "job_name": "ai_automation",
+            "payload": payload,
+        },
+        "ai_recovery": lambda payload: {
+            "handled": True,
+            "job_name": "ai_recovery",
+            "payload": payload,
+        },
+    }
+    return automation_worker_service.process_next(
+        worker_id=request.worker_id,
+        handlers=handlers,
+    )
+
+
+@app.get("/automation/retry-policies/{job_name}")
+def get_automation_retry_policy(job_name: str):
+    return automation_retry_policy_service.get_policy(job_name)
+
+
+@app.put("/automation/retry-policies/{job_name}")
+def set_automation_retry_policy(job_name: str, request: AutomationRetryPolicyRequest):
+    return automation_retry_policy_service.set_policy(
+        job_name=job_name,
+        max_attempts=request.max_attempts,
+        backoff_seconds=request.backoff_seconds,
+        multiplier=request.multiplier,
+    )
+
+
+@app.post("/automation/retry-policies/{job_name}/evaluate")
+def evaluate_automation_retry_policy(job_name: str, request: AutomationRetryEvaluationRequest):
+    return automation_retry_policy_service.evaluate_retry(
+        job_name=job_name,
+        attempts=request.attempts,
+    )
+
+
+@app.post("/automation/scheduler/claim-tick")
+def claim_automation_scheduler_tick(request: AutomationSchedulerClaimRequest):
+    return automation_scheduler_guard_service.claim_tick(
+        job_name=request.job_name,
+        owner_id=request.owner_id,
+        window_seconds=request.window_seconds,
+    )
+
+
+@app.post("/automation/governance/evaluate")
+def evaluate_automation_governance(request: AutomationGovernanceRequest):
+    return automation_governance_service.evaluate(
+        job_name=request.job_name,
+        payload=request.payload,
+        actor=request.actor,
+    )
+
+
+@app.post("/automation/workflows/versions")
+def create_workflow_version(request: WorkflowVersionCreateRequest):
+    return workflow_versioning_service.create_version(
+        workflow_name=request.workflow_name,
+        definition=request.definition,
+        published_by=request.published_by,
+        activate=request.activate,
+    )
+
+
+@app.get("/automation/workflows/{workflow_name}/versions")
+def list_workflow_versions(workflow_name: str):
+    return {
+        "workflow_name": workflow_name,
+        "versions": workflow_versioning_service.list_versions(workflow_name),
+    }
+
+
+@app.get("/automation/workflows/{workflow_name}/active-version")
+def get_active_workflow_version(workflow_name: str):
+    active = workflow_versioning_service.get_active_version(workflow_name)
+    if not active:
+        raise HTTPException(status_code=404, detail="Workflow version not found")
+    return active
+
+
+@app.post("/automation/runs/{run_id}/logs")
+def append_workflow_execution_log(run_id: str, request: WorkflowExecutionLogCreateRequest):
+    return workflow_execution_log_service.append_log(
+        run_id=run_id,
+        level=request.level,
+        message=request.message,
+        context=request.context,
+    )
+
+
+@app.get("/automation/runs/{run_id}/logs")
+def list_workflow_execution_logs(run_id: str, limit: int = 200):
+    return {
+        "run_id": run_id,
+        "entries": workflow_execution_log_service.list_logs(
+            run_id=run_id,
+            limit=limit,
+        ),
+    }
+
+
+@app.post("/automation/workflows/builder")
+def build_dynamic_workflow(request: DynamicWorkflowBuilderRequest):
+    try:
+        return dynamic_automation_builder_service.build_workflow(
+            workflow_name=request.workflow_name,
+            steps=request.steps,
+            created_by=request.created_by,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

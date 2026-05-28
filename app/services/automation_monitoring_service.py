@@ -844,6 +844,38 @@ class AutomationMonitoringService:
                 executions[:25],
         }
 
+    def get_automation_retries_dashboard(
+        self,
+    ):
+        recovery_queue = (
+            self.ai_execution_log_repository
+            .get_failed_executions()
+        )
+        dead_letters = (
+            self.ai_execution_log_repository
+            .get_dead_letters()
+        )
+        retry_count_distribution = self.count_by_key(
+            [
+                {
+                    "retry_count": str(
+                        execution.get("retry_count", 0)
+                    )
+                }
+                for execution in recovery_queue
+            ],
+            "retry_count",
+        )
+        return {
+            "summary": {
+                "queued_retries": len(recovery_queue),
+                "dead_letters": len(dead_letters),
+                "retry_count_distribution": retry_count_distribution,
+            },
+            "recovery_queue": recovery_queue[:50],
+            "dead_letters": dead_letters[:50],
+        }
+
     def count_by_key(
         self,
         items: list[dict],

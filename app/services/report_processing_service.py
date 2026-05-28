@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+from uuid import uuid4
 from datetime import UTC, datetime
 
 from app.db.supabase_client import supabase
@@ -9,11 +10,15 @@ from app.services.report_text_extraction_service import ReportTextExtractionServ
 
 
 class ReportProcessingService:
+    ALLOWED_REPORT_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "csv", "txt"}
+    MAX_REPORT_FILE_SIZE_BYTES = 10 * 1024 * 1024
+
     def __init__(self):
         self.report_repository = WeeklyReportRepository()
         self.report_attachments: dict[str, list[dict]] = {}
         self.report_tags: dict[str, list[str]] = {}
         self.report_index: dict[str, dict] = {}
+        self.bulk_upload_jobs: dict[str, dict] = {}
 
     def process_uploaded_report(
         self,
@@ -21,6 +26,38 @@ class ReportProcessingService:
         filename: str,
         file_path: str,
     ):
+        upload_policy = self._validate_upload_policy(filename=filename, file_path=file_path)
+        if not upload_policy["is_valid"]:
+            return {
+                "success": False,
+                "project_id": project_id,
+                "filename": filename,
+                "error_code": upload_policy["error_code"],
+                "error_message": upload_policy["error_message"],
+            }
+
+        malware_scan = self._scan_for_malware(file_path=file_path, filename=filename)
+        if not malware_scan["is_clean"]:
+            self._safe_create_activity(
+                project_id=project_id,
+                activity_type="MALWARE_REPORT",
+                title="Malware report rejected",
+                description=f"Rejected suspicious file: {filename}",
+                metadata={
+                    "filename": filename,
+                    "error_code": malware_scan["error_code"],
+                    "error_message": malware_scan["error_message"],
+                    "signals": malware_scan["signals"],
+                },
+            )
+            return {
+                "success": False,
+                "project_id": project_id,
+                "filename": filename,
+                "error_code": malware_scan["error_code"],
+                "error_message": malware_scan["error_message"],
+            }
+
         integrity = self._validate_file_integrity(file_path=file_path, filename=filename)
         if not integrity["is_valid"]:
             WorkspaceActivityRepository.create_activity(
@@ -164,6 +201,105 @@ class ReportProcessingService:
                 "tokens_count": len(index_entry.get("tokens", [])),
             },
         }
+
+    def process_bulk_uploaded_reports(self, project_id: str, uploads: list[dict]) -> dict:
+        job_id = f"bulk-{uuid4()}"
+        total_files = len(uploads)
+        self.bulk_upload_jobs[job_id] = {
+            "job_id": job_id,
+            "project_id": project_id,
+            "total_files": total_files,
+            "processed_files": 0,
+            "successful_uploads": 0,
+            "failed_uploads": 0,
+            "progress_percent": 0,
+            "status": "IN_PROGRESS",
+            "results": [],
+            "started_at": datetime.now(UTC).isoformat(),
+            "finished_at": None,
+        }
+
+        results: list[dict] = []
+        for index, upload in enumerate(uploads, start=1):
+            filename = str(upload.get("filename") or "").strip()
+            file_path = str(upload.get("file_path") or "").strip()
+            if not filename or not file_path:
+                result = {
+                    "success": False,
+                    "project_id": project_id,
+                    "filename": filename or "unknown",
+                    "error_code": "INVALID_UPLOAD_ENTRY",
+                    "error_message": "Bulk upload entry must include filename and file_path",
+                }
+                results.append(result)
+                self._update_bulk_progress(job_id=job_id, total_files=total_files, processed_files=index, latest_result=result)
+                continue
+
+            try:
+                result = self.process_uploaded_report(
+                    project_id=project_id,
+                    filename=filename,
+                    file_path=file_path,
+                )
+            except Exception:
+                result = {
+                    "success": False,
+                    "project_id": project_id,
+                    "filename": filename,
+                    "error_code": "REPORT_PROCESSING_FAILED",
+                    "error_message": "Unexpected error while processing uploaded report",
+                }
+            results.append(result)
+            self._update_bulk_progress(job_id=job_id, total_files=total_files, processed_files=index, latest_result=result)
+
+        successful = [item for item in results if item.get("success")]
+        failed = [item for item in results if not item.get("success")]
+        job = self.bulk_upload_jobs[job_id]
+        job["status"] = "COMPLETED"
+        job["finished_at"] = datetime.now(UTC).isoformat()
+        job["successful_uploads"] = len(successful)
+        job["failed_uploads"] = len(failed)
+        job["results"] = results
+
+        return {
+            "job_id": job_id,
+            "project_id": project_id,
+            "total_files": len(uploads),
+            "successful_uploads": len(successful),
+            "failed_uploads": len(failed),
+            "progress_percent": 100 if total_files > 0 else 0,
+            "results": results,
+        }
+
+    def get_bulk_upload_progress(self, project_id: str, job_id: str) -> dict | None:
+        job = self.bulk_upload_jobs.get(job_id)
+        if not job:
+            return None
+        if job.get("project_id") != project_id:
+            return None
+        return job
+
+    def _update_bulk_progress(
+        self,
+        *,
+        job_id: str,
+        total_files: int,
+        processed_files: int,
+        latest_result: dict,
+    ) -> None:
+        job = self.bulk_upload_jobs.get(job_id)
+        if not job:
+            return
+        progress_percent = int((processed_files / total_files) * 100) if total_files > 0 else 0
+        job["processed_files"] = processed_files
+        job["progress_percent"] = progress_percent
+        if latest_result.get("success"):
+            job["successful_uploads"] = int(job.get("successful_uploads", 0)) + 1
+        else:
+            job["failed_uploads"] = int(job.get("failed_uploads", 0)) + 1
+        job_results = job.get("results", [])
+        job_results.append(latest_result)
+        job["results"] = job_results
 
     def _extract_text_for_ocr(self, file_path: str) -> str:
         extracted_text = ReportTextExtractionService.extract_text(file_path)
@@ -501,6 +637,66 @@ class ReportProcessingService:
             "error_message": None,
         }
 
+    def _scan_for_malware(self, file_path: str, filename: str) -> dict:
+        path = Path(file_path)
+        if not path.exists():
+            return {
+                "is_clean": False,
+                "error_code": "MALWARE_SCAN_FAILED",
+                "error_message": "File not found for malware scanning",
+                "signals": ["file_missing"],
+            }
+
+        try:
+            content = path.read_bytes()
+        except Exception:
+            return {
+                "is_clean": False,
+                "error_code": "MALWARE_SCAN_FAILED",
+                "error_message": "File could not be read for malware scanning",
+                "signals": ["read_error"],
+            }
+
+        # Local placeholder scanner: block known signatures and suspicious script patterns.
+        # This keeps the flow deterministic until a real AV provider is integrated.
+        eicar_signature = b"EICAR-STANDARD-ANTIVIRUS-TEST-FILE"
+        suspicious_byte_signatures = [
+            b"powershell -enc",
+            b"cmd.exe /c",
+            b"wscript.shell",
+            b"CreateObject(",
+            b"<script>alert(",
+        ]
+        lowered = content.lower()
+        filename_lower = filename.lower()
+        signals: list[str] = []
+
+        if eicar_signature in content.upper():
+            signals.append("eicar_signature")
+
+        for signature in suspicious_byte_signatures:
+            if signature.lower() in lowered:
+                signals.append(f"signature:{signature.decode(errors='ignore')}")
+
+        dangerous_extension = Path(filename_lower).suffix.lower().lstrip(".") in {"exe", "bat", "cmd", "ps1", "js", "vbs"}
+        if dangerous_extension:
+            signals.append("dangerous_extension")
+
+        if signals:
+            return {
+                "is_clean": False,
+                "error_code": "MALWARE_DETECTED",
+                "error_message": "Uploaded file failed malware scanning",
+                "signals": sorted(set(signals)),
+            }
+
+        return {
+            "is_clean": True,
+            "error_code": None,
+            "error_message": None,
+            "signals": [],
+        }
+
     def list_report_attachments(self, report_id: str) -> list[dict]:
         return self.report_attachments.get(report_id, [])
 
@@ -558,6 +754,123 @@ class ReportProcessingService:
             "report_ids": matched_report_ids,
             "total_reports": len(matched_report_ids),
         }
+
+    def search_reports(
+        self,
+        project_id: str,
+        query: str | None = None,
+        *,
+        tag: str | None = None,
+        classification: str | None = None,
+        limit: int = 20,
+    ) -> dict:
+        normalized_query = (query or "").strip().lower()
+        normalized_tag = (tag or "").strip().lower()
+        normalized_classification = (classification or "").strip().upper()
+        safe_limit = max(1, min(limit, 100))
+
+        query_terms = [
+            token
+            for token in re.split(r"[^a-zA-Z0-9_\-]+", normalized_query)
+            if token and len(token) > 1
+        ]
+
+        entries = [
+            value
+            for value in self.report_index.values()
+            if value.get("project_id") == project_id
+        ]
+        results: list[dict] = []
+
+        for entry in entries:
+            entry_classification = str(entry.get("classification") or "").upper()
+            entry_tags = [
+                str(item).strip().lower()
+                for item in entry.get("tags", [])
+                if str(item).strip()
+            ]
+
+            if normalized_tag and normalized_tag not in entry_tags:
+                continue
+            if normalized_classification and entry_classification != normalized_classification:
+                continue
+
+            token_set = set(entry.get("tokens", []))
+            exact_matches = sorted([term for term in query_terms if term in token_set])
+            partial_matches = sorted(
+                [
+                    term
+                    for term in query_terms
+                    if term not in token_set and any(term in indexed for indexed in token_set)
+                ]
+            )
+
+            score = 0
+            if normalized_query:
+                score += len(exact_matches) * 10
+                score += len(partial_matches) * 4
+                filename = str(entry.get("filename") or "").lower()
+                if normalized_query in filename:
+                    score += 5
+                if normalized_query and normalized_query in " ".join(sorted(token_set)):
+                    score += 3
+                if exact_matches or partial_matches:
+                    score += 1
+            else:
+                # Filter-only queries should still return useful sorted results.
+                score = 1
+
+            if normalized_query and score == 0:
+                continue
+
+            score += self._recency_score(entry.get("indexed_at"))
+
+            results.append(
+                {
+                    "report_id": entry.get("report_id"),
+                    "filename": entry.get("filename"),
+                    "classification": entry.get("classification"),
+                    "tags": entry.get("tags", []),
+                    "indexed_at": entry.get("indexed_at"),
+                    "score": score,
+                    "matched_terms": sorted(set(exact_matches + partial_matches)),
+                    "exact_matches": exact_matches,
+                    "partial_matches": partial_matches,
+                }
+            )
+
+        results.sort(key=lambda item: (item.get("score", 0), item.get("indexed_at", "")), reverse=True)
+        trimmed_results = results[:safe_limit]
+
+        return {
+            "project_id": project_id,
+            "query": normalized_query,
+            "tag": normalized_tag or None,
+            "classification": normalized_classification or None,
+            "total_matches": len(trimmed_results),
+            "report_ids": [item["report_id"] for item in trimmed_results if item.get("report_id")],
+            "results": trimmed_results,
+        }
+
+    def _recency_score(self, indexed_at: str | None) -> int:
+        if not indexed_at:
+            return 0
+        try:
+            normalized = indexed_at.replace("Z", "+00:00")
+            indexed_dt = datetime.fromisoformat(normalized)
+            if indexed_dt.tzinfo is None:
+                indexed_dt = indexed_dt.replace(tzinfo=UTC)
+            age_days = max(0.0, (datetime.now(UTC) - indexed_dt.astimezone(UTC)).total_seconds() / 86400)
+        except (ValueError, TypeError):
+            return 0
+
+        if age_days <= 7:
+            return 5
+        if age_days <= 30:
+            return 3
+        if age_days <= 90:
+            return 1
+        return 0
 
     def index_report(
         self,
@@ -648,6 +961,33 @@ class ReportProcessingService:
                     "error_code": "CORRUPTED_PDF",
                     "error_message": "PDF file appears corrupted or incomplete",
                 }
+
+        return {
+            "is_valid": True,
+            "error_code": None,
+            "error_message": None,
+        }
+
+    def _validate_upload_policy(self, filename: str, file_path: str) -> dict:
+        extension = Path(filename).suffix.lower().lstrip(".")
+        if extension not in self.ALLOWED_REPORT_EXTENSIONS:
+            return {
+                "is_valid": False,
+                "error_code": "UNSUPPORTED_FILE_TYPE",
+                "error_message": "Uploaded report type is not supported",
+            }
+
+        try:
+            file_size_bytes = Path(file_path).stat().st_size
+        except Exception:
+            file_size_bytes = 0
+
+        if file_size_bytes > self.MAX_REPORT_FILE_SIZE_BYTES:
+            return {
+                "is_valid": False,
+                "error_code": "FILE_TOO_LARGE",
+                "error_message": "Uploaded report exceeds the file size limit",
+            }
 
         return {
             "is_valid": True,

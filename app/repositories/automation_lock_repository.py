@@ -79,16 +79,24 @@ class AutomationLockRepository:
     def delete_lock(
         self,
         lock_key: str,
+        owner_token: str | None = None,
     ):
-
-        self.client \
-            .table(self.table_name) \
-            .delete() \
+        query = (
+            self.client
+            .table(self.table_name)
+            .delete()
             .eq(
                 "lock_key",
-                lock_key
-            ) \
-            .execute()
+                lock_key,
+            )
+        )
+        if owner_token is not None:
+            query = query.eq(
+                "owner_token",
+                owner_token,
+            )
+        response = query.execute()
+        return bool(response.data)
 
     # ==========================================
     # LOCK EXPIRED

@@ -33,6 +33,9 @@ class FeatureFlags(BaseModel):
 
 ALLOWED_AI_PROVIDERS = (
     "ollama",
+    "openai",
+    "anthropic",
+    "gemini",
 )
 
 ALLOWED_LLM_MODES = (
@@ -57,7 +60,8 @@ ALLOWED_LOG_LEVELS = (
 class Settings(BaseModel):
     ENVIRONMENT: Literal["local", "development", "staging", "production", "test"]
     FRONTEND_URL: AnyHttpUrl
-    AI_PROVIDER: Literal["ollama"]
+    AI_PROVIDER: Literal["ollama", "openai", "anthropic", "gemini"]
+    AI_FALLBACK_PROVIDERS: Optional[str] = None
     DEFAULT_AI_MODEL: str
     AI_MAX_RETRIES: int
     ORG_FLOW_LLM_MODE: Literal["mock", "openai"]
@@ -65,6 +69,8 @@ class Settings(BaseModel):
     OPENAI_API_KEY: Optional[str]
     OPENAI_API_KEYS: Optional[str] = None
     OPENAI_ACTIVE_KEY_INDEX: int = 0
+    ANTHROPIC_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
     LOG_LEVEL: str
     RESEND_API_KEY: Optional[str]
     SUPABASE_URL: Optional[AnyHttpUrl]
@@ -139,6 +145,7 @@ class Settings(BaseModel):
             )
         if self.OPENAI_ACTIVE_KEY_INDEX < 0:
             raise ValueError("OPENAI_ACTIVE_KEY_INDEX must be >= 0")
+        self.get_ai_fallback_providers()
         if self.CONFIG_CACHE_TTL_SECONDS <= 0:
             raise ValueError("CONFIG_CACHE_TTL_SECONDS must be > 0")
         if self.IDEMPOTENCY_TTL_SECONDS <= 0:
@@ -173,6 +180,29 @@ class Settings(BaseModel):
             return key_ring[index]
         return self.OPENAI_API_KEY
 
+    def get_ai_fallback_providers(self) -> list[str]:
+        if not self.AI_FALLBACK_PROVIDERS:
+            return []
+        values = [
+            part.strip().lower()
+            for part in self.AI_FALLBACK_PROVIDERS.split(",")
+            if part.strip()
+        ]
+        for value in values:
+            if value not in ALLOWED_AI_PROVIDERS:
+                raise ValueError(
+                    f"AI_FALLBACK_PROVIDERS contains unsupported provider: {value}"
+                )
+        return values
+
+    def get_ai_provider_chain(self) -> list[str]:
+        ordered = [self.AI_PROVIDER, *self.get_ai_fallback_providers()]
+        deduplicated: list[str] = []
+        for provider in ordered:
+            if provider not in deduplicated:
+                deduplicated.append(provider)
+        return deduplicated
+
 
 def load_settings() -> Settings:
     try:
@@ -186,6 +216,7 @@ def load_settings() -> Settings:
             "ENVIRONMENT": environment,
             "FRONTEND_URL": os.getenv("FRONTEND_URL", "http://localhost:3000"),
             "AI_PROVIDER": os.getenv("AI_PROVIDER", "ollama"),
+            "AI_FALLBACK_PROVIDERS": os.getenv("AI_FALLBACK_PROVIDERS"),
             "DEFAULT_AI_MODEL": os.getenv("DEFAULT_AI_MODEL", "mistral"),
             "AI_MAX_RETRIES": int(os.getenv("AI_MAX_RETRIES", "2")),
             "ORG_FLOW_LLM_MODE": os.getenv("ORG_FLOW_LLM_MODE", "mock"),
@@ -193,6 +224,8 @@ def load_settings() -> Settings:
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
             "OPENAI_API_KEYS": os.getenv("OPENAI_API_KEYS"),
             "OPENAI_ACTIVE_KEY_INDEX": int(os.getenv("OPENAI_ACTIVE_KEY_INDEX", "0")),
+            "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
+            "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
             "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
             "RESEND_API_KEY": os.getenv("RESEND_API_KEY"),
             "SUPABASE_URL": os.getenv("SUPABASE_URL"),

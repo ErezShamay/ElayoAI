@@ -14,3 +14,5 @@ class AutomationLock(
     created_at: datetime
 
     expires_at: datetime
+
+    owner_token: str

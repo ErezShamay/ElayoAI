@@ -7,6 +7,9 @@ from app.config.ai_config import (
 from app.ai.providers.base_provider import (
     BaseProvider
 )
+from app.ai.providers.base_provider import (
+    ProviderResponse
+)
 
 
 class OllamaProvider(
@@ -26,7 +29,7 @@ class OllamaProvider(
     def generate(
         self,
         prompt: str,
-    ) -> str:
+    ) -> ProviderResponse:
 
         response = ollama.chat(
 
@@ -41,6 +44,9 @@ class OllamaProvider(
             ]
         )
 
-        return (
-            response["message"]["content"]
+        return ProviderResponse(
+            content=response["message"]["content"],
+            model_name=self.model_name,
+            prompt_tokens=response.get("prompt_eval_count"),
+            completion_tokens=response.get("eval_count"),
         )

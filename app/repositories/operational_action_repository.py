@@ -70,6 +70,31 @@ class OperationalActionRepository:
 
         return response.data[0]
 
+    def get_open_action_by_interpretation_id(
+        self,
+        interpretation_id: str,
+    ):
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "interpretation_id",
+                interpretation_id
+            )
+            .eq(
+                "status",
+                "OPEN"
+            )
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data:
+            return None
+
+        return response.data[0]
+
     def get_open_actions(
         self
     ):

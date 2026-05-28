@@ -22,6 +22,7 @@ class AutomationLockService:
         self.repository = (
             AutomationLockRepository()
         )
+        self._owned_tokens: dict[str, str] = {}
 
     # ==========================================
     # ACQUIRE LOCK
@@ -31,7 +32,9 @@ class AutomationLockService:
         self,
         lock_key: str,
         ttl_minutes: int = 10,
+        owner_token: str | None = None,
     ):
+        token = owner_token or str(uuid4())
 
         existing_lock = (
             self.repository
@@ -100,6 +103,8 @@ class AutomationLockService:
 
             expires_at=
                 expires_at,
+            owner_token=
+                token,
         )
 
         self.repository.create_lock(
@@ -111,6 +116,7 @@ class AutomationLockService:
             f"Lock acquired: "
             f"{lock_key}"
         )
+        self._owned_tokens[lock_key] = token
 
         return True
 
@@ -121,14 +127,28 @@ class AutomationLockService:
     def release_lock(
         self,
         lock_key: str,
+        owner_token: str | None = None,
     ):
+        token = (
+            owner_token
+            or self._owned_tokens.get(lock_key)
+        )
+        if token is None:
+            return False
 
-        self.repository.delete_lock(
-            lock_key
+        deleted = self.repository.delete_lock(
+            lock_key=lock_key,
+            owner_token=token,
         )
 
-        print(
-            "[AUTOMATION_LOCK] "
-            f"Lock released: "
-            f"{lock_key}"
-        )
+        if deleted:
+            self._owned_tokens.pop(lock_key, None)
+
+        if deleted:
+            print(
+                "[AUTOMATION_LOCK] "
+                f"Lock released: "
+                f"{lock_key}"
+            )
+
+        return deleted

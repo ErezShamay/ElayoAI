@@ -15,6 +15,7 @@ class PromptLoader:
     @staticmethod
     def load_prompt(
         prompt_name: str,
+        version: str | None = None,
         **kwargs,
     ) -> str:
 
@@ -24,9 +25,14 @@ class PromptLoader:
                 f"Unknown prompt: {prompt_name}"
             )
 
-        prompt_file = (
-            PROMPTS[prompt_name]["file"]
-        )
+        prompt_config = PROMPTS[prompt_name]
+        resolved_version = version or prompt_config.get("active_version")
+        versions = prompt_config.get("versions", {})
+        if resolved_version not in versions:
+            raise Exception(
+                f"Unknown prompt version: {prompt_name}:{resolved_version}"
+            )
+        prompt_file = versions[resolved_version]["file"]
 
         prompt_path = (
             PromptLoader.PROMPTS_DIR

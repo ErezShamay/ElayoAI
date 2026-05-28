@@ -1,4 +1,55 @@
 from app.agent.orchestrator import Orchestrator
+import pytest
+
+from app.repositories.project_repository import ProjectRepository
+from app.services.approval_service import ApprovalService
+
+
+@pytest.fixture(autouse=True)
+def stub_project_repository(monkeypatch):
+    projects = [
+        {
+            "id": "p1",
+            "project_name": "מגדלי הצפון",
+            "supervisor_name": "יוסי כהן",
+            "supervisor_email": "yossi@example.com",
+            "status": "ACTIVE",
+        },
+        {
+            "id": "p2",
+            "project_name": "פארק הים",
+            "supervisor_name": "דנה לוי",
+            "supervisor_email": "dana@example.com",
+            "status": "ACTIVE",
+        },
+        {
+            "id": "p3",
+            "project_name": "גני השרון",
+            "supervisor_name": "אלון פרץ",
+            "supervisor_email": "alon@example.com",
+            "status": "ACTIVE",
+        },
+    ]
+
+    def fake_get_all_projects(self):
+        return list(projects)
+
+    def fake_find_by_name(self, project_name: str):
+        query = project_name.strip()
+        return [item for item in projects if query in item["project_name"]]
+
+    monkeypatch.setattr(ProjectRepository, "get_all_projects", fake_get_all_projects)
+    monkeypatch.setattr(ProjectRepository, "find_by_name", fake_find_by_name)
+    monkeypatch.setattr(
+        ApprovalService,
+        "create_request",
+        lambda self, workflow_type, payload: {
+            "id": "approval-1",
+            "workflow_type": workflow_type,
+            "payload": payload,
+            "status": "PENDING",
+        },
+    )
 
 
 def test_check_missing_reports_workflow():

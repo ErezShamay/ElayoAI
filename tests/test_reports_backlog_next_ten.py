@@ -68,6 +68,46 @@ class FakeReportProcessingService:
             "index": {"report_id": "r1", "indexed_at": "2026-01-01T00:00:00Z", "tokens_count": 3},
         }
 
+    def process_bulk_uploaded_reports(self, project_id: str, uploads: list[dict]):
+        job_id = "bulk-job-1"
+        results = [
+            self.process_uploaded_report(
+                project_id=project_id,
+                filename=item["filename"],
+                file_path=item["file_path"],
+            )
+            for item in uploads
+        ]
+        successful = [item for item in results if item.get("success")]
+        failed = [item for item in results if not item.get("success")]
+        return {
+            "job_id": job_id,
+            "project_id": project_id,
+            "total_files": len(uploads),
+            "successful_uploads": len(successful),
+            "failed_uploads": len(failed),
+            "progress_percent": 100 if uploads else 0,
+            "results": results,
+        }
+
+    def get_bulk_upload_progress(self, project_id: str, job_id: str):
+        if project_id != "p1" or job_id != "bulk-job-1":
+            return None
+        return {
+            "job_id": job_id,
+            "project_id": project_id,
+            "total_files": 2,
+            "processed_files": 2,
+            "successful_uploads": 2,
+            "failed_uploads": 0,
+            "progress_percent": 100,
+            "status": "COMPLETED",
+            "results": [
+                {"success": True, "filename": "weekly-report-1.pdf"},
+                {"success": True, "filename": "weekly-report-2.pdf"},
+            ],
+        }
+
     def get_project_report_timeline(self, project_id: str):
         return {
             "project_id": project_id,
@@ -156,6 +196,50 @@ class FakeReportProcessingService:
         report_ids = sorted([report_id for report_id, tags in self._tags.items() if normalized in tags])
         return {"project_id": project_id, "tag": normalized, "report_ids": report_ids, "total_reports": len(report_ids)}
 
+    def search_reports(
+        self,
+        project_id: str,
+        query: str | None = None,
+        *,
+        tag: str | None = None,
+        classification: str | None = None,
+        limit: int = 20,
+    ):
+        normalized_query = (query or "").strip().lower()
+        normalized_tag = (tag or "").strip().lower()
+        normalized_classification = (classification or "").strip().upper()
+        entries = [value for value in self._index.values() if value["project_id"] == project_id]
+        results = []
+        for entry in entries:
+            if normalized_tag and normalized_tag not in entry.get("tags", []):
+                continue
+            if normalized_classification and entry.get("classification", "").upper() != normalized_classification:
+                continue
+            tokens = set(entry.get("tokens", []))
+            matched_terms = [term for term in normalized_query.split() if term in tokens]
+            if normalized_query and not matched_terms:
+                continue
+            results.append(
+                {
+                    "report_id": entry["report_id"],
+                    "filename": entry.get("filename"),
+                    "classification": entry.get("classification"),
+                    "tags": entry.get("tags", []),
+                    "indexed_at": entry.get("indexed_at"),
+                    "score": len(matched_terms) * 10 if normalized_query else 1,
+                    "matched_terms": matched_terms,
+                }
+            )
+        return {
+            "project_id": project_id,
+            "query": normalized_query,
+            "tag": normalized_tag or None,
+            "classification": normalized_classification or None,
+            "total_matches": len(results[:limit]),
+            "report_ids": [row["report_id"] for row in results[:limit]],
+            "results": results[:limit],
+        }
+
     def list_project_index_entries(self, project_id: str):
         entries = [value for value in self._index.values() if value["project_id"] == project_id]
         return {"project_id": project_id, "total_indexed_reports": len(entries), "entries": entries}
@@ -172,6 +256,40 @@ class FakeCorruptedReportProcessingService:
             "filename": filename,
             "error_code": "CORRUPTED_PDF",
             "error_message": "PDF file appears corrupted or incomplete",
+        }
+
+    def process_bulk_uploaded_reports(self, project_id: str, uploads: list[dict]):
+        return {
+            "job_id": "bulk-job-corrupted",
+            "project_id": project_id,
+            "total_files": len(uploads),
+            "successful_uploads": 0,
+            "failed_uploads": len(uploads),
+            "progress_percent": 100 if uploads else 0,
+            "results": [
+                {
+                    "success": False,
+                    "project_id": project_id,
+                    "filename": item["filename"],
+                    "error_code": "CORRUPTED_PDF",
+                    "error_message": "PDF file appears corrupted or incomplete",
+                }
+                for item in uploads
+            ],
+        }
+
+    def get_bulk_upload_progress(self, project_id: str, job_id: str):
+        return None
+
+
+class FakeMalwareReportProcessingService:
+    def process_uploaded_report(self, project_id: str, filename: str, file_path: str):
+        return {
+            "success": False,
+            "project_id": project_id,
+            "filename": filename,
+            "error_code": "MALWARE_DETECTED",
+            "error_message": "Uploaded file failed malware scanning",
         }
 
 
@@ -242,6 +360,92 @@ def test_reports_upload_corrupted_file_returns_422(monkeypatch):
 
     assert response.status_code == 422
     assert response.json()["detail"]["error_code"] == "CORRUPTED_PDF"
+
+
+def test_reports_upload_malware_file_returns_422(monkeypatch):
+    monkeypatch.setattr(main_module, "project_repository", FakeProjectRepository())
+    monkeypatch.setattr(main_module, "report_processing_service", FakeMalwareReportProcessingService())
+    client = TestClient(app)
+
+    response = client.post(
+        "/reports/upload",
+        data={"project_id": "p1"},
+        files={"file": ("infected.pdf", b"malicious-bytes", "application/pdf")},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["error_code"] == "MALWARE_DETECTED"
+
+
+def test_reports_bulk_upload(monkeypatch):
+    monkeypatch.setattr(main_module, "project_repository", FakeProjectRepository())
+    monkeypatch.setattr(main_module, "report_processing_service", FakeReportProcessingService())
+    client = TestClient(app)
+
+    response = client.post(
+        "/reports/upload/bulk",
+        data={"project_id": "p1"},
+        files=[
+            ("files", ("weekly-report-1.pdf", b"fake-pdf-bytes-1", "application/pdf")),
+            ("files", ("weekly-report-2.pdf", b"fake-pdf-bytes-2", "application/pdf")),
+        ],
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["project_id"] == "p1"
+    assert payload["job_id"] == "bulk-job-1"
+    assert payload["total_files"] == 2
+    assert payload["successful_uploads"] == 2
+    assert payload["failed_uploads"] == 0
+    assert payload["progress_percent"] == 100
+    assert len(payload["results"]) == 2
+
+
+def test_reports_bulk_upload_project_not_found(monkeypatch):
+    monkeypatch.setattr(main_module, "project_repository", FakeProjectRepository())
+    monkeypatch.setattr(main_module, "report_processing_service", FakeReportProcessingService())
+    client = TestClient(app)
+
+    response = client.post(
+        "/reports/upload/bulk",
+        data={"project_id": "missing-project"},
+        files=[("files", ("weekly-report.pdf", b"fake-pdf-bytes", "application/pdf"))],
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+
+def test_reports_bulk_upload_progress(monkeypatch):
+    monkeypatch.setattr(main_module, "project_repository", FakeProjectRepository())
+    monkeypatch.setattr(main_module, "report_processing_service", FakeReportProcessingService())
+    client = TestClient(app)
+
+    response = client.get(
+        "/projects/p1/reports/upload-jobs/bulk-job-1",
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "COMPLETED"
+    assert payload["progress_percent"] == 100
+
+
+def test_reports_bulk_upload_progress_missing_job(monkeypatch):
+    monkeypatch.setattr(main_module, "project_repository", FakeProjectRepository())
+    monkeypatch.setattr(main_module, "report_processing_service", FakeReportProcessingService())
+    client = TestClient(app)
+
+    response = client.get(
+        "/projects/p1/reports/upload-jobs/missing",
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Bulk upload job not found"
 
 
 def test_report_timeline(monkeypatch):
@@ -374,6 +578,26 @@ def test_report_indexing_endpoints(monkeypatch):
     get_response = client.get("/projects/p1/reports/r1/index", headers=_auth_headers())
     assert get_response.status_code == 200
     assert get_response.json()["report_id"] == "r1"
+
+
+def test_report_search_engine_endpoint(monkeypatch):
+    monkeypatch.setattr(main_module, "project_repository", FakeProjectRepository())
+    service = FakeReportProcessingService()
+    service._tags["r1"] = ["delay", "safety"]
+    service._index["r1"]["tags"] = ["delay", "safety"]
+    monkeypatch.setattr(main_module, "report_processing_service", service)
+    client = TestClient(app)
+
+    response = client.get(
+        "/projects/p1/reports/search",
+        params={"q": "delay", "classification": "delay", "tag": "safety"},
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total_matches"] == 1
+    assert payload["report_ids"] == ["r1"]
+    assert payload["results"][0]["matched_terms"] == ["delay"]
 
 
 def test_report_index_entry_missing_returns_404(monkeypatch):
