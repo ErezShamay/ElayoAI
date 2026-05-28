@@ -76,6 +76,10 @@ class Settings(BaseModel):
     DB_RETRY_MAX_ATTEMPTS: int = 3
     DB_RETRY_BASE_DELAY_SECONDS: float = 0.1
     DB_OPERATION_TIMEOUT_SECONDS: float = 5.0
+    AUTH_JWT_SECRET: str = "dev-secret"
+    AUTH_JWT_ALGORITHM: str = "HS256"
+    AUTH_SESSION_TIMEOUT_MINUTES: int = 60
+    AUTH_REFRESH_TOKEN_TTL_MINUTES: int = 1440
     FEATURE_FLAGS: FeatureFlags
 
     @field_validator("DEFAULT_AI_MODEL", "OPENAI_MODEL")
@@ -147,6 +151,14 @@ class Settings(BaseModel):
             raise ValueError("DB_RETRY_BASE_DELAY_SECONDS must be >= 0")
         if self.DB_OPERATION_TIMEOUT_SECONDS <= 0:
             raise ValueError("DB_OPERATION_TIMEOUT_SECONDS must be > 0")
+        if not self.AUTH_JWT_SECRET.strip():
+            raise ValueError("AUTH_JWT_SECRET must be non-empty")
+        if not self.AUTH_JWT_ALGORITHM.strip():
+            raise ValueError("AUTH_JWT_ALGORITHM must be non-empty")
+        if self.AUTH_SESSION_TIMEOUT_MINUTES <= 0:
+            raise ValueError("AUTH_SESSION_TIMEOUT_MINUTES must be > 0")
+        if self.AUTH_REFRESH_TOKEN_TTL_MINUTES <= 0:
+            raise ValueError("AUTH_REFRESH_TOKEN_TTL_MINUTES must be > 0")
         return self
 
     def get_openai_api_keys(self) -> list[str]:
@@ -195,6 +207,14 @@ def load_settings() -> Settings:
             ),
             "DB_OPERATION_TIMEOUT_SECONDS": float(
                 os.getenv("DB_OPERATION_TIMEOUT_SECONDS", "5.0")
+            ),
+            "AUTH_JWT_SECRET": os.getenv("AUTH_JWT_SECRET", "dev-secret"),
+            "AUTH_JWT_ALGORITHM": os.getenv("AUTH_JWT_ALGORITHM", "HS256"),
+            "AUTH_SESSION_TIMEOUT_MINUTES": int(
+                os.getenv("AUTH_SESSION_TIMEOUT_MINUTES", "60")
+            ),
+            "AUTH_REFRESH_TOKEN_TTL_MINUTES": int(
+                os.getenv("AUTH_REFRESH_TOKEN_TTL_MINUTES", "1440")
             ),
             "FEATURE_FLAGS": FeatureFlags.from_env(),
         }

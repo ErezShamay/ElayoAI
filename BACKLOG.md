@@ -34,16 +34,16 @@
 - [x] Timeout handling
 
 ### Epic: Authentication & Authorization
-- [ ] Role-based permissions
-- [ ] Organization isolation
-- [ ] JWT validation middleware
-- [ ] Refresh token flow
-- [ ] Session timeout handling
-- [ ] Audit login logs
-- [ ] Admin impersonation
-- [ ] Permission matrix
-- [ ] Tenant-level access validation
-- [ ] API authorization middleware
+- [x] Role-based permissions
+- [x] Organization isolation
+- [x] JWT validation middleware
+- [x] Refresh token flow
+- [x] Session timeout handling
+- [x] Audit login logs
+- [x] Admin impersonation
+- [x] Permission matrix
+- [x] Tenant-level access validation
+- [x] API authorization middleware
 
 ### Epic: Project Domain
 - [ ] Create project flow

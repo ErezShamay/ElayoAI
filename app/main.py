@@ -1,23 +1,34 @@
-import os
 import shutil
 
+from datetime import UTC, datetime
 from pathlib import Path
-
-from dotenv import load_dotenv
 
 from fastapi import (
     FastAPI,
     HTTPException,
+    Depends,
+    Request,
     UploadFile,
     File,
     Form,
 )
+from fastapi.responses import JSONResponse
 
 from fastapi.middleware.cors import (
     CORSMiddleware
 )
 
 from pydantic import BaseModel
+
+from app.config.settings import settings
+from app.config import config_manager
+from app.auth import (
+    APIAuthorizationMiddleware,
+    JWTService,
+    PERMISSION_MATRIX,
+    get_auth_context,
+    require_permission,
+)
 
 from app.agent.orchestrator import (
     Orchestrator
@@ -104,6 +115,18 @@ from app.services.automation_monitoring_service import (
 )
 
 # ==========================================
+# EXCEPTION HANDLING & LOGGING
+# ==========================================
+
+from app.exceptions import (
+    GlobalExceptionHandler,
+    IdempotencyMiddleware,
+    RequestLoggingMiddleware,
+    setup_logging,
+    get_logger,
+)
+
+# ==========================================
 # AUTOMATION
 # ==========================================
 
@@ -120,15 +143,17 @@ automation_monitoring_service = (
 )
 
 # ==========================================
-# ENV
+# LOGGING SETUP
 # ==========================================
 
-load_dotenv()
+setup_logging()
+logger = get_logger(__name__)
 
-FRONTEND_URL = os.getenv(
-    "FRONTEND_URL",
-    "http://localhost:3000"
-)
+logger.info("OrgFlow Agent starting up")
+jwt_service = JWTService()
+
+FRONTEND_URL = str(settings.FRONTEND_URL)
+IS_AUTOMATION_ENABLED = settings.FEATURE_FLAGS.enable_automation
 
 FRONTEND_URLS = [
     FRONTEND_URL,
@@ -143,9 +168,45 @@ FRONTEND_URLS = [
 # ==========================================
 
 app = FastAPI()
+app.state.startup_complete = False
 
 DEMO_ORGANIZATION_ID = (
     "bb2c760b-81cb-4e49-b057-4426406d5e71"
+)
+
+# ==========================================
+# MIDDLEWARE
+# ==========================================
+
+# Add request logging middleware before exception handling
+app.add_middleware(
+    RequestLoggingMiddleware
+)
+
+# Add idempotency middleware for write requests
+app.add_middleware(
+    IdempotencyMiddleware
+)
+
+# Add global exception handler middleware (must be first)
+app.add_middleware(
+    GlobalExceptionHandler
+)
+
+app.add_middleware(
+    APIAuthorizationMiddleware,
+    public_paths={
+        "/",
+        "/healthcheck",
+        "/readiness",
+        "/liveness",
+        "/__test/error",
+        "/feature-flags",
+        "/config",
+        "/config/reload",
+        "/secrets/rotation-status",
+        "/auth/refresh",
+    },
 )
 
 # ==========================================
@@ -240,13 +301,33 @@ report_processing_service = (
 # AUTOMATION ENGINE
 # ==========================================
 
-register_automation_jobs()
+@app.on_event("startup")
+def startup_event():
+    if IS_AUTOMATION_ENABLED:
+        register_automation_jobs()
 
-scheduler.start()
+        if not scheduler.running:
+            scheduler.start()
+            print(
+                "[AUTOMATION] Scheduler started"
+            )
+    else:
+        logger.info(
+            "Automation disabled by feature flag"
+        )
 
-print(
-    "[AUTOMATION] Scheduler started"
-)
+    app.state.startup_complete = True
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    app.state.startup_complete = False
+
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+        print(
+            "[AUTOMATION] Scheduler stopped"
+        )
 
 # ==========================================
 # REQUEST MODELS
@@ -286,6 +367,150 @@ def root():
         "message":
             "OrgFlow AI Agent is running"
     }
+
+
+@app.get("/healthcheck")
+def healthcheck():
+
+    return {
+        "status": "ok",
+        "service": "orgflow-agent",
+        "environment": settings.ENVIRONMENT,
+    }
+
+
+@app.get("/readiness")
+def readiness():
+    checks = {
+        "startup_complete": bool(app.state.startup_complete),
+        "scheduler_running": bool(scheduler.running) if IS_AUTOMATION_ENABLED else True,
+        "automation_enabled": IS_AUTOMATION_ENABLED,
+        "supabase_configured": bool(
+            settings.SUPABASE_URL and settings.SUPABASE_KEY
+        ),
+    }
+
+    is_ready = checks["startup_complete"] and checks["scheduler_running"]
+    payload = {
+        "status": "ready" if is_ready else "not_ready",
+        "service": "orgflow-agent",
+        "checks": checks,
+    }
+
+    if not is_ready:
+        return JSONResponse(status_code=503, content=payload)
+
+    return payload
+
+
+@app.get("/liveness")
+def liveness():
+    return {
+        "status": "alive",
+        "service": "orgflow-agent",
+        "environment": settings.ENVIRONMENT,
+        "timestamp": (
+            datetime
+            .now(UTC)
+            .isoformat()
+        ),
+    }
+
+
+@app.get("/feature-flags")
+def get_feature_flags():
+    current_settings = config_manager.get_settings()
+    return {
+        "environment": current_settings.ENVIRONMENT,
+        "flags": current_settings.FEATURE_FLAGS.model_dump(),
+    }
+
+
+@app.get("/config")
+def get_runtime_config():
+    return {
+        "environment": config_manager.get_settings().ENVIRONMENT,
+        "config": config_manager.get_safe_snapshot(),
+    }
+
+
+@app.post("/config/reload")
+def reload_runtime_config():
+    updated = config_manager.force_reload()
+    return {
+        "status": "reloaded",
+        "environment": updated.ENVIRONMENT,
+    }
+
+
+@app.get("/secrets/rotation-status")
+def get_secret_rotation_status():
+    return config_manager.get_secret_rotation_status()
+
+
+@app.get("/auth/me")
+def get_current_session(auth=Depends(get_auth_context)):
+    return {
+        "user_id": auth.user_id,
+        "org_id": auth.org_id,
+        "role": auth.role,
+        "effective_user_id": auth.effective_user_id,
+        "permissions": sorted(auth.permissions),
+    }
+
+
+@app.get("/auth/permission-matrix")
+def get_permission_matrix():
+    return {role: sorted(perms) for role, perms in PERMISSION_MATRIX.items()}
+
+
+@app.get("/auth/tenant/check")
+def tenant_check(auth=Depends(get_auth_context)):
+    return {"status": "ok", "org_id": auth.org_id}
+
+
+@app.get("/auth/secure/reports")
+def secure_reports(_: object = Depends(require_permission("reports:read"))):
+    return {"status": "ok"}
+
+
+@app.get("/auth/secure/admin")
+def secure_admin(_: object = Depends(require_permission("users:write"))):
+    return {"status": "ok"}
+
+
+@app.get("/auth/impersonation/status")
+def impersonation_status(auth=Depends(get_auth_context)):
+    return {
+        "is_impersonating": bool(auth.effective_user_id),
+        "actor_user_id": auth.user_id,
+        "effective_user_id": auth.actor_user_id,
+    }
+
+
+@app.post("/auth/refresh")
+def refresh_access_token(request: Request):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer refresh token")
+
+    refresh_token = auth_header.replace("Bearer ", "", 1).strip()
+    payload = jwt_service.decode_refresh_token(refresh_token)
+    access_token = jwt_service.issue_access_token(
+        user_id=payload["sub"],
+        org_id=payload["org_id"],
+        role=payload["role"],
+        token_id=str(payload.get("jti", "refresh-rotation")),
+    )
+    logger.info(
+        "Refresh token exchanged",
+        extra={
+            "event": "audit.refresh",
+            "user_id": payload["sub"],
+            "org_id": payload["org_id"],
+        },
+    )
+    return {"access_token": access_token, "token_type": "Bearer"}
 
 # ==========================================
 # AGENT APIs
