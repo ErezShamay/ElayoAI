@@ -10,9 +10,9 @@ import BrandLogo from "@/components/ui/BrandLogo";
 import NavLinkItem from "@/components/ui/NavLinkItem";
 import { useIsAdmin } from "@/hooks/useEffectiveRole";
 import {
-  ADMIN_USERS_ROUTE,
+  getSystemNavLinks,
   GLOBAL_NAV_LINKS,
-  SETTINGS_ROUTE,
+  isNavLinkActive,
 } from "@/lib/navigation";
 
 export default function Sidebar() {
@@ -23,6 +23,8 @@ export default function Sidebar() {
     typeof params?.id === "string"
       ? params.id
       : null;
+
+  const systemLinks = getSystemNavLinks(isAdminUser);
 
   const projectLinks = projectId
     ? [
@@ -140,19 +142,14 @@ export default function Sidebar() {
           </p>
 
           <div className="space-y-1">
-            <NavLinkItem
-              href={SETTINGS_ROUTE.href}
-              label={SETTINGS_ROUTE.label}
-              isActive={pathname === SETTINGS_ROUTE.href}
-            />
-
-            {isAdminUser ? (
+            {systemLinks.map((link) => (
               <NavLinkItem
-                href={ADMIN_USERS_ROUTE.href}
-                label={ADMIN_USERS_ROUTE.label}
-                isActive={pathname === ADMIN_USERS_ROUTE.href}
+                key={link.href}
+                href={link.href}
+                label={link.label}
+                isActive={isNavLinkActive(pathname, link.href)}
               />
-            ) : null}
+            ))}
           </div>
         </div>
       </nav>

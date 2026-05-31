@@ -13,6 +13,56 @@ export const ADMIN_USERS_ROUTE = {
   label: "ניהול משתמשים",
 } as const;
 
+export const AUTOMATION_ROUTE = {
+  href: "/automation",
+  label: "אוטומציה",
+} as const;
+
+export const DEAD_LETTERS_ROUTE = {
+  href: "/automation/dead-letters",
+  label: "Dead Letters",
+} as const;
+
+export const SYSTEM_NAV_LABEL = "מערכת";
+
+export const SYSTEM_NAV_LINKS: NavLink[] = [
+  SETTINGS_ROUTE,
+  DEAD_LETTERS_ROUTE,
+  AUTOMATION_ROUTE,
+];
+
+export function getSystemNavLinks(isAdmin: boolean): NavLink[] {
+  if (isAdmin) {
+    return [ADMIN_USERS_ROUTE, ...SYSTEM_NAV_LINKS];
+  }
+
+  return SYSTEM_NAV_LINKS;
+}
+
+export function isNavLinkActive(pathname: string, href: string) {
+  if (href === AUTOMATION_ROUTE.href) {
+    return (
+      pathname === href
+      || (
+        pathname.startsWith(`${href}/`)
+        && !pathname.startsWith(DEAD_LETTERS_ROUTE.href)
+      )
+    );
+  }
+
+  if (href === DEAD_LETTERS_ROUTE.href) {
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  return pathname === href;
+}
+
+export function isSystemNavActive(pathname: string, isAdmin: boolean) {
+  return getSystemNavLinks(isAdmin).some((link) =>
+    isNavLinkActive(pathname, link.href)
+  );
+}
+
 export const LANDING_SECTION_LINKS = [
   { id: "features", label: "יכולות" },
   { id: "how-it-works", label: "איך זה עובד" },
@@ -41,11 +91,6 @@ export const GLOBAL_NAV_LINKS: NavLink[] = [
   { href: "/reviews", label: "ביקורות AI" },
   { href: "/actions", label: "פעולות תפעוליות" },
   { href: "/escalations", label: "נקודות סיכון" },
-  { href: "/automation", label: "אוטומציה" },
-  { href: "/automation/dead-letters", label: "Dead Letters" },
 ];
 
-export const HOME_NAVBAR_LINKS: NavLink[] = [
-  ...GLOBAL_NAV_LINKS,
-  SETTINGS_ROUTE,
-];
+export const HOME_NAVBAR_LINKS: NavLink[] = [...GLOBAL_NAV_LINKS];

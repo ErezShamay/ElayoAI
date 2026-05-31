@@ -74,14 +74,21 @@ class OperationalSummaryService:
 4. המלצת ניהול
 """
 
-        summary = (
-            AIClient()
-            .generate(
-                prompt,
-                prompt_name=
-                    "project_operational_summary"
+        try:
+            summary = (
+                AIClient()
+                .generate(
+                    prompt,
+                    prompt_name=
+                        "project_operational_summary"
+                )
             )
-        )
+        except Exception:
+            summary = (
+                "סיכום AI אינו זמין כרגע.\n\n"
+                f"פעולות פתוחות: {len(actions)}\n"
+                f"ביקורות AI: {len(reviews)}"
+            )
 
         return {
 

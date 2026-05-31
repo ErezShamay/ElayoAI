@@ -77,6 +77,13 @@ type OperationalSummary = {
   summary: string;
 };
 
+type LoadWorkspaceOptions = {
+  silent?: boolean;
+};
+
+const WORKSPACE_POLLING_MS =
+  10 * 60 * 1000;
+
 type WorkspaceResponse = {
   project: Project;
   reviews: Review[];
@@ -91,7 +98,11 @@ type WorkspaceResponse = {
 export function useProjectWorkspace(
   projectId: string
 ) {
-  const { profile } = useAuth();
+  const {
+    profile,
+    user,
+    loading: authLoading,
+  } = useAuth();
 
   // =========================
   // STATE
@@ -139,52 +150,45 @@ export function useProjectWorkspace(
   const [loading, setLoading] =
     useState(true);
 
-  // =========================
-  // LOAD WORKSPACE
-  // =========================
-
   const loadWorkspace =
-    useCallback(async () => {
+    useCallback(async (
+      options: LoadWorkspaceOptions = {}
+    ) => {
+      const { silent = false } = options;
 
       if (!projectId) {
         return;
       }
 
+      if (authLoading) {
+        return;
+      }
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
       try {
 
-        setLoading(true);
+        if (!silent) {
+          setLoading(true);
+        }
 
-        const [
-          workspaceResponse,
-          summaryResponse,
-        ] = await Promise.all([
-
-          apiFetch(
+        const workspaceResponse =
+          await apiFetch(
             `/projects/${projectId}/workspace`
-          ),
+          );
 
-          apiFetch(
-            `/projects/${projectId}/operational-summary`
-          ),
-        ]);
-
-        if (
-          !workspaceResponse.ok
-          || !summaryResponse.ok
-        ) {
-
+        if (!workspaceResponse.ok) {
           throw new Error(
-            "Failed loading workspace"
+            `Failed loading workspace (${workspaceResponse.status})`
           );
         }
 
         const workspace:
           WorkspaceResponse =
             await workspaceResponse.json();
-
-        const operationalSummaryData:
-          OperationalSummary =
-            await summaryResponse.json();
 
         setProject(
           workspace.project
@@ -218,9 +222,34 @@ export function useProjectWorkspace(
           workspace.health
         );
 
-        setOperationalSummary(
-          operationalSummaryData
-        );
+        try {
+          const summaryResponse =
+            await apiFetch(
+              `/projects/${projectId}/operational-summary`
+            );
+
+          if (summaryResponse.ok) {
+            const operationalSummaryData:
+              OperationalSummary =
+                await summaryResponse.json();
+
+            setOperationalSummary(
+              operationalSummaryData
+            );
+          } else {
+            console.warn(
+              "Failed loading operational summary:",
+              summaryResponse.status
+            );
+            setOperationalSummary(null);
+          }
+        } catch (summaryError) {
+          console.warn(
+            "Failed loading operational summary:",
+            summaryError
+          );
+          setOperationalSummary(null);
+        }
 
       } catch (error) {
 
@@ -229,17 +258,21 @@ export function useProjectWorkspace(
           error
         );
 
-        toast.error(
-          "שגיאה בטעינת סביבת העבודה"
-        );
+        if (!silent) {
+          toast.error(
+            "שגיאה בטעינת סביבת העבודה"
+          );
+        }
 
       } finally {
 
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
 
       }
 
-    }, [projectId]);
+    }, [authLoading, projectId, user]);
 
   // =========================
   // INITIAL LOAD
@@ -254,23 +287,17 @@ export function useProjectWorkspace(
   }, [loadWorkspace]);
 
   // =========================
-  // AUTO REFRESH
+  // AUTO REFRESH (every 10 minutes)
   // =========================
 
   useEffect(() => {
 
-    const pollingInterval =
-      Number(
-        process.env
-          .NEXT_PUBLIC_POLLING_INTERVAL
-      ) || 30000;
-
     const interval =
       setInterval(() => {
 
-        loadWorkspace();
+        void loadWorkspace({ silent: true });
 
-      }, pollingInterval);
+      }, WORKSPACE_POLLING_MS);
 
     return () => {
 

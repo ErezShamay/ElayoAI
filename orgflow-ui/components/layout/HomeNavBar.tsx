@@ -5,20 +5,12 @@ import { usePathname } from "next/navigation";
 
 import UserMenu from "@/components/auth/UserMenu";
 import OrgSwitcher from "@/components/admin/OrgSwitcher";
+import SystemNavDropdown from "@/components/layout/SystemNavDropdown";
 import BrandLogo from "@/components/ui/BrandLogo";
-import { useIsAdmin } from "@/hooks/useEffectiveRole";
-import {
-  ADMIN_USERS_ROUTE,
-  HOME_NAVBAR_LINKS,
-} from "@/lib/navigation";
+import { HOME_NAVBAR_LINKS } from "@/lib/navigation";
 
 export default function HomeNavBar() {
   const pathname = usePathname();
-  const isAdminUser = useIsAdmin();
-  const navLinks = [
-    ...HOME_NAVBAR_LINKS,
-    ...(isAdminUser ? [ADMIN_USERS_ROUTE] : []),
-  ];
 
   return (
     <header className="of-glass-header sticky top-0 z-40">
@@ -56,7 +48,7 @@ export default function HomeNavBar() {
             pb-1
           "
         >
-          {navLinks.map((link) => {
+          {HOME_NAVBAR_LINKS.map((link) => {
             const isActive = pathname === link.href;
 
             return (
@@ -82,6 +74,8 @@ export default function HomeNavBar() {
               </Link>
             );
           })}
+
+          <SystemNavDropdown pathname={pathname} />
         </nav>
       </div>
     </header>
