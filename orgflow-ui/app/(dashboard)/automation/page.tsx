@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+
 import { apiFetch } from "@/lib/api/client";
 
 type AutomationStats = {
@@ -883,7 +885,7 @@ export default function AutomationPage() {
         >
 
           {breakers.map(
-            (breaker) => (
+            (breaker: CircuitBreaker) => (
 
               <div
                 key={breaker.breaker_key}
@@ -999,7 +1001,7 @@ export default function AutomationPage() {
         <div className="grid gap-5">
 
           {runs.map(
-            (run) => (
+            (run: AutomationRun) => (
 
               <div
                 key={run.id}

@@ -1,23 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
+import { useRouter } from "next/navigation";
+
+import { Bell } from "lucide-react";
+
 import { useAuth } from "@/contexts/AuthContext";
+import { useRealtime } from "@/hooks/useRealtime";
 import { apiFetch } from "@/lib/api/client";
-
-import {
-  useRouter,
-} from "next/navigation";
-
-import {
-  Bell,
-} from "lucide-react";
-
-import {
-  useAuth,
-} from "@/contexts/AuthContext";
-
-import {
-  useRealtime,
-} from "@/hooks/useRealtime";
 
 type Notification = {
 
