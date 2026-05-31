@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function BrandLogo({
   size = "md",
@@ -13,6 +13,7 @@ export default function BrandLogo({
   showTagline?: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const iconSize =
     size === "sm" ? "h-8 w-8 text-xs" : size === "lg" ? "h-12 w-12 text-base" : "h-10 w-10 text-sm";
@@ -21,18 +22,24 @@ export default function BrandLogo({
     size === "sm" ? "text-base" : size === "lg" ? "text-2xl" : "text-lg";
 
   function handleClick(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (pathname !== href) {
+    if (pathname === href) {
+      event.preventDefault();
+      window.history.replaceState(null, "", href);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    event.preventDefault();
-    window.history.replaceState(null, "", href);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (href === "/") {
+      event.preventDefault();
+      window.history.replaceState(null, "", "/");
+      router.push("/");
+    }
   }
 
   return (
     <Link
       href={href}
+      scroll={false}
       onClick={handleClick}
       className="group flex items-center gap-3"
       aria-label="Supervisor AI — דף הבית"

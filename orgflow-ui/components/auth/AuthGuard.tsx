@@ -31,13 +31,16 @@ export default function AuthGuard({
 
     const isAuthPage = pathname.startsWith("/auth");
     const isPublic = isPublicRoute(pathname);
+    const preserveAuthFlow =
+      pathname.startsWith("/auth/set-password")
+      || pathname.startsWith("/auth/callback");
 
     if (!user && !isPublic) {
       router.push("/auth/login");
       return;
     }
 
-    if (user && isAuthPage) {
+    if (user && isAuthPage && !preserveAuthFlow) {
       router.push("/");
     }
   }, [user, loading, pathname, router]);
@@ -48,12 +51,15 @@ export default function AuthGuard({
 
   const isAuthPage = pathname.startsWith("/auth");
   const isPublic = isPublicRoute(pathname);
+  const preserveAuthFlow =
+    pathname.startsWith("/auth/set-password")
+    || pathname.startsWith("/auth/callback");
 
   if (!user && !isPublic) {
     return null;
   }
 
-  if (user && isAuthPage) {
+  if (user && isAuthPage && !preserveAuthFlow) {
     return null;
   }
 

@@ -7,6 +7,12 @@ export function isAdmin(
   );
 }
 
+export function canManageUsers(
+  role?: string | null
+) {
+  return isAdmin(role);
+}
+
 export function isManager(
   role?: string | null
 ) {

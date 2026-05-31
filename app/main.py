@@ -22,6 +22,7 @@ from fastapi.middleware.cors import (
 
 from pydantic import BaseModel, Field
 
+from app.auth.password_policy import get_password_policy
 from app.config.settings import settings
 from app.config import config_manager
 from app.auth import (
@@ -106,6 +107,14 @@ from app.services.operational_summary_service import (
 
 from app.services.profile_service import (
     ProfileService
+)
+
+from app.services.user_management_service import (
+    UserManagementService,
+)
+
+from app.schemas.user_management import (
+    UserInviteRequest,
 )
 
 from app.services.tenant_extraction_service import (
@@ -452,6 +461,7 @@ app.add_middleware(
         "/secrets/rotation-status",
         "/auth/refresh",
         "/auth/exchange",
+        "/auth/password-policy",
     },
 )
 
@@ -576,6 +586,8 @@ profile_service = (
         organization_repository=organization_repository,
     )
 )
+
+user_management_service = UserManagementService()
 
 tenant_extraction_service = TenantExtractionService()
 
@@ -1659,6 +1671,68 @@ def get_organizations():
         organization_repository
         .get_all_organizations()
     )
+
+@app.get("/auth/password-policy")
+def get_password_policy_config():
+    return get_password_policy()
+
+
+@app.get("/admin/users")
+def list_organization_users(
+    auth=Depends(require_permission("users:read")),
+):
+    return user_management_service.list_users(auth.org_id)
+
+
+@app.post("/admin/users")
+def invite_organization_user(
+    request: UserInviteRequest,
+    auth=Depends(require_permission("users:write")),
+):
+    return user_management_service.invite_user(
+        organization_id=auth.org_id,
+        email=str(request.email),
+        full_name=request.full_name,
+        role=request.role,
+        invited_by=auth.user_id,
+    )
+
+
+@app.delete("/admin/users/{profile_id}")
+def delete_organization_user(
+    profile_id: str,
+    auth=Depends(require_permission("users:write")),
+):
+    return user_management_service.delete_user(
+        organization_id=auth.org_id,
+        profile_id=profile_id,
+        actor_user_id=auth.user_id,
+    )
+
+
+@app.post("/admin/users/{profile_id}/resend-invite")
+def resend_organization_user_invite(
+    profile_id: str,
+    auth=Depends(require_permission("users:write")),
+):
+    return user_management_service.resend_invite(
+        organization_id=auth.org_id,
+        profile_id=profile_id,
+        actor_user_id=auth.user_id,
+    )
+
+
+@app.post("/admin/users/{profile_id}/password-reset")
+def send_organization_user_password_reset(
+    profile_id: str,
+    auth=Depends(require_permission("users:write")),
+):
+    return user_management_service.send_password_reset(
+        organization_id=auth.org_id,
+        profile_id=profile_id,
+        actor_user_id=auth.user_id,
+    )
+
 
 @app.get("/profiles/{profile_id}")
 def get_profile(profile_id: str):

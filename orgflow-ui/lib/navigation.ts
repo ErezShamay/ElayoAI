@@ -8,6 +8,11 @@ export const SETTINGS_ROUTE = {
   label: "הגדרות",
 } as const;
 
+export const ADMIN_USERS_ROUTE = {
+  href: "/admin/users",
+  label: "ניהול משתמשים",
+} as const;
+
 export const LANDING_SECTION_LINKS = [
   { id: "features", label: "יכולות" },
   { id: "how-it-works", label: "איך זה עובד" },

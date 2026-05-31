@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 
 import HeroDashboardPreview from "@/components/landing/HeroDashboardPreview";
-import LandingHashScroll from "@/components/landing/LandingHashScroll";
 import PublicNavBar from "@/components/landing/PublicNavBar";
 import BrandLogo from "@/components/ui/BrandLogo";
 
@@ -91,7 +90,6 @@ const STATS = [
 export default function PublicHomePage() {
   return (
     <div className="of-landing-page min-h-screen">
-      <LandingHashScroll />
       <PublicNavBar />
 
       {/* Hero */}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 
 import HomeNavBar from "@/components/layout/HomeNavBar";
+import HomeScrollManager from "@/components/landing/HomeScrollManager";
 import PublicHomePage from "@/components/landing/PublicHomePage";
 import AppLoadingScreen from "@/components/ui/AppLoadingScreen";
 import Badge from "@/components/ui/Badge";
@@ -118,7 +119,12 @@ export default function HomePage() {
   }
 
   if (!user) {
-    return <PublicHomePage />;
+    return (
+      <>
+        <HomeScrollManager />
+        <PublicHomePage />
+      </>
+    );
   }
 
   const totalProjects =
@@ -130,6 +136,7 @@ export default function HomePage() {
 
   return (
     <div className="of-app-bg min-h-screen">
+      <HomeScrollManager />
       <HomeNavBar />
 
       <section className="of-container relative py-12 md:py-16">
