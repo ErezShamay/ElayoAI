@@ -5,6 +5,9 @@ from postgrest.exceptions import APIError
 from app.db.supabase_client import (
     supabase
 )
+from app.repositories.postgrest_errors import (
+    is_missing_column_error,
+)
 
 
 class OrganizationRepository:
@@ -125,7 +128,7 @@ class OrganizationRepository:
             )
             return bool(response.data)
         except APIError as error:
-            if self._is_missing_column_error(
+            if is_missing_column_error(
                 error,
                 "owner_profile_id",
             ):
@@ -151,7 +154,7 @@ class OrganizationRepository:
             for organization in owned_response.data or []:
                 organizations[str(organization["id"])] = organization
         except APIError as error:
-            if not self._is_missing_column_error(
+            if not is_missing_column_error(
                 error,
                 "owner_profile_id",
             ):
@@ -192,7 +195,7 @@ class OrganizationRepository:
             )
             return True
         except APIError as error:
-            if self._is_missing_column_error(
+            if is_missing_column_error(
                 error,
                 "owner_profile_id",
             ):
@@ -258,15 +261,3 @@ class OrganizationRepository:
         )
 
         return self.attach_projects(organizations)
-
-    @staticmethod
-    def _is_missing_column_error(
-        error: APIError,
-        column: str,
-    ) -> bool:
-
-        message = str(error).lower()
-        return (
-            "does not exist" in message
-            and column.lower() in message
-        )

@@ -4,6 +4,9 @@ from app.db.supabase_client import (
     supabase
 )
 from app.exceptions.exceptions import ConfigurationError
+from app.repositories.postgrest_errors import (
+    is_missing_column_error,
+)
 
 PROFILE_ORG_ID_KEYS = (
     "organization_id",
@@ -35,6 +38,12 @@ class ProfileRepository:
         self,
         profile_id: str,
     ):
+
+        if self.client is None:
+            raise ConfigurationError(
+                message="Supabase is not configured",
+                config_key="SUPABASE_URL",
+            )
 
         response = (
             self.client
@@ -175,7 +184,7 @@ class ProfileRepository:
             )
             return True
         except APIError as error:
-            if self._is_missing_column_error(
+            if is_missing_column_error(
                 error,
                 "organization_id",
             ):

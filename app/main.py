@@ -21,6 +21,7 @@ from fastapi.middleware.cors import (
 )
 
 from pydantic import BaseModel, Field
+from postgrest.exceptions import APIError
 
 from app.auth.password_policy import get_password_policy
 from app.config.settings import settings
@@ -1225,14 +1226,49 @@ def refresh_access_token(request: Request):
 
 @app.post("/auth/exchange")
 def exchange_supabase_session(request: ExchangeTokenRequest):
-    profile = profile_service.get_profile(request.user_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+    user_id = request.user_id.strip()
+    if not user_id:
+        raise HTTPException(
+            status_code=422,
+            detail="user_id is required",
+        )
 
-    org_id = profile_service.ensure_organization_id(
-        request.user_id,
-        preferred_organization_id=request.organization_id,
-    )
+    try:
+        profile = profile_service.get_profile(user_id)
+    except APIError as error:
+        logger.exception(
+            "Database error loading profile during token exchange",
+            extra={"user_id": user_id},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to load profile from database",
+        ) from error
+
+    if not profile:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Profile not found. Ask an administrator to invite you "
+                "before signing in."
+            ),
+        )
+
+    try:
+        org_id = profile_service.ensure_organization_id(
+            user_id,
+            preferred_organization_id=request.organization_id,
+        )
+    except APIError as error:
+        logger.exception(
+            "Database error resolving organization during token exchange",
+            extra={"user_id": user_id},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to resolve organization for user",
+        ) from error
+
     role = str(profile.get("role") or "VIEWER").strip().upper()
     if not org_id:
         raise HTTPException(
