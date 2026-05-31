@@ -23,12 +23,11 @@ export function landingSectionHref(sectionId: string) {
   return `/#${sectionId}`;
 }
 
-export const PUBLIC_ROUTES = ["/", "/settings"] as const;
+export const PUBLIC_ROUTES = ["/"] as const;
 
 export function isPublicRoute(pathname: string) {
   return (
     pathname === "/"
-    || pathname === "/settings"
     || pathname.startsWith("/auth")
   );
 }
@@ -44,4 +43,9 @@ export const GLOBAL_NAV_LINKS: NavLink[] = [
   { href: "/escalations", label: "נקודות סיכון" },
   { href: "/automation", label: "אוטומציה" },
   { href: "/automation/dead-letters", label: "Dead Letters" },
+];
+
+export const HOME_NAVBAR_LINKS: NavLink[] = [
+  ...GLOBAL_NAV_LINKS,
+  SETTINGS_ROUTE,
 ];

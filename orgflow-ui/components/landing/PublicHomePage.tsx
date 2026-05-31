@@ -322,7 +322,8 @@ export default function PublicHomePage() {
         id="features"
         className="
           px-4
-          py-24
+          pb-20
+          pt-24
           md:px-8
         "
       >
@@ -442,7 +443,8 @@ export default function PublicHomePage() {
         id="how-it-works"
         className="
           px-4
-          py-24
+          pb-20
+          pt-8
           md:px-8
         "
       >
@@ -455,8 +457,8 @@ export default function PublicHomePage() {
             bg-gradient-to-br
             from-zinc-50
             to-zinc-100/80
-            p-10
-            md:p-16
+            p-8
+            md:p-12
             dark:border-zinc-800
             dark:from-zinc-900/80
             dark:to-zinc-950
@@ -464,7 +466,7 @@ export default function PublicHomePage() {
         >
           <div
             className="
-              mb-14
+              mb-10
               max-w-xl
             "
           >
@@ -496,33 +498,52 @@ export default function PublicHomePage() {
           <div
             className="
               grid
-              gap-8
+              gap-5
               md:grid-cols-3
             "
           >
             {STEPS.map((item) => (
-              <div
+              <article
                 key={item.step}
-                className="relative"
+                className="
+                  rounded-[1.75rem]
+                  border
+                  border-zinc-200/80
+                  bg-white
+                  p-8
+                  shadow-sm
+                  transition-all
+                  hover:-translate-y-0.5
+                  hover:shadow-lg
+                  hover:shadow-zinc-900/5
+                  dark:border-zinc-800
+                  dark:bg-zinc-950/70
+                  dark:hover:shadow-black/20
+                "
               >
-                <span
+                <div
                   className="
-                    of-landing-gradient-text
-                    text-5xl
+                    mb-6
+                    inline-flex
+                    h-12
+                    w-12
+                    items-center
+                    justify-center
+                    rounded-2xl
+                    bg-gradient-to-br
+                    from-violet-500
+                    to-purple-600
+                    text-sm
                     font-black
-                    opacity-30
+                    text-white
+                    shadow-lg
+                    shadow-violet-600/20
                   "
                 >
                   {item.step}
-                </span>
+                </div>
 
-                <h3
-                  className="
-                    -mt-4
-                    text-xl
-                    font-bold
-                  "
-                >
+                <h3 className="text-xl font-bold">
                   {item.title}
                 </h3>
 
@@ -536,7 +557,7 @@ export default function PublicHomePage() {
                 >
                   {item.description}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
         </div>
@@ -547,7 +568,8 @@ export default function PublicHomePage() {
         id="platform"
         className="
           px-4
-          py-24
+          pb-24
+          pt-8
           md:px-8
         "
       >

@@ -4,12 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import UserMenu from "@/components/auth/UserMenu";
+import OrgSwitcher from "@/components/admin/OrgSwitcher";
 import BrandLogo from "@/components/ui/BrandLogo";
-import SettingsNavLink from "@/components/ui/SettingsNavLink";
-import { GLOBAL_NAV_LINKS } from "@/lib/navigation";
+import { useIsAdmin } from "@/hooks/useEffectiveRole";
+import {
+  ADMIN_USERS_ROUTE,
+  HOME_NAVBAR_LINKS,
+} from "@/lib/navigation";
 
 export default function HomeNavBar() {
   const pathname = usePathname();
+  const isAdminUser = useIsAdmin();
+  const navLinks = [
+    ...HOME_NAVBAR_LINKS,
+    ...(isAdminUser ? [ADMIN_USERS_ROUTE] : []),
+  ];
 
   return (
     <header className="of-glass-header sticky top-0 z-40">
@@ -33,7 +42,7 @@ export default function HomeNavBar() {
           <BrandLogo />
 
           <div className="flex shrink-0 items-center gap-2">
-            <SettingsNavLink />
+            <OrgSwitcher />
             <UserMenu />
           </div>
         </div>
@@ -47,7 +56,7 @@ export default function HomeNavBar() {
             pb-1
           "
         >
-          {GLOBAL_NAV_LINKS.map((link) => {
+          {navLinks.map((link) => {
             const isActive = pathname === link.href;
 
             return (

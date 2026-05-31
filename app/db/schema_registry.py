@@ -220,10 +220,10 @@ MIGRATION_SCRIPTS: list[dict] = [
         ],
     },
     {
-        "version": "2026052903",
-        "name": "add_audit_tables",
-        "description": "Create audit_log table for change tracking",
-        "tables": ["audit_log"],
+        "version": "2026053101",
+        "name": "profiles_tenant_isolation",
+        "description": "Add organization_id to profiles and owner_profile_id to organizations",
+        "tables": ["profiles", "organizations"],
     },
 ]
 

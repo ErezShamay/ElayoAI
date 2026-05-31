@@ -1,5 +1,17 @@
+from postgrest.exceptions import APIError
+
 from app.db.supabase_client import (
     supabase
+)
+from app.exceptions.exceptions import ConfigurationError
+
+PROFILE_ORG_ID_KEYS = (
+    "organization_id",
+    "org_id",
+)
+
+MIGRATION_SQL_PATH = (
+    "deploy/sql/20260531_profiles_tenant_isolation.sql"
 )
 
 
@@ -69,6 +81,14 @@ class ProfileRepository:
         organization_id: str,
     ):
 
+        if not self.supports_organization_column():
+            raise ConfigurationError(
+                message=(
+                    "profiles.organization_id column is missing. "
+                    f"Run {MIGRATION_SQL_PATH} in Supabase SQL Editor."
+                ),
+            )
+
         response = (
             self.client
             .table(self.table_name)
@@ -83,10 +103,40 @@ class ProfileRepository:
 
         return response.data or []
 
+    def supports_organization_column(self) -> bool:
+
+        try:
+            (
+                self.client
+                .table(self.table_name)
+                .select("organization_id")
+                .limit(1)
+                .execute()
+            )
+            return True
+        except APIError as error:
+            if self._is_missing_column_error(
+                error,
+                "organization_id",
+            ):
+                return False
+            raise
+
     def create_profile(
         self,
         profile: dict,
     ):
+
+        if (
+            not self.supports_organization_column()
+            and ProfileRepository.extract_organization_id(profile)
+        ):
+            raise ConfigurationError(
+                message=(
+                    "profiles.organization_id column is missing. "
+                    f"Run {MIGRATION_SQL_PATH} in Supabase SQL Editor."
+                ),
+            )
 
         response = (
             self.client
@@ -117,3 +167,55 @@ class ProfileRepository:
         )
 
         return True
+
+    @staticmethod
+    def extract_organization_id(
+        profile: dict,
+    ) -> str:
+
+        for key in PROFILE_ORG_ID_KEYS:
+            value = str(
+                profile.get(key) or ""
+            ).strip()
+
+            if value:
+                return value
+
+        return ""
+
+    @staticmethod
+    def _strip_org_fields(
+        profile: dict,
+    ) -> dict:
+
+        return {
+            key: value
+            for key, value in profile.items()
+            if key not in PROFILE_ORG_ID_KEYS
+        }
+
+    @staticmethod
+    def _is_missing_column_error(
+        error: APIError,
+        column: str,
+    ) -> bool:
+
+        message = str(error).lower()
+        return (
+            "does not exist" in message
+            and column.lower() in message
+        )
+
+    @staticmethod
+    def _is_missing_org_column_error(
+        error: APIError,
+    ) -> bool:
+
+        message = str(error).lower()
+        return (
+            "does not exist" in message
+            and any(
+                key in message
+                for key in PROFILE_ORG_ID_KEYS
+            )
+        )

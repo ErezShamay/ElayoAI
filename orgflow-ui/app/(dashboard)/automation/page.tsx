@@ -442,14 +442,14 @@ export default function AutomationPage() {
               <InfoCard
                 title="Success Rate"
                 value={
-                  `${health?.summary.success_rate || 0}%`
+                  `${health?.summary?.success_rate || 0}%`
                 }
               />
 
               <InfoCard
                 title="Error Rate"
                 value={
-                  `${health?.summary.error_rate || 0}%`
+                  `${health?.summary?.error_rate || 0}%`
                 }
               />
 
@@ -457,7 +457,7 @@ export default function AutomationPage() {
                 title="Running"
                 value={
                   String(
-                    health?.summary.running_runs || 0
+                    health?.summary?.running_runs || 0
                   )
                 }
               />
@@ -466,7 +466,7 @@ export default function AutomationPage() {
                 title="Skipped"
                 value={
                   String(
-                    health?.summary.skipped_runs || 0
+                    health?.summary?.skipped_runs || 0
                   )
                 }
               />
@@ -506,7 +506,7 @@ export default function AutomationPage() {
               title="Completed With Errors"
               value={
                 String(
-                  health?.summary.completed_with_errors || 0
+                  health?.summary?.completed_with_errors || 0
                 )
               }
             />
@@ -515,7 +515,7 @@ export default function AutomationPage() {
               title="Failed Runs"
               value={
                 String(
-                  health?.summary.failed_runs || 0
+                  health?.summary?.failed_runs || 0
                 )
               }
             />
@@ -524,7 +524,7 @@ export default function AutomationPage() {
               title="Open Breakers"
               value={
                 String(
-                  health?.circuit_breaker_summary.open || 0
+                  health?.circuit_breaker_summary?.open || 0
                 )
               }
             />
@@ -533,7 +533,7 @@ export default function AutomationPage() {
               title="Recovery Queue"
               value={
                 String(
-                  health?.ai_recovery_summary.recovery_queue_count || 0
+                  health?.ai_recovery_summary?.recovery_queue_count || 0
                 )
               }
             />
@@ -596,7 +596,7 @@ export default function AutomationPage() {
             title="AI Executions"
             value={
               String(
-                aiLogs?.summary.total || 0
+                aiLogs?.summary?.total || 0
               )
             }
           />
@@ -604,7 +604,7 @@ export default function AutomationPage() {
           <MetricCard
             title="AI Success Rate"
             value={
-              `${aiLogs?.summary.success_rate || 0}%`
+              `${aiLogs?.summary?.success_rate || 0}%`
             }
           />
 
@@ -612,7 +612,7 @@ export default function AutomationPage() {
             title="Failed AI Executions"
             value={
               String(
-                aiLogs?.summary.failed || 0
+                aiLogs?.summary?.failed || 0
               )
             }
           />
@@ -620,7 +620,7 @@ export default function AutomationPage() {
           <MetricCard
             title="Failure Classification"
             value={
-              `${aiLogs?.summary.classification_rate || 0}%`
+              `${aiLogs?.summary?.classification_rate || 0}%`
             }
           />
 
@@ -695,6 +695,7 @@ export default function AutomationPage() {
           md:grid-cols-2
           xl:grid-cols-5
           gap-6
+          mt-12
         "
       >
 

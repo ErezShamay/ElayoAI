@@ -51,6 +51,7 @@ def test_invite_user_rejects_invalid_role():
             full_name="Test User",
             role="SUPERUSER",
             invited_by="admin-1",
+            inviter_role="ADMIN",
         )
 
 
@@ -70,6 +71,7 @@ def test_invite_user_rejects_duplicate_email():
             full_name="Test User",
             role="VIEWER",
             invited_by="admin-1",
+            inviter_role="ADMIN",
         )
 
 
@@ -90,6 +92,7 @@ def test_delete_user_blocks_self_delete():
             organization_id="org-1",
             profile_id="admin-1",
             actor_user_id="admin-1",
+            actor_role="ADMIN",
         )
 
 

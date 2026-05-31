@@ -9,25 +9,8 @@ import PublicHomePage from "@/components/landing/PublicHomePage";
 import AppLoadingScreen from "@/components/ui/AppLoadingScreen";
 import Badge from "@/components/ui/Badge";
 import KpiCard from "@/components/ui/KpiCard";
-import LoadingState from "@/components/ui/LoadingState";
-
-import { useCallback, useEffect, useState, startTransition } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch } from "@/lib/api/client";
-
-type Project = {
-  id: string;
-  project_name: string;
-  status: string;
-};
-
-type Organization = {
-  id: string;
-  organization_name: string;
-  contact_email: string;
-  projects: Project[];
-};
 
 function AuthenticatedHero() {
   return (
@@ -72,47 +55,7 @@ function AuthenticatedHero() {
 }
 
 export default function HomePage() {
-  const { user, loading: authLoading } = useAuth();
-
-  const [organizations, setOrganizations] =
-    useState<Organization[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const loadOrganizations = useCallback(async () => {
-    try {
-      const response = await apiFetch("/organizations");
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        console.error("Failed loading organizations:", data);
-        setOrganizations([]);
-        return;
-      }
-
-      setOrganizations(
-        Array.isArray(data) ? data : []
-      );
-    } catch (error) {
-      console.error(error);
-      setOrganizations([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (authLoading || !user) {
-      return;
-    }
-
-    startTransition(() => {
-      void loadOrganizations();
-    });
-  }, [authLoading, user, loadOrganizations]);
+  const { user, loading: authLoading, organizations } = useAuth();
 
   if (authLoading) {
     return <AppLoadingScreen />;
@@ -183,10 +126,6 @@ export default function HomePage() {
           </p>
         </div>
 
-        {loading ? (
-          <LoadingState message="טוען נתונים..." />
-        ) : null}
-
         <div className="space-y-10">
           {organizations.map((organization) => (
             <div
@@ -211,7 +150,7 @@ export default function HomePage() {
                   xl:grid-cols-3
                 "
               >
-                {organization.projects.map((project) => (
+                {(organization.projects ?? []).map((project) => (
                   <Link
                     key={project.id}
                     href={`/projects/${project.id}`}

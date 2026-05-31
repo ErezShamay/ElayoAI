@@ -140,7 +140,8 @@ export async function apiFetch(
 }
 
 export async function exchangeBackendToken(
-  userId: string
+  userId: string,
+  organizationId?: string | null
 ): Promise<{
   access_token: string;
   org_id: string;
@@ -164,6 +165,9 @@ export async function exchangeBackendToken(
         },
         body: JSON.stringify({
           user_id: userId,
+          ...(organizationId
+            ? { organization_id: organizationId }
+            : {}),
         }),
       });
       break;

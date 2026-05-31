@@ -11,8 +11,14 @@ from app.exceptions.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.auth.roles import (
+    PLATFORM_ADMIN_ROLE,
+    can_assign_role,
+    is_org_admin,
+    is_platform_admin,
+    ORG_SCOPED_INVITE_ROLES,
+)
 from app.repositories.profile_repository import ProfileRepository
-from app.schemas.user_management import ALLOWED_USER_ROLES
 from app.services.user_invite_email_service import UserInviteEmailService
 
 logger = logging.getLogger(__name__)
@@ -61,13 +67,35 @@ class UserManagementService:
         full_name: str,
         role: str,
         invited_by: str,
+        inviter_role: str,
     ) -> dict:
         normalized_email = email.strip().lower()
         normalized_role = role.strip().upper()
         normalized_name = full_name.strip()
 
         self._validate_email(normalized_email)
-        self._validate_role(normalized_role)
+
+        if not can_assign_role(
+            actor_role=inviter_role,
+            target_role=normalized_role,
+        ):
+            raise ValidationError(
+                message="Invalid role for this invitation",
+                details={
+                    "allowed_roles": list(
+                        self._allowed_roles_for_inviter(
+                            inviter_role
+                        )
+                    ),
+                },
+            )
+
+        if normalized_role == PLATFORM_ADMIN_ROLE:
+            raise ForbiddenError(
+                message=(
+                    "Global admin accounts cannot be created via invitation"
+                ),
+            )
 
         if not normalized_name:
             raise ValidationError(message="Full name is required")
@@ -269,14 +297,25 @@ class UserManagementService:
         organization_id: str,
         profile_id: str,
         actor_user_id: str,
+        actor_role: str,
     ) -> dict:
         if profile_id == actor_user_id:
             raise ForbiddenError(message="You cannot delete your own account")
 
-        self._get_profile_in_org(
+        profile = self._get_profile_in_org(
             organization_id=organization_id,
             profile_id=profile_id,
         )
+
+        target_role = str(profile.get("role") or "").strip().upper()
+
+        if (
+            is_platform_admin(target_role)
+            and not is_platform_admin(actor_role)
+        ):
+            raise ForbiddenError(
+                message="Only platform admins can remove platform admins"
+            )
 
         try:
             self.auth_client.auth.admin.delete_user(profile_id)
@@ -322,11 +361,14 @@ class UserManagementService:
                 resource_id=profile_id,
             )
 
-        profile_org_id = str(
-            profile.get("organization_id")
-            or profile.get("org_id")
-            or ""
-        ).strip()
+        profile_org_id = ProfileRepository.extract_organization_id(
+            profile
+        )
+
+        if not profile_org_id:
+            raise ForbiddenError(
+                message="User is not assigned to a customer organization"
+            )
 
         if profile_org_id != organization_id:
             raise ForbiddenError(message="User belongs to a different organization")
@@ -384,11 +426,21 @@ class UserManagementService:
             raise ValidationError(message="Invalid email address")
 
     @staticmethod
+    def _allowed_roles_for_inviter(
+        inviter_role: str,
+    ) -> tuple[str, ...]:
+        from app.auth.roles import inviteable_roles
+
+        return inviteable_roles(inviter_role)
+
+    @staticmethod
     def _validate_role(role: str) -> None:
-        if role not in ALLOWED_USER_ROLES:
+        if role not in {
+            *ORG_SCOPED_INVITE_ROLES,
+            "PLATFORM_ADMIN",
+        }:
             raise ValidationError(
                 message="Invalid role",
-                details={"allowed_roles": list(ALLOWED_USER_ROLES)},
             )
 
     @staticmethod

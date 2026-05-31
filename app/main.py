@@ -117,6 +117,18 @@ from app.schemas.user_management import (
     UserInviteRequest,
 )
 
+from app.schemas.organization import (
+    OrganizationCreateRequest,
+)
+
+from app.services.organization_admin_service import (
+    OrganizationAdminService,
+)
+
+from app.services.tenant_migration_service import (
+    TenantMigrationService,
+)
+
 from app.services.tenant_extraction_service import (
     TenantExtractionService,
 )
@@ -589,6 +601,10 @@ profile_service = (
 
 user_management_service = UserManagementService()
 
+organization_admin_service = OrganizationAdminService()
+
+tenant_migration_service = TenantMigrationService()
+
 tenant_extraction_service = TenantExtractionService()
 
 notification_service = (
@@ -717,6 +733,7 @@ class ExchangeTokenRequest(
     BaseModel
 ):
     user_id: str
+    organization_id: str | None = None
 
 
 class TenantExtractRequest(BaseModel):
@@ -1206,10 +1223,19 @@ def exchange_supabase_session(request: ExchangeTokenRequest):
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    org_id = profile_service.ensure_organization_id(request.user_id)
+    org_id = profile_service.ensure_organization_id(
+        request.user_id,
+        preferred_organization_id=request.organization_id,
+    )
     role = str(profile.get("role") or "VIEWER").strip().upper()
     if not org_id:
-        raise HTTPException(status_code=422, detail="Profile missing organization_id")
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Profile missing organization_id. "
+                "Run tenant migration in Supabase."
+            ),
+        )
 
     access_token = jwt_service.issue_access_token(
         user_id=request.user_id,
@@ -1232,6 +1258,50 @@ def exchange_supabase_session(request: ExchangeTokenRequest):
         "org_id": org_id,
         "role": role,
     }
+
+
+@app.get("/auth/organizations")
+def list_accessible_organizations(
+    auth=Depends(get_auth_context),
+):
+    return organization_admin_service.list_accessible_organizations(
+        auth.user_id
+    )
+
+
+@app.get("/admin/organizations")
+def list_admin_organizations(
+    auth=Depends(require_permission("users:read")),
+):
+    return organization_admin_service.list_accessible_organizations(
+        auth.user_id
+    )
+
+
+@app.post("/admin/organizations")
+def create_admin_organization(
+    request: OrganizationCreateRequest,
+    auth=Depends(require_permission("organizations:write")),
+):
+    return organization_admin_service.create_customer_organization(
+        organization_name=request.organization_name,
+        contact_email=request.contact_email,
+        owner_profile_id=auth.user_id,
+    )
+
+
+@app.get("/admin/tenant-migration/status")
+def get_tenant_migration_status(
+    _: object = Depends(require_permission("organizations:write")),
+):
+    return tenant_migration_service.get_status()
+
+
+@app.post("/admin/tenant-migration/backfill")
+def run_tenant_migration_backfill(
+    _: object = Depends(require_permission("organizations:write")),
+):
+    return tenant_migration_service.backfill()
 
 
 @app.post("/tenants/extract", response_model=TenantExtractResponse)
@@ -1695,6 +1765,7 @@ def invite_organization_user(
         full_name=request.full_name,
         role=request.role,
         invited_by=auth.user_id,
+        inviter_role=auth.role,
     )
 
 
@@ -1707,6 +1778,7 @@ def delete_organization_user(
         organization_id=auth.org_id,
         profile_id=profile_id,
         actor_user_id=auth.user_id,
+        actor_role=auth.role,
     )
 
 

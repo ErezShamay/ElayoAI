@@ -7,6 +7,9 @@ from app.repositories.organization_repository import (
 from app.repositories.profile_repository import (
     ProfileRepository,
 )
+from app.services.tenant_access_service import (
+    TenantAccessService,
+)
 
 PROFILE_ORG_ID_KEYS = (
     "organization_id",
@@ -20,14 +23,19 @@ class ProfileService:
         self,
         organization_repository:
             OrganizationRepository | None = None,
+        profile_repository: ProfileRepository | None = None,
+        tenant_access_service: TenantAccessService | None = None,
     ):
 
         self.repository = (
-            ProfileRepository()
+            profile_repository or ProfileRepository()
         )
         self.organization_repository = (
             organization_repository
             or OrganizationRepository()
+        )
+        self.tenant_access_service = (
+            tenant_access_service or TenantAccessService()
         )
 
     def get_profile(
@@ -47,19 +55,15 @@ class ProfileService:
         profile: dict,
     ) -> str:
 
-        for key in PROFILE_ORG_ID_KEYS:
-            value = str(
-                profile.get(key) or ""
-            ).strip()
-
-            if value:
-                return value
-
-        return ""
+        return ProfileRepository.extract_organization_id(
+            profile
+        )
 
     def ensure_organization_id(
         self,
         profile_id: str,
+        *,
+        preferred_organization_id: str | None = None,
     ) -> str | None:
 
         profile = self.get_profile(profile_id)
@@ -67,16 +71,45 @@ class ProfileService:
         if not profile:
             return None
 
+        if preferred_organization_id:
+            return (
+                self.tenant_access_service
+                .resolve_organization_access(
+                    profile_id=profile_id,
+                    requested_organization_id=(
+                        preferred_organization_id
+                    ),
+                )
+            )
+
         org_id = self._extract_organization_id(profile)
 
         if org_id:
             return org_id
 
-        if settings.ENVIRONMENT not in {
-            "local",
-            "development",
-            "test",
-        }:
+        if not self.repository.supports_organization_column():
+            if settings.ENVIRONMENT in {
+                "local",
+                "development",
+                "test",
+            }:
+                organization = (
+                    self.organization_repository
+                    .get_first_organization()
+                )
+
+                if not organization:
+                    organization = (
+                        self.organization_repository
+                        .create_organization(
+                            name="Default Customer",
+                            contact_email="demo@example.com",
+                            owner_profile_id=profile_id,
+                        )
+                    )
+
+                return str(organization["id"]).strip()
+
             return None
 
         organization = (
@@ -87,28 +120,29 @@ class ProfileService:
         if not organization:
             organization = (
                 self.organization_repository
-                .create_organization()
+                .create_organization(
+                    name="Default Customer",
+                    contact_email=str(
+                        profile.get("email") or "demo@example.com"
+                    ),
+                    owner_profile_id=profile_id,
+                )
             )
 
         org_id = str(organization["id"]).strip()
 
-        if "organization_id" in profile:
-            try:
-                self.repository.update_profile(
-                    profile_id,
-                    {
-                        "organization_id": org_id,
-                    },
-                )
-            except APIError as error:
-                if "organization_id" not in str(error):
-                    raise
+        try:
+            self.repository.update_profile(
+                profile_id,
+                {
+                    "organization_id": org_id,
+                },
+            )
+        except APIError as error:
+            if "organization_id" not in str(error):
+                raise
 
         return org_id
-
-    # ==========================================
-    # ROLE HELPERS
-    # ==========================================
 
     def is_admin(
         self,
@@ -126,8 +160,11 @@ class ProfileService:
             return False
 
         return (
-            profile["role"]
-            == "ADMIN"
+            str(profile.get("role") or "").strip().upper()
+            in {
+                "ADMIN",
+                "PLATFORM_ADMIN",
+            }
         )
 
     def is_manager(
@@ -146,9 +183,10 @@ class ProfileService:
             return False
 
         return (
-            profile["role"]
+            str(profile.get("role") or "").strip().upper()
             in [
                 "ADMIN",
+                "PLATFORM_ADMIN",
                 "MANAGER",
             ]
         )

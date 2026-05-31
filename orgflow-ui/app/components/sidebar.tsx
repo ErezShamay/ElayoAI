@@ -8,8 +8,7 @@ import {
 
 import BrandLogo from "@/components/ui/BrandLogo";
 import NavLinkItem from "@/components/ui/NavLinkItem";
-import { useAuth } from "@/contexts/AuthContext";
-import { isAdmin } from "@/lib/auth/permissions";
+import { useIsAdmin } from "@/hooks/useEffectiveRole";
 import {
   ADMIN_USERS_ROUTE,
   GLOBAL_NAV_LINKS,
@@ -19,7 +18,7 @@ import {
 export default function Sidebar() {
   const pathname = usePathname();
   const params = useParams();
-  const { profile } = useAuth();
+  const isAdminUser = useIsAdmin();
   const projectId =
     typeof params?.id === "string"
       ? params.id
@@ -141,18 +140,19 @@ export default function Sidebar() {
           </p>
 
           <div className="space-y-1">
-            {isAdmin(profile?.role) ? (
+            <NavLinkItem
+              href={SETTINGS_ROUTE.href}
+              label={SETTINGS_ROUTE.label}
+              isActive={pathname === SETTINGS_ROUTE.href}
+            />
+
+            {isAdminUser ? (
               <NavLinkItem
                 href={ADMIN_USERS_ROUTE.href}
                 label={ADMIN_USERS_ROUTE.label}
                 isActive={pathname === ADMIN_USERS_ROUTE.href}
               />
             ) : null}
-            <NavLinkItem
-              href={SETTINGS_ROUTE.href}
-              label={SETTINGS_ROUTE.label}
-              isActive={pathname === SETTINGS_ROUTE.href}
-            />
           </div>
         </div>
       </nav>

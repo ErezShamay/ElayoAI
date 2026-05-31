@@ -12,14 +12,17 @@ import AppLoadingScreen from "@/components/ui/AppLoadingScreen";
 import {
   useAuth,
 } from "@/contexts/AuthContext";
-import { isAdmin } from "@/lib/auth/permissions";
+import {
+  useIsAdmin,
+} from "@/hooks/useEffectiveRole";
 
 export default function AdminGuard({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { profile, loading } = useAuth();
+  const { loading } = useAuth();
+  const isAdminUser = useIsAdmin();
   const router = useRouter();
 
   useEffect(() => {
@@ -27,16 +30,16 @@ export default function AdminGuard({
       return;
     }
 
-    if (!isAdmin(profile?.role)) {
+    if (!isAdminUser) {
       router.replace("/");
     }
-  }, [loading, profile?.role, router]);
+  }, [loading, isAdminUser, router]);
 
   if (loading) {
     return <AppLoadingScreen />;
   }
 
-  if (!isAdmin(profile?.role)) {
+  if (!isAdminUser) {
     return null;
   }
 

@@ -1,6 +1,18 @@
 from __future__ import annotations
 
 PERMISSION_MATRIX: dict[str, set[str]] = {
+    "PLATFORM_ADMIN": {
+        "projects:read",
+        "projects:write",
+        "reports:read",
+        "reports:write",
+        "users:read",
+        "users:write",
+        "organizations:read",
+        "organizations:write",
+        "audit:read",
+        "impersonation:use",
+    },
     "ADMIN": {
         "projects:read",
         "projects:write",
@@ -9,7 +21,6 @@ PERMISSION_MATRIX: dict[str, set[str]] = {
         "users:read",
         "users:write",
         "audit:read",
-        "impersonation:use",
     },
     "MANAGER": {
         "projects:read",

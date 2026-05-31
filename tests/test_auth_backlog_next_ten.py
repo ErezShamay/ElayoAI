@@ -77,7 +77,7 @@ def test_organization_isolation_blocks_cross_tenant_access():
 
 def test_admin_impersonation_supported_for_admin_role():
     client = TestClient(app)
-    token = _build_access_token(user_id="admin-1", role="ADMIN")
+    token = _build_access_token(user_id="admin-1", role="PLATFORM_ADMIN")
     response = client.get(
         "/auth/impersonation/status",
         headers={
@@ -154,8 +154,13 @@ def test_auth_exchange_issues_access_token(monkeypatch):
                 "email": "manager@example.com",
             }
 
-        def ensure_organization_id(self, profile_id: str):
-            return "org-1"
+        def ensure_organization_id(
+            self,
+            profile_id: str,
+            *,
+            preferred_organization_id: str | None = None,
+        ):
+            return preferred_organization_id or "org-1"
 
     monkeypatch.setattr(main_module, "profile_service", FakeProfileService())
     client = TestClient(app)

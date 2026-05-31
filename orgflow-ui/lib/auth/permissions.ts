@@ -1,10 +1,26 @@
+import {
+  normalizeRole,
+} from "@/lib/auth/role";
+
+export const PLATFORM_ADMIN_ROLE = "PLATFORM_ADMIN";
+export const ORG_ADMIN_ROLE = "ADMIN";
+
+export function isPlatformAdmin(
+  role?: string | null
+) {
+  return normalizeRole(role) === PLATFORM_ADMIN_ROLE;
+}
+
+export function isOrgAdmin(
+  role?: string | null
+) {
+  return normalizeRole(role) === ORG_ADMIN_ROLE;
+}
+
 export function isAdmin(
   role?: string | null
 ) {
-
-  return (
-    role === "ADMIN"
-  );
+  return isPlatformAdmin(role) || isOrgAdmin(role);
 }
 
 export function canManageUsers(
@@ -13,15 +29,46 @@ export function canManageUsers(
   return isAdmin(role);
 }
 
+export function canManageOrganizations(
+  role?: string | null
+) {
+  return isPlatformAdmin(role);
+}
+
+export function inviteableRoles(
+  role?: string | null
+) {
+  if (isPlatformAdmin(role)) {
+    return [
+      ORG_ADMIN_ROLE,
+      "MANAGER",
+      "ANALYST",
+      "VIEWER",
+    ] as const;
+  }
+
+  if (isOrgAdmin(role)) {
+    return [
+      ORG_ADMIN_ROLE,
+      "MANAGER",
+      "ANALYST",
+      "VIEWER",
+    ] as const;
+  }
+
+  return [] as const;
+}
+
 export function isManager(
   role?: string | null
 ) {
 
   return [
-    "ADMIN",
+    PLATFORM_ADMIN_ROLE,
+    ORG_ADMIN_ROLE,
     "MANAGER",
   ].includes(
-    role || ""
+    normalizeRole(role)
   );
 }
 
@@ -30,10 +77,11 @@ export function canManageActions(
 ) {
 
   return [
-    "ADMIN",
+    PLATFORM_ADMIN_ROLE,
+    ORG_ADMIN_ROLE,
     "MANAGER",
   ].includes(
-    role || ""
+    normalizeRole(role)
   );
 }
 
@@ -42,10 +90,11 @@ export function canEscalateActions(
 ) {
 
   return [
-    "ADMIN",
+    PLATFORM_ADMIN_ROLE,
+    ORG_ADMIN_ROLE,
     "MANAGER",
   ].includes(
-    role || ""
+    normalizeRole(role)
   );
 }
 
@@ -54,9 +103,10 @@ export function canReviewAI(
 ) {
 
   return [
-    "ADMIN",
+    PLATFORM_ADMIN_ROLE,
+    ORG_ADMIN_ROLE,
     "MANAGER",
   ].includes(
-    role || ""
+    normalizeRole(role)
   );
 }

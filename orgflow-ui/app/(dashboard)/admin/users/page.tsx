@@ -9,9 +9,15 @@ import {
 import { toast } from "sonner";
 
 import AdminGuard from "@/components/admin/AdminGuard";
+import { TenantMigrationBanner } from "@/components/admin/OrgSwitcher";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  useCanManageOrganizations,
+} from "@/hooks/useEffectiveRole";
+import { inviteableRoles } from "@/lib/auth/permissions";
+import { getRoleLabel } from "@/lib/auth/roleLabels";
 import { apiFetch } from "@/lib/api/client";
 
 type ManagedUser = {
@@ -23,12 +29,12 @@ type ManagedUser = {
   created_at?: string | null;
 };
 
-const ROLE_OPTIONS = [
-  { value: "VIEWER", label: "צופה" },
-  { value: "ANALYST", label: "אנליסט" },
-  { value: "MANAGER", label: "מנהל" },
-  { value: "ADMIN", label: "מנהל מערכת" },
-] as const;
+type CustomerOrganization = {
+  id: string;
+  organization_name?: string;
+  name?: string;
+  contact_email?: string;
+};
 
 export default function AdminUsersPage() {
   return (
@@ -39,11 +45,17 @@ export default function AdminUsersPage() {
 }
 
 function AdminUsersContent() {
-  const { profile } = useAuth();
+  const { profile, organizations, currentOrgId, sessionRole } = useAuth();
+  const canManageOrganizations = useCanManageOrganizations();
+  const effectiveRole = profile?.role || sessionRole;
+  const roleOptions = inviteableRoles(effectiveRole);
 
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [customerOrganizations, setCustomerOrganizations] =
+    useState<CustomerOrganization[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [creatingOrganization, setCreatingOrganization] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [resendingUserId, setResendingUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
@@ -52,10 +64,28 @@ function AdminUsersContent() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>("VIEWER");
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationEmail, setOrganizationEmail] = useState("");
 
   useEffect(() => {
     void loadUsers();
-  }, []);
+    void loadOrganizations();
+  }, [currentOrgId]);
+
+  async function loadOrganizations() {
+    try {
+      const response = await apiFetch("/admin/organizations");
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      setCustomerOrganizations(data.organizations || []);
+    } catch {
+      setCustomerOrganizations([]);
+    }
+  }
 
   async function loadUsers() {
     try {
@@ -78,6 +108,47 @@ function AdminUsersContent() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCreateOrganization(e: FormEvent) {
+    e.preventDefault();
+
+    try {
+      setCreatingOrganization(true);
+      setError("");
+
+      const response = await apiFetch("/admin/organizations", {
+        method: "POST",
+        body: JSON.stringify({
+          organization_name: organizationName,
+          contact_email: organizationEmail,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error?.message
+          || data?.detail
+          || "יצירת הלקוח נכשלה"
+        );
+      }
+
+      toast.success("הלקוח נוצר בהצלחה");
+      setOrganizationName("");
+      setOrganizationEmail("");
+      await loadOrganizations();
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "יצירת הלקוח נכשלה";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setCreatingOrganization(false);
     }
   }
 
@@ -274,16 +345,101 @@ function AdminUsersContent() {
           ניהול משתמשים
         </h1>
         <p className="of-page-desc max-w-2xl text-sm">
-          הוסיפו משתמשים חדשים לארגון, שלחו להם הזמנה במייל להגדרת סיסמה,
-          שלחו הזמנה מחדש למשתמשים שלא השלימו הרשמה, ואפסו סיסמאות למשתמשים
-          קיימים.
+          {canManageOrganizations
+            ? "אתה מנהל גלובלי — גישה לכל הלקוחות, יצירת לקוחות חדשים, וניהול משתמשים בכל חברה."
+            : "אתה מנהל לקוח — ניהול משתמשים ופעולות רק עבור הלקוח הפעיל."}
         </p>
       </header>
 
+      {canManageOrganizations ? <TenantMigrationBanner /> : null}
+
+      {canManageOrganizations ? (
       <section className="of-card of-card-p6">
         <h2 className="mb-4 text-xl font-semibold">
-          הזמנת משתמש חדש
+          לקוחות במערכת
         </h2>
+
+        <form
+          onSubmit={handleCreateOrganization}
+          className="mb-6 grid gap-4 md:grid-cols-2"
+        >
+          <div>
+            <label className="mb-2 block text-sm font-medium">
+              שם הלקוח
+            </label>
+            <input
+              type="text"
+              value={organizationName}
+              onChange={(e) => setOrganizationName(e.target.value)}
+              required
+              className="of-input of-focus-ring w-full text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">
+              אימייל ליצירת קשר
+            </label>
+            <input
+              type="email"
+              value={organizationEmail}
+              onChange={(e) => setOrganizationEmail(e.target.value)}
+              required
+              className="of-input of-focus-ring w-full text-sm"
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={creatingOrganization}
+            >
+              {creatingOrganization ? "יוצר לקוח..." : "הוספת לקוח חדש"}
+            </Button>
+          </div>
+        </form>
+
+        {customerOrganizations.length > 0 ? (
+          <ul className="space-y-2 text-sm">
+            {customerOrganizations.map((organization) => (
+              <li
+                key={organization.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200/80 px-4 py-3 dark:border-zinc-800"
+              >
+                <span className="font-medium">
+                  {organization.organization_name
+                    || organization.name
+                    || "לקוח"}
+                </span>
+                <span className="text-zinc-500">
+                  {organization.contact_email || organization.id}
+                </span>
+                {organization.id === currentOrgId ? (
+                  <Badge>לקוח פעיל</Badge>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-zinc-500">
+            עדיין לא הוגדרו לקוחות. צור לקוח ראשון כדי להתחיל.
+          </p>
+        )}
+      </section>
+      ) : null}
+
+      <section className="of-card of-card-p6">
+        <h2 className="mb-4 text-xl font-semibold">
+          {canManageOrganizations
+            ? "הזמנת משתמש ללקוח הפעיל"
+            : "הזמנת משתמש לחברה"}
+        </h2>
+        <p className="mb-4 text-sm text-zinc-500">
+          {canManageOrganizations
+            ? "משתמשים חדשים ישויכו ללקוח שנבחר ב-switcher למעלה."
+            : "משתמשים חדשים ישויכו לחברה שלך בלבד. מנהל לקוח יכול לנהל רק את הארגון שלו."}
+        </p>
 
         <form
           onSubmit={handleInvite}
@@ -324,9 +480,9 @@ function AdminUsersContent() {
               onChange={(e) => setRole(e.target.value)}
               className="of-input of-focus-ring w-full text-sm"
             >
-              {ROLE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {roleOptions.map((option) => (
+                <option key={option} value={option}>
+                  {getRoleLabel(option)}
                 </option>
               ))}
             </select>
@@ -390,7 +546,7 @@ function AdminUsersContent() {
                     </td>
                     <td className="px-3 py-3">{user.email}</td>
                     <td className="px-3 py-3">
-                      <Badge>{user.role}</Badge>
+                      <Badge>{getRoleLabel(user.role)}</Badge>
                     </td>
                     <td className="px-3 py-3">
                       <Badge>

@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
 
-
-ALLOWED_USER_ROLES = (
-    "ADMIN",
-    "MANAGER",
-    "ANALYST",
-    "VIEWER",
+from app.auth.roles import (
+    ORG_SCOPED_INVITE_ROLES,
+    PLATFORM_INVITE_ROLES,
 )
+
+ALLOWED_USER_ROLES = PLATFORM_INVITE_ROLES
+ORG_ADMIN_INVITE_ROLES = ORG_SCOPED_INVITE_ROLES
 
 
 class UserInviteRequest(BaseModel):
