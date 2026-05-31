@@ -35,6 +35,16 @@ export function getApiBaseUrl(): string {
   );
 }
 
+export class TokenExchangeError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "TokenExchangeError";
+    this.status = status;
+  }
+}
+
 export function setApiSession(
   token: string,
   organizationId: string
@@ -136,21 +146,58 @@ export async function exchangeBackendToken(
   org_id: string;
   role: string;
 }> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/auth/exchange`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: userId,
-      }),
+  const baseUrl = getApiBaseUrl();
+  const urls = [
+    `${baseUrl}/auth/exchange`,
+    `${getAlternateApiUrl(baseUrl)}/auth/exchange`,
+  ];
+  const uniqueUrls = [...new Set(urls)];
+
+  let response: Response | null = null;
+
+  for (const url of uniqueUrls) {
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+        }),
+      });
+      break;
+    } catch (error) {
+      if (url === uniqueUrls[uniqueUrls.length - 1]) {
+        throw error;
+      }
     }
-  );
+  }
+
+  if (!response) {
+    throw new TokenExchangeError(
+      "Token exchange failed",
+      0
+    );
+  }
 
   if (!response.ok) {
-    throw new Error("Token exchange failed");
+    let message = "Token exchange failed";
+
+    try {
+      const body = await response.json();
+      message =
+        body?.detail
+        || body?.error?.message
+        || message;
+    } catch {
+      // Keep default message when error body is not JSON.
+    }
+
+    throw new TokenExchangeError(
+      message,
+      response.status
+    );
   }
 
   const data = await response.json();

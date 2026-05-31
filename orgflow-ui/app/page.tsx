@@ -5,6 +5,7 @@ import UserMenu from "@/components/auth/UserMenu";
 
 import { useCallback, useEffect, useState, startTransition } from "react";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api/client";
 
 type Project = {
@@ -21,6 +22,7 @@ type Organization = {
 };
 
 export default function HomePage() {
+  const { user, loading: authLoading } = useAuth();
 
   const [organizations, setOrganizations] =
     useState<Organization[]>([]);
@@ -35,11 +37,20 @@ export default function HomePage() {
       const data =
         await response.json();
 
-      setOrganizations(data);
+      if (!response.ok) {
+        console.error("Failed loading organizations:", data);
+        setOrganizations([]);
+        return;
+      }
+
+      setOrganizations(
+        Array.isArray(data) ? data : []
+      );
 
     } catch (error) {
 
       console.error(error);
+      setOrganizations([]);
 
     } finally {
 
@@ -49,15 +60,26 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      startTransition(() => {
+        setLoading(false);
+      });
+      return;
+    }
+
     startTransition(() => {
       void loadOrganizations();
     });
-  }, [loadOrganizations]);
+  }, [authLoading, user, loadOrganizations]);
 
   const totalProjects =
     organizations.reduce(
       (acc, org) =>
-        acc + org.projects.length,
+        acc + (org.projects?.length ?? 0),
       0
     );
 

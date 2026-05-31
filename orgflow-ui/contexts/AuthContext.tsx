@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useState,
-  startTransition,
 } from "react";
 
 import {
@@ -18,6 +17,7 @@ import {
   apiFetch,
   clearApiSession,
   exchangeBackendToken,
+  TokenExchangeError,
 } from "@/lib/api/client";
 import { supabase } from "@/lib/supabase";
 
@@ -42,6 +42,11 @@ const AuthContext =
     AuthContextType | undefined
   >(undefined);
 
+async function clearSupabaseSession() {
+  clearApiSession();
+  await supabase.auth.signOut();
+}
+
 export function AuthProvider({
   children,
 }: {
@@ -56,84 +61,93 @@ export function AuthProvider({
     process.env.NEXT_PUBLIC_FORCE_LOGIN === "true";
 
   const loadProfile = useCallback(async (userId: string) => {
-    try {
-      const response = await apiFetch(`/profiles/${userId}`);
+    const response = await apiFetch(`/profiles/${userId}`);
 
-      if (!response.ok) {
-        throw new Error("Failed loading profile");
-      }
-
-      const data = await response.json();
-      setProfile(data);
-    } catch (error) {
-      console.error(error);
+    if (!response.ok) {
+      throw new Error("Failed loading profile");
     }
+
+    const data = await response.json();
+    setProfile(data);
   }, []);
 
-  const bootstrapBackendSession = useCallback(async (userId: string) => {
-    try {
-      await exchangeBackendToken(userId);
-      await loadProfile(userId);
-    } catch (error) {
-      console.error("Failed bootstrapping backend session:", error);
-      setProfile(null);
-    }
-  }, [loadProfile]);
+  const establishBackendSession = useCallback(
+    async (nextSession: Session) => {
+      if (!nextSession.user) {
+        return false;
+      }
 
-  const loadSession = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
+      await exchangeBackendToken(nextSession.user.id);
+      await loadProfile(nextSession.user.id);
+      setSession(nextSession);
+      setUser(nextSession.user);
+      return true;
+    },
+    [loadProfile]
+  );
 
-    if (FORCE_LOGIN && data.session?.user) {
-      await supabase.auth.signOut();
-      clearApiSession();
-      setSession(null);
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
+  const handleSession = useCallback(
+    async (nextSession: Session | null) => {
+      if (FORCE_LOGIN && nextSession?.user) {
+        await clearSupabaseSession();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        return;
+      }
 
-    setSession(data.session);
-    setUser(data.session?.user || null);
+      if (!nextSession?.user) {
+        clearApiSession();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        return;
+      }
 
-    if (data.session?.user) {
-      await bootstrapBackendSession(data.session.user.id);
-    } else {
-      clearApiSession();
-    }
+      try {
+        await establishBackendSession(nextSession);
+      } catch (error) {
+        clearApiSession();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
 
-    setLoading(false);
-  }, [FORCE_LOGIN, bootstrapBackendSession]);
+        const shouldSignOut =
+          error instanceof TokenExchangeError
+          && [404, 422].includes(error.status);
+
+        if (shouldSignOut) {
+          await supabase.auth.signOut();
+        } else {
+          console.warn(
+            "Failed bootstrapping backend session:",
+            error
+          );
+        }
+      }
+    },
+    [FORCE_LOGIN, establishBackendSession]
+  );
 
   useEffect(() => {
-    startTransition(() => {
-      void loadSession();
-    });
-
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, nextSession) => {
-        setSession(nextSession);
-        setUser(nextSession?.user || null);
-
-        if (nextSession?.user) {
-          await bootstrapBackendSession(nextSession.user.id);
-        } else {
-          clearApiSession();
-          setProfile(null);
-        }
-
-        setLoading(false);
+      (_event, nextSession) => {
+        void handleSession(nextSession).finally(() => {
+          setLoading(false);
+        });
       }
     );
 
     return () => {
       listener.subscription.unsubscribe();
     };
-  }, [bootstrapBackendSession, loadSession]);
+  }, [handleSession]);
 
   async function signOut() {
-    clearApiSession();
-    await supabase.auth.signOut();
+    await clearSupabaseSession();
+    setSession(null);
+    setUser(null);
+    setProfile(null);
   }
 
   return (
