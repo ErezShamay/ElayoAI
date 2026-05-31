@@ -62,7 +62,7 @@ export default function LoginPage() {
       }
 
       router.push(
-        "/portfolio"
+        "/"
       );
 
     } catch (err: unknown) {

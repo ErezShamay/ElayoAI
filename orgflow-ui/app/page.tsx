@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import UserMenu from "@/components/auth/UserMenu";
+
+import HomeNavBar from "@/components/layout/HomeNavBar";
 
 import { useCallback, useEffect, useState, startTransition } from "react";
 
@@ -20,6 +21,112 @@ type Organization = {
   contact_email: string;
   projects: Project[];
 };
+
+function HomeHero() {
+  return (
+    <>
+      <div
+        className="
+          inline-flex
+          items-center
+          gap-2
+          bg-white
+          dark:bg-zinc-900
+          border
+          border-zinc-200
+          dark:border-zinc-800
+          rounded-full
+          px-4
+          py-2
+          mb-8
+          text-sm
+          font-medium
+        "
+      >
+        מערכת תפעול הנדסי מבוססת AI
+      </div>
+
+      <h1
+        className="
+          text-6xl
+          font-black
+          leading-tight
+          tracking-tight
+        "
+      >
+        Supervisor AI
+      </h1>
+
+      <p
+        className="
+          mt-8
+          text-2xl
+          leading-relaxed
+          text-zinc-600
+          dark:text-zinc-400
+          max-w-3xl
+        "
+      >
+        פלטפורמת AI לניהול תפעולי,
+        פיקוח הנדסי, בקרת פרויקטים,
+        ניתוח חריגות ונקודות סיכון
+        בפרויקטי התחדשות עירונית ובנייה.
+      </p>
+    </>
+  );
+}
+
+function PublicHomePage() {
+  return (
+    <main
+      className="
+        min-h-screen
+        bg-zinc-100
+        dark:bg-zinc-950
+        text-zinc-900
+        dark:text-zinc-100
+      "
+    >
+      <section
+        className="
+          px-10
+          pt-24
+          pb-16
+        "
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-4xl">
+            <HomeHero />
+
+            <Link
+              href="/auth/login"
+              className="
+                mt-10
+                inline-flex
+                items-center
+                justify-center
+                rounded-2xl
+                bg-zinc-900
+                px-8
+                py-4
+                text-lg
+                font-semibold
+                text-white
+                transition-colors
+                hover:bg-zinc-800
+                dark:bg-white
+                dark:text-black
+                dark:hover:bg-zinc-200
+              "
+            >
+              התחברות למערכת
+            </Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
 
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
@@ -60,14 +167,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
-    if (!user) {
-      startTransition(() => {
-        setLoading(false);
-      });
+    if (authLoading || !user) {
       return;
     }
 
@@ -75,6 +175,29 @@ export default function HomePage() {
       void loadOrganizations();
     });
   }, [authLoading, user, loadOrganizations]);
+
+  if (authLoading) {
+    return (
+      <main
+        className="
+          min-h-screen
+          flex
+          items-center
+          justify-center
+          bg-zinc-100
+          dark:bg-zinc-950
+        "
+      >
+        <div className="text-xl font-semibold">
+          טוען...
+        </div>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return <PublicHomePage />;
+  }
 
   const totalProjects =
     organizations.reduce(
@@ -94,18 +217,12 @@ export default function HomePage() {
       "
     >
 
-      {/* HERO */}
-
-      <div className="px-10 pt-6">
-        <div className="max-w-7xl mx-auto flex justify-end">
-          <UserMenu />
-        </div>
-      </div>
+      <HomeNavBar />
 
       <section
         className="
           px-10
-          pt-24
+          pt-12
           pb-16
         "
       >
@@ -118,53 +235,7 @@ export default function HomePage() {
             "
           >
 
-            <div
-              className="
-                inline-flex
-                items-center
-                gap-2
-                bg-white
-                dark:bg-zinc-900
-                border
-                border-zinc-200
-                dark:border-zinc-800
-                rounded-full
-                px-4
-                py-2
-                mb-8
-                text-sm
-                font-medium
-              "
-            >
-              מערכת תפעול הנדסי מבוססת AI
-            </div>
-
-            <h1
-              className="
-                text-6xl
-                font-black
-                leading-tight
-                tracking-tight
-              "
-            >
-              Supervisor AI
-            </h1>
-
-            <p
-              className="
-                mt-8
-                text-2xl
-                leading-relaxed
-                text-zinc-600
-                dark:text-zinc-400
-                max-w-3xl
-              "
-            >
-              פלטפורמת AI לניהול תפעולי,
-              פיקוח הנדסי, בקרת פרויקטים,
-              ניתוח חריגות ונקודות סיכון
-              בפרויקטי התחדשות עירונית ובנייה.
-            </p>
+            <HomeHero />
 
           </div>
 

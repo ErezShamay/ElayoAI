@@ -154,6 +154,9 @@ def test_auth_exchange_issues_access_token(monkeypatch):
                 "email": "manager@example.com",
             }
 
+        def ensure_organization_id(self, profile_id: str):
+            return "org-1"
+
     monkeypatch.setattr(main_module, "profile_service", FakeProfileService())
     client = TestClient(app)
 

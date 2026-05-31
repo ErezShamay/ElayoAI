@@ -41,3 +41,25 @@ class ProfileRepository:
             return None
 
         return response.data[0]
+
+    def update_profile(
+        self,
+        profile_id: str,
+        updates: dict,
+    ):
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .update(updates)
+            .eq(
+                "id",
+                profile_id
+            )
+            .execute()
+        )
+
+        if not response.data:
+            return None
+
+        return response.data[0]

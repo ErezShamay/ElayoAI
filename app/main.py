@@ -568,7 +568,9 @@ alert_engine_service = (
 )
 
 profile_service = (
-    ProfileService()
+    ProfileService(
+        organization_repository=organization_repository,
+    )
 )
 
 notification_service = (
@@ -1177,7 +1179,7 @@ def exchange_supabase_session(request: ExchangeTokenRequest):
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    org_id = str(profile.get("organization_id") or "").strip()
+    org_id = profile_service.ensure_organization_id(request.user_id)
     role = str(profile.get("role") or "VIEWER").strip().upper()
     if not org_id:
         raise HTTPException(status_code=422, detail="Profile missing organization_id")

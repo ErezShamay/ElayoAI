@@ -6,17 +6,7 @@ import {
   usePathname,
 } from "next/navigation";
 
-const GLOBAL_LINKS = [
-  { href: "/", label: "דף הבית" },
-  { href: "/portfolio", label: "תיק פרויקטים" },
-  { href: "/projects", label: "פרויקטים" },
-  { href: "/upload", label: "העלאת דוח" },
-  { href: "/reviews", label: "ביקורות AI" },
-  { href: "/actions", label: "פעולות תפעוליות" },
-  { href: "/escalations", label: "נקודות סיכון" },
-  { href: "/automation", label: "אוטומציה" },
-  { href: "/automation/dead-letters", label: "Dead Letters" },
-];
+import { GLOBAL_NAV_LINKS } from "@/lib/navigation";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -69,7 +59,7 @@ export default function Sidebar() {
       "
     >
       <div className="mb-10">
-        <Link href="/portfolio">
+        <Link href="/">
           <h1 className="cursor-pointer text-3xl font-bold">
             Supervisor AI
           </h1>
@@ -103,7 +93,7 @@ export default function Sidebar() {
           </p>
 
           <div className="space-y-2">
-            {GLOBAL_LINKS.map((link) => (
+            {GLOBAL_NAV_LINKS.map((link) => (
               <NavLink
                 key={link.href}
                 href={link.href}

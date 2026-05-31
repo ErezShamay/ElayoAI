@@ -113,14 +113,10 @@ export function ThemeProvider({
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemeState((current) => {
-      const resolved = resolveTheme(
-        current,
-        systemPrefersDark
-      );
-      return resolved === "dark" ? "light" : "dark";
-    });
-  }, [systemPrefersDark]);
+    setThemeState(
+      resolvedTheme === "dark" ? "light" : "dark"
+    );
+  }, [resolvedTheme]);
 
   const value = useMemo(
     () => ({

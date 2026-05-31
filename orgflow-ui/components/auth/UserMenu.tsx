@@ -86,18 +86,13 @@ export default function UserMenu() {
   }, [profile?.id, loadNotifications]);
 
   useRealtime({
-
-  channelName:
-    "notifications-live",
-
-  table:
-    "notifications",
-
-  onChange: () => {
-
-    void loadNotifications();
-  },
-});
+    channelName: `notifications-live-${profile?.id ?? "guest"}`,
+    table: "notifications",
+    enabled: Boolean(profile?.id),
+    onChange: () => {
+      void loadNotifications();
+    },
+  });
 
   async function markAsRead(
     notificationId: string

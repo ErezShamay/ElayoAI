@@ -3,6 +3,8 @@ from datetime import (
     timezone,
 )
 
+from postgrest.exceptions import APIError
+
 from app.db.supabase_client import (
     supabase
 )
@@ -59,16 +61,28 @@ class AutomationLockRepository:
         lock: AutomationLock,
     ):
 
-        response = (
-            self.client
-            .table(self.table_name)
-            .insert(
-                lock.model_dump(
-                    mode="json"
-                )
-            )
-            .execute()
+        payload = lock.model_dump(
+            mode="json"
         )
+
+        try:
+            response = (
+                self.client
+                .table(self.table_name)
+                .insert(payload)
+                .execute()
+            )
+        except APIError as error:
+            if "owner_token" not in str(error):
+                raise
+
+            payload.pop("owner_token", None)
+            response = (
+                self.client
+                .table(self.table_name)
+                .insert(payload)
+                .execute()
+            )
 
         return response.data[0]
 

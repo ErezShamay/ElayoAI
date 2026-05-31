@@ -41,6 +41,9 @@ export default function AuthGuard({
         "/auth"
       );
 
+    const isPublicHome =
+      pathname === "/";
+
     // ==========================
     // NOT AUTHENTICATED
     // ==========================
@@ -48,6 +51,7 @@ export default function AuthGuard({
     if (
       !user
       && !isAuthPage
+      && !isPublicHome
     ) {
 
       router.push(
@@ -67,7 +71,7 @@ export default function AuthGuard({
     ) {
 
       router.push(
-        "/portfolio"
+        "/"
       );
     }
 
@@ -121,9 +125,13 @@ export default function AuthGuard({
       "/auth"
     );
 
+  const isPublicHome =
+    pathname === "/";
+
   if (
     !user
     && !isAuthPage
+    && !isPublicHome
   ) {
 
     return null;
