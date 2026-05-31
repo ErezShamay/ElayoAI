@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  startTransition,
   useCallback,
   useEffect,
   useRef,
@@ -23,6 +24,7 @@ export function useInfiniteScroll<T>(
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<(() => Promise<void>) | null>(null);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) {
@@ -50,7 +52,13 @@ export function useInfiniteScroll<T>(
   }, [hasMore, loadPage, loading, page, pageSize]);
 
   useEffect(() => {
-    void loadMore().catch(() => undefined);
+    loadMoreRef.current = loadMore;
+  }, [loadMore]);
+
+  useEffect(() => {
+    startTransition(() => {
+      void loadMoreRef.current?.().catch(() => undefined);
+    });
   }, []);
 
   useEffect(() => {

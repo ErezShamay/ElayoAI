@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, startTransition } from "react";
 
 import { apiFetch } from "@/lib/api/client";
 
@@ -19,11 +19,7 @@ export default function EscalationsPage() {
   const [loading, setLoading] =
     useState(true);
 
-  useEffect(() => {
-    loadEscalations();
-  }, []);
-
-  async function loadEscalations() {
+  const loadEscalations = useCallback(async () => {
     try {
       const response = await apiFetch("/actions/escalations");
 
@@ -35,7 +31,13 @@ export default function EscalationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    startTransition(() => {
+      void loadEscalations();
+    });
+  }, [loadEscalations]);
 
   return (
     <main

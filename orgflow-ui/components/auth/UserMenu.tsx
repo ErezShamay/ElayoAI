@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, startTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -48,42 +48,14 @@ export default function UserMenu() {
     setShowNotifications
   ] = useState(false);
 
-  useEffect(() => {
-
-    if (
-      profile?.id
-    ) {
-
-      loadNotifications();
-    }
-
-  }, [profile?.id]);
-
-  useRealtime({
-
-  channelName:
-    "notifications-live",
-
-  table:
-    "notifications",
-
-  onChange: () => {
-
-    loadNotifications();
-  },
-});
-
-  async function loadNotifications() {
-
+  const loadNotifications = useCallback(async () => {
     try {
-
       const response =
         await apiFetch(
           `/profiles/${profile?.id}/notifications`
         );
 
       if (!response.ok) {
-
         throw new Error(
           "Failed loading notifications"
         );
@@ -98,7 +70,34 @@ export default function UserMenu() {
 
       console.error(error);
     }
-  }
+  }, [profile]);
+
+  useEffect(() => {
+
+    if (
+      profile?.id
+    ) {
+
+      startTransition(() => {
+        void loadNotifications();
+      });
+    }
+
+  }, [profile?.id, loadNotifications]);
+
+  useRealtime({
+
+  channelName:
+    "notifications-live",
+
+  table:
+    "notifications",
+
+  onChange: () => {
+
+    void loadNotifications();
+  },
+});
 
   async function markAsRead(
     notificationId: string

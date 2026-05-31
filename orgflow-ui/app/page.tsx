@@ -3,7 +3,7 @@
 import Link from "next/link";
 import UserMenu from "@/components/auth/UserMenu";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, startTransition } from "react";
 
 import { apiFetch } from "@/lib/api/client";
 
@@ -28,14 +28,8 @@ export default function HomePage() {
   const [loading, setLoading] =
     useState(true);
 
-  useEffect(() => {
-    loadOrganizations();
-  }, []);
-
-  async function loadOrganizations() {
-
+  const loadOrganizations = useCallback(async () => {
     try {
-
       const response = await apiFetch("/organizations");
 
       const data =
@@ -52,7 +46,13 @@ export default function HomePage() {
       setLoading(false);
 
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    startTransition(() => {
+      void loadOrganizations();
+    });
+  }, [loadOrganizations]);
 
   const totalProjects =
     organizations.reduce(
@@ -60,9 +60,6 @@ export default function HomePage() {
         acc + org.projects.length,
       0
     );
-
-  const totalOrganizations =
-    organizations.length;
 
   return (
     <main

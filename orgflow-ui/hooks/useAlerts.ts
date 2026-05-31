@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  startTransition,
+  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -35,36 +37,14 @@ export function useAlerts() {
     setLoading
   ] = useState(true);
 
-  useEffect(() => {
-
-    loadAlerts();
-
-    const interval =
-      setInterval(() => {
-
-        loadAlerts();
-
-      }, 30000);
-
-    return () => {
-
-      clearInterval(interval);
-
-    };
-
-  }, []);
-
-  async function loadAlerts() {
-
+  const loadAlerts = useCallback(async () => {
     try {
-
       const response =
         await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/alerts`
         );
 
       if (!response.ok) {
-
         throw new Error(
           "Failed loading alerts"
         );
@@ -86,7 +66,23 @@ export function useAlerts() {
 
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    startTransition(() => {
+      void loadAlerts();
+    });
+
+    const interval =
+      setInterval(() => {
+        void loadAlerts();
+      }, 30000);
+
+    return () => {
+      clearInterval(interval);
+    };
+
+  }, [loadAlerts]);
 
   return {
     alerts,

@@ -65,11 +65,12 @@ export default function LoginPage() {
         "/portfolio"
       );
 
-    } catch (err: any) {
+    } catch (err: unknown) {
 
       setError(
-        err.message
-        || "Login failed"
+        err instanceof Error
+          ? err.message
+          : "Login failed"
       );
 
     } finally {

@@ -2,8 +2,10 @@
 
 import {
   use,
+  useCallback,
   useEffect,
   useState,
+  startTransition,
 } from "react";
 
 import { apiFetch } from "@/lib/api/client";
@@ -35,14 +37,8 @@ export default function ProjectExceptionsPage({
   const [loading, setLoading] =
     useState(true);
 
-  useEffect(() => {
-    loadExceptions();
-  }, []);
-
-  async function loadExceptions() {
-
+  const loadExceptions = useCallback(async () => {
     try {
-
       const response =
         await apiFetch(
           `/projects/${resolvedParams.id}/exceptions`
@@ -69,7 +65,13 @@ export default function ProjectExceptionsPage({
       setLoading(false);
 
     }
-  }
+  }, [resolvedParams.id]);
+
+  useEffect(() => {
+    startTransition(() => {
+      void loadExceptions();
+    });
+  }, [loadExceptions]);
 
   return (
     <main

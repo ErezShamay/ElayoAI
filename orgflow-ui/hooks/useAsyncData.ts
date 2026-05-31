@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  startTransition,
   useCallback,
   useEffect,
   useRef,
@@ -25,8 +26,13 @@ export function useAsyncData<T>(
   }
 ) {
   const enabled = options?.enabled ?? true;
+  const errorMessage = options?.errorMessage;
+  const showErrorToast = options?.showErrorToast;
   const loaderRef = useRef(loader);
-  loaderRef.current = loader;
+
+  useEffect(() => {
+    loaderRef.current = loader;
+  }, [loader]);
 
   const [state, setState] = useState<AsyncDataState<T>>({
     data: null,
@@ -65,16 +71,16 @@ export function useAsyncData<T>(
         error: normalized,
       }));
 
-      if (options?.showErrorToast) {
+      if (showErrorToast) {
         showToast(
-          options.errorMessage ?? normalized.message,
+          errorMessage ?? normalized.message,
           "error"
         );
       }
 
       throw normalized;
     }
-  }, [options?.errorMessage, options?.showErrorToast]);
+  }, [errorMessage, showErrorToast]);
 
   const retry = useCallback(async () => {
     setState((current) => ({
@@ -90,7 +96,9 @@ export function useAsyncData<T>(
       return;
     }
 
-    void execute().catch(() => undefined);
+    startTransition(() => {
+      void execute().catch(() => undefined);
+    });
   }, [enabled, execute, state.retryCount]);
 
   return {

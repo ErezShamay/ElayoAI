@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  startTransition,
   useCallback,
   useEffect,
   useState,
@@ -246,7 +247,9 @@ export function useProjectWorkspace(
 
   useEffect(() => {
 
-    loadWorkspace();
+    startTransition(() => {
+      void loadWorkspace();
+    });
 
   }, [loadWorkspace]);
 

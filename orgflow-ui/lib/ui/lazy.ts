@@ -21,8 +21,7 @@ export function createLazyLoader<T>(
 }
 
 export function shouldLazyLoad(
-  element: Element | null,
-  rootMargin = "200px"
+  element: Element | null
 ): boolean {
   if (!element || typeof IntersectionObserver === "undefined") {
     return true;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, startTransition } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api/client";
@@ -28,11 +28,7 @@ export default function ReviewsPage() {
   const [processingId, setProcessingId] =
     useState<string | null>(null);
 
-  useEffect(() => {
-    void loadReviews();
-  }, []);
-
-  async function loadReviews() {
+  const loadReviews = useCallback(async () => {
     try {
       const response = await apiFetch("/reviews/pending");
 
@@ -50,7 +46,13 @@ export default function ReviewsPage() {
       setLoading(false);
 
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    startTransition(() => {
+      void loadReviews();
+    });
+  }, [loadReviews]);
 
   async function approveReview(reviewId: string) {
     setProcessingId(reviewId);

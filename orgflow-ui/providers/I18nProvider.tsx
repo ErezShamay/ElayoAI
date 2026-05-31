@@ -30,6 +30,22 @@ const I18nContext = createContext<I18nContextValue | null>(
 
 const STORAGE_KEY = "orgflow-locale";
 
+function readStoredLocale(defaultLocale: Locale): Locale {
+  if (typeof window === "undefined") {
+    return defaultLocale;
+  }
+
+  const stored = window.localStorage.getItem(
+    STORAGE_KEY
+  ) as Locale | null;
+
+  if (stored === "he" || stored === "en") {
+    return stored;
+  }
+
+  return defaultLocale;
+}
+
 export function I18nProvider({
   children,
   defaultLocale = "he",
@@ -37,19 +53,9 @@ export function I18nProvider({
   children: ReactNode;
   defaultLocale?: Locale;
 }) {
-  const [locale, setLocaleState] = useState<Locale>(
-    defaultLocale
+  const [locale, setLocaleState] = useState<Locale>(() =>
+    readStoredLocale(defaultLocale)
   );
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(
-      STORAGE_KEY
-    ) as Locale | null;
-
-    if (stored === "he" || stored === "en") {
-      setLocaleState(stored);
-    }
-  }, []);
 
   useEffect(() => {
     const direction = getDocumentDirection(locale);

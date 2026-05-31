@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, startTransition } from "react";
 
 import { apiFetch } from "@/lib/api/client";
 
@@ -79,7 +79,9 @@ export default function PortfolioPage() {
   }, []);
 
   useEffect(() => {
-    loadPortfolio();
+    startTransition(() => {
+      void loadPortfolio();
+    });
 
     const pollingInterval =
       Number(
