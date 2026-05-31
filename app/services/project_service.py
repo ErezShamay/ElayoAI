@@ -18,6 +18,9 @@ class ProjectService:
     def create_project(
         self,
         project_name: str,
+        developer_name: str,
+        contractor_name: str,
+        lawyer_name: str,
         supervisor_name: str,
         supervisor_email: str | None = None,
         organization_id: str | None = None,
@@ -30,6 +33,15 @@ class ProjectService:
             .create_project(
                 project_name=
                     project_name,
+
+                developer_name=
+                    developer_name,
+
+                contractor_name=
+                    contractor_name,
+
+                lawyer_name=
+                    lawyer_name,
 
                 supervisor_name=
                     supervisor_name,
@@ -56,11 +68,17 @@ class ProjectService:
         project_id: str,
         *,
         project_name: str | None = None,
+        developer_name: str | None = None,
+        contractor_name: str | None = None,
+        lawyer_name: str | None = None,
         supervisor_name: str | None = None,
         supervisor_email: str | None = None,
     ):
         updates = {
             "project_name": project_name,
+            "developer_name": developer_name,
+            "contractor_name": contractor_name,
+            "lawyer_name": lawyer_name,
             "supervisor_name": supervisor_name,
             "supervisor_email": supervisor_email,
         }

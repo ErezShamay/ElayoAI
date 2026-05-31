@@ -37,6 +37,25 @@ def test_validate_password_accepts_strong_password():
     assert errors == []
 
 
+def test_invite_user_rejects_duplicate_client_admin():
+    service = UserManagementService(
+        profile_repository=MagicMock(
+            list_profiles_by_organization=MagicMock(return_value=[]),
+            count_profiles_with_role=MagicMock(return_value=1),
+        )
+    )
+
+    with pytest.raises(ConflictError):
+        service.invite_user(
+            organization_id="org-1",
+            email="admin2@example.com",
+            full_name="Second Admin",
+            role="ADMIN",
+            invited_by="platform-admin-1",
+            inviter_role="PLATFORM_ADMIN",
+        )
+
+
 def test_invite_user_rejects_invalid_role():
     service = UserManagementService(
         profile_repository=MagicMock(

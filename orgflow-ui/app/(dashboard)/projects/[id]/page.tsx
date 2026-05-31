@@ -27,6 +27,7 @@ export default function ProjectDetailsPage() {
     summary,
     health,
     operationalSummary,
+    operationalSummaryLoading,
 
     loading,
 
@@ -167,13 +168,28 @@ export default function ProjectDetailsPage() {
         >
 
           <InfoCard
-            title="מפקח אחראי"
+            title="שם היזם"
+            value={project.developer_name?.trim() || "לא צוין"}
+          />
+
+          <InfoCard
+            title="שם הקבלן"
+            value={project.contractor_name?.trim() || "לא צוין"}
+          />
+
+          <InfoCard
+            title="עו״ד מלווה"
+            value={project.lawyer_name?.trim() || "לא צוין"}
+          />
+
+          <InfoCard
+            title="מפקח מלווה"
             value={project.supervisor_name}
           />
 
           <InfoCard
-            title="אימייל מפקח"
-            value={project.supervisor_email}
+            title="אימייל מפקח מלווה"
+            value={project.supervisor_email || "—"}
           />
 
           <InfoCard
@@ -385,8 +401,9 @@ export default function ProjectDetailsPage() {
           "
         >
           {
-            operationalSummary
-            ?.summary
+            operationalSummaryLoading
+              ? "מייצר סיכום תפעולי..."
+              : operationalSummary?.summary
           }
         </div>
 

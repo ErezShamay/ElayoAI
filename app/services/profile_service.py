@@ -187,6 +187,7 @@ class ProfileService:
             in [
                 "ADMIN",
                 "PLATFORM_ADMIN",
+                "SUPERVISOR",
                 "MANAGER",
             ]
         )

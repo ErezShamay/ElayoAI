@@ -12,6 +12,7 @@ from app.exceptions.exceptions import (
     ValidationError,
 )
 from app.auth.roles import (
+    ORG_ADMIN_ROLE,
     PLATFORM_ADMIN_ROLE,
     can_assign_role,
     is_org_admin,
@@ -100,13 +101,33 @@ class UserManagementService:
         if not normalized_name:
             raise ValidationError(message="Full name is required")
 
-        existing_profiles = self.profile_repository.list_profiles_by_organization(
-            organization_id
+        if normalized_role == ORG_ADMIN_ROLE:
+            existing_admin_count = (
+                self.profile_repository.count_profiles_with_role(
+                    organization_id,
+                    ORG_ADMIN_ROLE,
+                )
+            )
+            if existing_admin_count > 0:
+                raise ConflictError(
+                    message=(
+                        "ללקוח כבר יש מנהל לקוח. "
+                        "מותר מנהל לקוח אחד בלבד לכל ארגון."
+                    ),
+                    details={
+                        "organization_id": organization_id,
+                        "existing_admin_count": existing_admin_count,
+                    },
+                )
+
+        existing_profile = (
+            self.profile_repository
+            .get_profile_by_email_in_organization(
+                organization_id,
+                normalized_email,
+            )
         )
-        if any(
-            str(profile.get("email", "")).strip().lower() == normalized_email
-            for profile in existing_profiles
-        ):
+        if existing_profile:
             raise ConflictError(
                 message="A user with this email already exists in the organization",
                 details={"email": normalized_email},

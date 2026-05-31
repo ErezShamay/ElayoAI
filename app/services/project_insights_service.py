@@ -11,24 +11,28 @@ class ProjectInsightsService:
 
     @staticmethod
     def generate_project_insights(
-        project_id: str
+        project_id: str,
+        reviews: list | None = None,
+        actions: list | None = None,
     ):
 
         insights = []
 
-        reviews = (
-            AIInterpretationRepository()
-            .get_reviews_by_project(
-                project_id
+        if reviews is None:
+            reviews = (
+                AIInterpretationRepository()
+                .get_reviews_by_project(
+                    project_id
+                )
             )
-        )
 
-        actions = (
-            OperationalActionRepository()
-            .get_open_actions_by_project(
-                project_id
+        if actions is None:
+            actions = (
+                OperationalActionRepository()
+                .get_open_actions_by_project(
+                    project_id
+                )
             )
-        )
 
         # =========================
         # HIGH RISK REVIEWS

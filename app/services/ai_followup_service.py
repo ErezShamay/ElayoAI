@@ -37,9 +37,16 @@ class AIFollowupService:
             "[AI_FOLLOWUP] Starting follow-up cycle"
         )
 
+        cutoff = (
+            datetime.now(timezone.utc)
+            - timedelta(hours=24)
+        ).isoformat()
+
         actions = (
             self.repository
-            .get_open_actions()
+            .get_stale_open_actions(
+                cutoff
+            )
         )
 
         for action in actions:

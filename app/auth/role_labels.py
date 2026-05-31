@@ -3,9 +3,10 @@ from __future__ import annotations
 ROLE_LABELS_HE: dict[str, str] = {
     "PLATFORM_ADMIN": "מנהל גלובלי",
     "ADMIN": "מנהל לקוח",
+    "SUPERVISOR": "מפקח",
+    "VIEWER": "משתמש כללי",
     "MANAGER": "מנהל",
     "ANALYST": "אנליסט",
-    "VIEWER": "צופה",
 }
 
 ROLE_DESCRIPTIONS_HE: dict[str, str] = {
@@ -16,6 +17,12 @@ ROLE_DESCRIPTIONS_HE: dict[str, str] = {
     "ADMIN": (
         "גישה רק ללקוח אחד, ניהול משתמשים "
         "והרשאות בתוך הארגון שלו בלבד"
+    ),
+    "SUPERVISOR": (
+        "גישה לפרויקטים ודוחות, ללא הרשאות ניהול משתמשים"
+    ),
+    "VIEWER": (
+        "צפייה בפרויקטים ודוחות בלבד, ללא הרשאות ניהול"
     ),
 }
 

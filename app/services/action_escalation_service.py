@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.constants.action_statuses import (
     ESCALATED,
@@ -27,7 +27,7 @@ class ActionEscalationService:
 
         actions = (
             self.repository
-            .get_open_actions()
+            .get_overdue_open_actions()
         )
 
         escalated_count = 0

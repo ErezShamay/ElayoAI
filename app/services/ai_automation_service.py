@@ -261,6 +261,12 @@ class AIAutomationService:
 
             risk_analysis=
                 risk_analysis,
+
+            open_actions=
+                workspace.get(
+                    "actions",
+                    [],
+                ),
         )
 
     # ==========================================
@@ -272,6 +278,7 @@ class AIAutomationService:
         project: dict,
         health: dict,
         risk_analysis: dict,
+        open_actions: list | None = None,
     ):
 
         status = (
@@ -409,6 +416,9 @@ class AIAutomationService:
 
             confidence=
                 confidence,
+
+            open_actions=
+                open_actions,
         )
 
     # ==========================================
@@ -421,6 +431,7 @@ class AIAutomationService:
         health: dict,
         risk_analysis: dict,
         confidence: dict,
+        open_actions: list | None = None,
     ):
 
         description = (
@@ -532,6 +543,9 @@ class AIAutomationService:
 
             risk_analysis=
                 risk_analysis,
+
+            open_actions=
+                open_actions,
         )
 
     # ==========================================
@@ -543,6 +557,7 @@ class AIAutomationService:
         project: dict,
         health: dict,
         risk_analysis: dict,
+        open_actions: list | None = None,
     ):
 
         fingerprint = (
@@ -602,12 +617,15 @@ class AIAutomationService:
 
                 return
 
-        existing_actions = (
-            self.operational_action_repository
-            .get_open_actions_by_project(
-                project["id"]
+        if open_actions is None:
+            existing_actions = (
+                self.operational_action_repository
+                .get_open_actions_by_project(
+                    project["id"]
+                )
             )
-        )
+        else:
+            existing_actions = open_actions
 
         already_exists = any(
 

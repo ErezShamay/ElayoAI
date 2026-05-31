@@ -1,6 +1,52 @@
+from postgrest.exceptions import APIError
+
 from app.db.supabase_client import (
     supabase
 )
+
+
+def _is_invalid_uuid_error(error: APIError) -> bool:
+    code = getattr(error, "code", None)
+    if code == "22P02":
+        return True
+
+    message = str(error).lower()
+    return "invalid input syntax for type uuid" in message
+
+
+OPTIONAL_PROJECT_WRITE_COLUMNS = (
+    "owner_id",
+    "tags",
+    "lifecycle_phase",
+)
+
+
+def _is_missing_column_error(
+    error: APIError,
+    column: str,
+) -> bool:
+    message = str(error).lower()
+    code = getattr(error, "code", None)
+
+    return (
+        code == "PGRST204"
+        or "could not find" in message
+    ) and column.lower() in message
+
+
+def _project_write_payload(payload: dict) -> dict:
+    cleaned: dict = {}
+
+    for key, value in payload.items():
+        if value is None:
+            continue
+
+        if isinstance(value, list) and not value:
+            continue
+
+        cleaned[key] = value
+
+    return cleaned
 
 
 class ProjectRepository:
@@ -15,6 +61,9 @@ class ProjectRepository:
         self,
         project=None,
         project_name: str | None = None,
+        developer_name: str | None = None,
+        contractor_name: str | None = None,
+        lawyer_name: str | None = None,
         supervisor_name: str | None = None,
         supervisor_email: str | None = None,
         organization_id: str | None = None,
@@ -30,6 +79,27 @@ class ProjectRepository:
                     project.project_name
                     if project
                     else project_name
+                ),
+
+            "developer_name":
+                (
+                    project.developer_name
+                    if project and hasattr(project, "developer_name")
+                    else developer_name
+                ),
+
+            "contractor_name":
+                (
+                    project.contractor_name
+                    if project and hasattr(project, "contractor_name")
+                    else contractor_name
+                ),
+
+            "lawyer_name":
+                (
+                    project.lawyer_name
+                    if project and hasattr(project, "lawyer_name")
+                    else lawyer_name
                 ),
 
             "supervisor_name":
@@ -82,12 +152,7 @@ class ProjectRepository:
                 ),
         }
 
-        payload = {
-            key: value
-            for key, value
-            in payload.items()
-            if value is not None
-        }
+        payload = _project_write_payload(payload)
 
         response = (
             self._insert_project(
@@ -101,37 +166,77 @@ class ProjectRepository:
         self,
         payload: dict,
     ):
+        current_payload = dict(payload)
+        optional_columns = set(
+            OPTIONAL_PROJECT_WRITE_COLUMNS
+        )
 
-        try:
-
-            return (
-                self.client
-                .table("projects")
-                .insert(payload)
-                .execute()
-            )
-
-        except Exception as error:
-
-            if (
-                "duplicate key value"
-                not in str(error)
-            ):
-
-                raise
-
-            existing_projects = (
-                self.find_by_name(
-                    payload[
-                        "project_name"
-                    ]
+        while True:
+            try:
+                return (
+                    self.client
+                    .table("projects")
+                    .insert(current_payload)
+                    .execute()
                 )
-            )
 
-            class ExistingResponse:
-                data = existing_projects
+            except APIError as error:
+                missing_column = next(
+                    (
+                        column
+                        for column in optional_columns
+                        if column in current_payload
+                        and _is_missing_column_error(
+                            error,
+                            column,
+                        )
+                    ),
+                    None,
+                )
 
-            return ExistingResponse()
+                if missing_column:
+                    optional_columns.discard(missing_column)
+                    current_payload.pop(missing_column, None)
+                    continue
+
+                if (
+                    "duplicate key value"
+                    not in str(error)
+                ):
+                    raise
+
+                existing_projects = (
+                    self.find_by_name(
+                        current_payload[
+                            "project_name"
+                        ]
+                    )
+                )
+
+                class ExistingResponse:
+                    data = existing_projects
+
+                return ExistingResponse()
+
+            except Exception as error:
+                if (
+                    "duplicate key value"
+                    not in str(error)
+                ):
+                    raise
+
+                existing_projects = (
+                    self.find_by_name(
+                        current_payload[
+                            "project_name"
+                        ]
+                    )
+                )
+
+                class ExistingResponse:
+                    data = existing_projects
+
+                return ExistingResponse()
 
     def get_all_projects(
         self,
@@ -187,17 +292,22 @@ class ProjectRepository:
         project_id: str
     ):
 
-        response = (
-            self.client
-            .table("projects")
-            .select("*")
-            .eq(
-                "id",
-                project_id
+        try:
+            response = (
+                self.client
+                .table("projects")
+                .select("*")
+                .eq(
+                    "id",
+                    project_id
+                )
+                .limit(1)
+                .execute()
             )
-            .limit(1)
-            .execute()
-        )
+        except APIError as error:
+            if _is_invalid_uuid_error(error):
+                return None
+            raise
 
         if not response.data:
             return None
@@ -214,6 +324,7 @@ class ProjectRepository:
             for key, value in updates.items()
             if value is not None
         }
+        payload = _project_write_payload(payload)
 
         if not payload:
             return self.get_project_by_id(project_id)

@@ -27,13 +27,25 @@ class AIAssignmentService:
         if not profiles:
             return None
 
+        profile_ids = [
+            profile["id"]
+            for profile in profiles
+        ]
+
+        workloads = (
+            self.get_workloads_for_profiles(
+                profile_ids
+            )
+        )
+
         ranked_profiles = []
 
         for profile in profiles:
 
             workload = (
-                self.get_profile_workload(
-                    profile["id"]
+                workloads.get(
+                    profile["id"],
+                    0,
                 )
             )
 
@@ -84,6 +96,7 @@ class AIAssignmentService:
                 "role",
                 [
                     "ADMIN",
+                    "SUPERVISOR",
                     "MANAGER",
                 ]
             )
@@ -129,6 +142,51 @@ class AIAssignmentService:
             response.data
         )
 
+    def get_workloads_for_profiles(
+        self,
+        profile_ids: list[str],
+    ) -> dict[str, int]:
+
+        if not profile_ids:
+            return {}
+
+        response = (
+            self.client
+            .table(
+                "operational_actions"
+            )
+            .select("assigned_to")
+
+            .in_(
+                "assigned_to",
+                profile_ids
+            )
+
+            .in_(
+                "status",
+                [
+                    "OPEN",
+                    "IN_PROGRESS",
+                    "BLOCKED",
+                ]
+            )
+
+            .execute()
+        )
+
+        workloads = {
+            profile_id: 0
+            for profile_id in profile_ids
+        }
+
+        for row in response.data or []:
+            assigned_to = row.get("assigned_to")
+
+            if assigned_to in workloads:
+                workloads[assigned_to] += 1
+
+        return workloads
+
     # ==========================================
     # CALCULATE SCORE
     # ==========================================
@@ -151,7 +209,7 @@ class AIAssignmentService:
 
             base_score += 20
 
-        if role == "MANAGER":
+        if role == "MANAGER" or role == "SUPERVISOR":
 
             base_score += 10
 

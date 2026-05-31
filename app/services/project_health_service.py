@@ -14,7 +14,7 @@ class ProjectHealthService:
         # =========================
 
         score -= (
-            len(actions) * 3
+            len(actions or []) * 3
         )
 
         # =========================
@@ -22,14 +22,14 @@ class ProjectHealthService:
         # =========================
 
         score -= (
-            len(escalations) * 10
+            len(escalations or []) * 10
         )
 
         # =========================
         # HIGH RISK REVIEWS
         # =========================
 
-        for review in reviews:
+        for review in reviews or []:
 
             risk = (
                 review.get(

@@ -103,6 +103,66 @@ class ProfileRepository:
 
         return response.data or []
 
+    def count_profiles_with_role(
+        self,
+        organization_id: str,
+        role: str,
+    ) -> int:
+
+        normalized_role = role.strip().upper()
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select(
+                "id",
+                count="exact",
+            )
+            .eq(
+                "organization_id",
+                organization_id,
+            )
+            .eq(
+                "role",
+                normalized_role,
+            )
+            .limit(0)
+            .execute()
+        )
+
+        return response.count or 0
+
+    def get_profile_by_email_in_organization(
+        self,
+        organization_id: str,
+        email: str,
+    ):
+
+        normalized_email = (
+            email.strip().lower()
+        )
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "organization_id",
+                organization_id,
+            )
+            .ilike(
+                "email",
+                normalized_email,
+            )
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data:
+            return None
+
+        return response.data[0]
+
     def supports_organization_column(self) -> bool:
 
         try:

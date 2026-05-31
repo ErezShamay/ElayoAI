@@ -43,4 +43,4 @@ class WorkspaceActivityRepository:
             .execute()
         )
 
-        return response.data
+        return response.data or []

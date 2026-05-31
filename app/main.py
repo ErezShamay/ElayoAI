@@ -769,6 +769,9 @@ class CreateProjectRequest(
     BaseModel
 ):
     project_name: str
+    developer_name: str
+    contractor_name: str
+    lawyer_name: str
     supervisor_name: str
     supervisor_email: str | None = None
     organization_id: str | None = None
@@ -780,6 +783,9 @@ class EditProjectRequest(
     BaseModel
 ):
     project_name: str | None = None
+    developer_name: str | None = None
+    contractor_name: str | None = None
+    lawyer_name: str | None = None
     supervisor_name: str | None = None
     supervisor_email: str | None = None
 
@@ -1923,6 +1929,9 @@ def get_profile_notification_delivery_log(profile_id: str):
 def create_project(request: CreateProjectRequest):
     return project_service.create_project(
         project_name=request.project_name,
+        developer_name=request.developer_name,
+        contractor_name=request.contractor_name,
+        lawyer_name=request.lawyer_name,
         supervisor_name=request.supervisor_name,
         supervisor_email=request.supervisor_email,
         organization_id=request.organization_id,
@@ -1936,6 +1945,9 @@ def edit_project(project_id: str, request: EditProjectRequest):
     updated = project_service.edit_project(
         project_id,
         project_name=request.project_name,
+        developer_name=request.developer_name,
+        contractor_name=request.contractor_name,
+        lawyer_name=request.lawyer_name,
         supervisor_name=request.supervisor_name,
         supervisor_email=request.supervisor_email,
     )
@@ -2288,10 +2300,18 @@ def get_project_timeline(project_id: str):
 @app.get("/projects/{project_id}/workspace")
 def get_project_workspace(project_id: str):
 
-    return (
+    workspace = (
         project_workspace_service
         .get_workspace(project_id)
     )
+
+    if not workspace.get("project"):
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found",
+        )
+
+    return workspace
 
 
 @app.get("/projects/{project_id}/workspace/activities")
@@ -2440,7 +2460,7 @@ def get_workspace_permissions(project_id: str, auth_context=Depends(get_auth_con
     project = project_repository.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    can_edit = auth_context.role in {"MANAGER", "ADMIN"}
+    can_edit = auth_context.role in {"SUPERVISOR", "MANAGER", "ADMIN", "PLATFORM_ADMIN"}
     return {
         "project_id": project_id,
         "user_id": auth_context.actor_user_id,

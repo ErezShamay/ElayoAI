@@ -104,6 +104,64 @@ class AIInterpretationRepository:
             or []
         )
 
+    def get_reviews_by_status(
+        self,
+        review_status: str,
+    ):
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "review_status",
+                review_status,
+            )
+            .execute()
+        )
+
+        return (
+            response.data
+            or []
+        )
+
+    def get_recent_reviews(
+        self,
+        limit: int = 20,
+    ):
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .order(
+                "created_at",
+                desc=True,
+            )
+            .limit(limit)
+            .execute()
+        )
+
+        return (
+            response.data
+            or []
+        )
+
+    def count_reviews(self) -> int:
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select(
+                "id",
+                count="exact",
+            )
+            .limit(0)
+            .execute()
+        )
+
+        return response.count or 0
+
     # =====================================
     # PROJECT REVIEWS
     # =====================================
@@ -149,6 +207,10 @@ class AIInterpretationRepository:
             self.client
             .table("findings")
             .select("id, report_id")
+            .in_(
+                "report_id",
+                report_ids
+            )
             .execute()
         )
 
@@ -157,16 +219,9 @@ class AIInterpretationRepository:
             or []
         )
 
-        filtered_findings = [
-            finding
-            for finding in findings
-            if finding["report_id"]
-            in report_ids
-        ]
-
         finding_ids = [
             finding["id"]
-            for finding in filtered_findings
+            for finding in findings
         ]
 
         if not finding_ids:
@@ -180,22 +235,17 @@ class AIInterpretationRepository:
             self.client
             .table(self.table_name)
             .select("*")
+            .in_(
+                "finding_id",
+                finding_ids
+            )
             .execute()
         )
 
-        reviews = (
+        return (
             reviews_response.data
             or []
         )
-
-        filtered_reviews = [
-            review
-            for review in reviews
-            if review["finding_id"]
-            in finding_ids
-        ]
-
-        return filtered_reviews
 
     # =====================================
     # STATUS MANAGEMENT

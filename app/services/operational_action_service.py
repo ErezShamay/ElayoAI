@@ -129,27 +129,10 @@ class OperationalActionService:
         self
     ):
 
-        actions = (
+        return (
             self.repository
-            .get_open_actions()
+            .get_open_escalations()
         )
-
-        escalations = []
-
-        for action in actions:
-
-            if (
-                action[
-                    "action_type"
-                ]
-                == "ESCALATION"
-            ):
-
-                escalations.append(
-                    action
-                )
-
-        return escalations
 
     # ==========================================
     # STATUS MANAGEMENT

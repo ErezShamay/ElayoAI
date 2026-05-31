@@ -10,8 +10,12 @@ USER_MANAGEMENT_ROLES = (
 
 ORG_SCOPED_INVITE_ROLES = (
     ORG_ADMIN_ROLE,
-    "MANAGER",
-    "ANALYST",
+    "SUPERVISOR",
+    "VIEWER",
+)
+
+CLIENT_ADMIN_INVITE_ROLES = (
+    "SUPERVISOR",
     "VIEWER",
 )
 
@@ -38,7 +42,7 @@ def inviteable_roles(actor_role: str | None) -> tuple[str, ...]:
     if is_platform_admin(actor_role):
         return PLATFORM_INVITE_ROLES
     if is_org_admin(actor_role):
-        return ORG_SCOPED_INVITE_ROLES
+        return CLIENT_ADMIN_INVITE_ROLES
     return ()
 
 

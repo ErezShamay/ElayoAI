@@ -34,13 +34,31 @@ def test_ai_review_dashboard_service_aggregates_status_and_overdue():
     ).isoformat()
 
     class FakeRepository:
-        def get_all_reviews(self):
+        def get_pending_reviews(self):
             return [
                 {"id": "r-1", "review_status": "PENDING", "created_at": old_pending},
                 {"id": "r-2", "review_status": "PENDING", "created_at": recent_pending},
-                {"id": "r-3", "review_status": "APPROVED", "created_at": recent_pending},
-                {"id": "r-4", "review_status": "REJECTED", "created_at": recent_pending},
             ]
+
+        def get_reviews_by_status(self, review_status: str):
+            if review_status == "APPROVED":
+                return [
+                    {"id": "r-3", "review_status": "APPROVED", "created_at": recent_pending},
+                ]
+            if review_status == "REJECTED":
+                return [
+                    {"id": "r-4", "review_status": "REJECTED", "created_at": recent_pending},
+                ]
+            return []
+
+        def get_recent_reviews(self, limit: int = 20):
+            return [
+                {"id": "r-4", "review_status": "REJECTED", "created_at": recent_pending},
+                {"id": "r-3", "review_status": "APPROVED", "created_at": recent_pending},
+            ][:limit]
+
+        def count_reviews(self):
+            return 4
 
     service.repository = FakeRepository()
 
@@ -138,11 +156,10 @@ def test_ai_review_sla_service_tracks_breaches():
     ).isoformat()
 
     class FakeRepository:
-        def get_all_reviews(self):
+        def get_pending_reviews(self):
             return [
                 {"id": "ai-1", "review_status": "PENDING", "created_at": old_pending},
                 {"id": "ai-2", "review_status": "PENDING", "created_at": fresh_pending},
-                {"id": "ai-3", "review_status": "APPROVED", "created_at": old_pending},
             ]
 
     service.repository = FakeRepository()

@@ -80,7 +80,7 @@ class ReportIngestionService:
 
         projects = (
             self.project_tool
-            .get_all_projects()
+            .get_active_projects()
         )
 
         matched_project = None

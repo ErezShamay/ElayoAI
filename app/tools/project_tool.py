@@ -61,20 +61,9 @@ class ProjectTool:
 
     # backward compatibility
     def get_active_projects(self):
-        projects = (
+        return (
             self.repository
-            .get_all_projects()
+            .filter_projects(
+                status="ACTIVE"
+            )
         )
-
-        active_projects = []
-
-        for project in projects:
-            if (
-                project.get("status")
-                == "ACTIVE"
-            ):
-                active_projects.append(
-                    project
-                )
-
-        return active_projects

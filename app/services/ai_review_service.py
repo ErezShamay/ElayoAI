@@ -385,28 +385,24 @@ class AIReviewService:
         self,
         recent_limit: int = 20,
     ):
-        all_reviews = (
+        pending_reviews = (
             self.repository
-            .get_all_reviews()
+            .get_pending_reviews()
         )
 
-        pending_reviews = [
-            review
-            for review in all_reviews
-            if review.get("review_status") == "PENDING"
-        ]
+        approved_reviews = (
+            self.repository
+            .get_reviews_by_status(
+                "APPROVED"
+            )
+        )
 
-        approved_reviews = [
-            review
-            for review in all_reviews
-            if review.get("review_status") == "APPROVED"
-        ]
-
-        rejected_reviews = [
-            review
-            for review in all_reviews
-            if review.get("review_status") == "REJECTED"
-        ]
+        rejected_reviews = (
+            self.repository
+            .get_reviews_by_status(
+                "REJECTED"
+            )
+        )
 
         overdue_pending_reviews = [
             review
@@ -416,18 +412,17 @@ class AIReviewService:
             )
         ]
 
-        sorted_reviews = sorted(
-            all_reviews,
-            key=lambda item: (
-                item.get("created_at")
-                or ""
-            ),
-            reverse=True,
+        recent_reviews = (
+            self.repository
+            .get_recent_reviews(
+                recent_limit
+            )
         )
 
         return {
             "total_reviews":
-                len(all_reviews),
+                self.repository
+                .count_reviews(),
             "pending_reviews":
                 len(pending_reviews),
             "approved_reviews":
@@ -437,7 +432,7 @@ class AIReviewService:
             "pending_overdue_reviews":
                 len(overdue_pending_reviews),
             "recent_reviews":
-                sorted_reviews[:recent_limit],
+                recent_reviews,
         }
 
     def _is_review_overdue(
@@ -466,16 +461,10 @@ class AIReviewService:
         self,
         target_hours: int = 48,
     ):
-        all_reviews = (
+        pending_reviews = (
             self.repository
-            .get_all_reviews()
+            .get_pending_reviews()
         )
-
-        pending_reviews = [
-            review
-            for review in all_reviews
-            if review.get("review_status") == "PENDING"
-        ]
 
         breached_reviews = []
         healthy_reviews = []

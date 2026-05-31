@@ -1,3 +1,7 @@
+from concurrent.futures import (
+    ThreadPoolExecutor,
+)
+
 from app.repositories.project_repository import (
     ProjectRepository
 )
@@ -59,45 +63,101 @@ class ProjectWorkspaceService:
             )
         )
 
-        reviews = (
-            self.review_service
-            .get_reviews_by_project(
-                project_id
-            )
-        )
+        if not project:
+            return {
+                "project": None,
+                "reviews": [],
+                "actions": [],
+                "exceptions": [],
+                "activities": [],
+                "insights": [],
+                "health": {
+                    "score": 100,
+                    "status": "HEALTHY",
+                },
+                "summary": {
+                    "reviews_count": 0,
+                    "actions_count": 0,
+                    "escalations_count": 0,
+                    "reports_count": 0,
+                },
+            }
 
-        actions = (
-            self.action_repository
-            .get_open_actions_by_project(
-                project_id
-            )
-        )
+        with ThreadPoolExecutor(
+            max_workers=5
+        ) as executor:
 
-        exceptions = (
-            self.action_repository
-            .get_exceptions_by_project(
-                project_id
+            reviews_future = (
+                executor.submit(
+                    self.review_service
+                    .get_reviews_by_project,
+                    project_id,
+                )
             )
-        )
 
-        activities = (
-            WorkspaceActivityRepository
-            .get_project_activity(
-                project_id
+            actions_future = (
+                executor.submit(
+                    self.action_repository
+                    .get_open_actions_by_project,
+                    project_id,
+                )
             )
-        )
+
+            exceptions_future = (
+                executor.submit(
+                    self.action_repository
+                    .get_exceptions_by_project,
+                    project_id,
+                )
+            )
+
+            activities_future = (
+                executor.submit(
+                    WorkspaceActivityRepository
+                    .get_project_activity,
+                    project_id,
+                )
+            )
+
+            reports_future = (
+                executor.submit(
+                    self.report_repository
+                    .get_reports_by_project,
+                    project_id,
+                )
+            )
+
+            reviews = (
+                reviews_future.result()
+                or []
+            )
+
+            actions = (
+                actions_future.result()
+                or []
+            )
+
+            exceptions = (
+                exceptions_future.result()
+                or []
+            )
+
+            activities = (
+                activities_future.result()
+                or []
+            )
+
+            reports = (
+                reports_future.result()
+                or []
+            )
 
         insights = (
             ProjectInsightsService
             .generate_project_insights(
-                project_id
-            )
-        )
-
-        reports = (
-            self.report_repository
-            .get_reports_by_project(
-                project_id
+                project_id,
+                reviews=reviews,
+                actions=actions,
             )
         )
 

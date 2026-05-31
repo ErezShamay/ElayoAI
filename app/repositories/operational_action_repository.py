@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from app.db.supabase_client import (
     supabase
 )
@@ -110,7 +112,7 @@ class OperationalActionRepository:
             .execute()
         )
 
-        return response.data
+        return response.data or []
 
     def get_open_actions_by_project(
         self,
@@ -132,7 +134,7 @@ class OperationalActionRepository:
             .execute()
         )
 
-        return response.data
+        return response.data or []
 
     def get_exceptions_by_project(
         self,
@@ -158,7 +160,112 @@ class OperationalActionRepository:
             .execute()
         )
 
-        return response.data
+        return response.data or []
+
+    def get_open_escalations(
+        self,
+    ):
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "status",
+                "OPEN",
+            )
+            .eq(
+                "action_type",
+                "ESCALATION",
+            )
+            .execute()
+        )
+
+        return response.data or []
+
+    def get_overdue_open_actions(
+        self,
+        before_iso: str | None = None,
+    ):
+
+        if before_iso is None:
+            before_iso = (
+                datetime
+                .now(UTC)
+                .isoformat()
+            )
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "status",
+                "OPEN",
+            )
+            .not_.is_(
+                "due_date",
+                "null",
+            )
+            .lt(
+                "due_date",
+                before_iso,
+            )
+            .execute()
+        )
+
+        return response.data or []
+
+    def get_stale_open_actions(
+        self,
+        created_before_iso: str,
+    ):
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "status",
+                "OPEN",
+            )
+            .lt(
+                "created_at",
+                created_before_iso,
+            )
+            .execute()
+        )
+
+        return response.data or []
+
+    def get_escalation_parent_action_ids(
+        self,
+    ) -> set[str]:
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("parent_action_id")
+            .eq(
+                "status",
+                "OPEN",
+            )
+            .eq(
+                "action_type",
+                "ESCALATION",
+            )
+            .not_.is_(
+                "parent_action_id",
+                "null",
+            )
+            .execute()
+        )
+
+        return {
+            row["parent_action_id"]
+            for row in (response.data or [])
+            if row.get("parent_action_id")
+        }
 
     # ==========================================
     # STATUS MANAGEMENT

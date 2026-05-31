@@ -22,6 +22,13 @@ PERMISSION_MATRIX: dict[str, set[str]] = {
         "users:write",
         "audit:read",
     },
+    "SUPERVISOR": {
+        "projects:read",
+        "projects:write",
+        "reports:read",
+        "reports:write",
+        "audit:read",
+    },
     "MANAGER": {
         "projects:read",
         "projects:write",

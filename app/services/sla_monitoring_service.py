@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from uuid import uuid4
 
 from app.repositories.operational_action_repository import (
     OperationalActionRepository
@@ -47,7 +48,12 @@ class SLAMonitoringService:
 
         actions = (
             self.repository
-            .get_open_actions()
+            .get_overdue_open_actions()
+        )
+
+        escalation_parent_ids = (
+            self.repository
+            .get_escalation_parent_action_ids()
         )
 
         for action in actions:
@@ -55,7 +61,8 @@ class SLAMonitoringService:
             try:
 
                 self.process_action(
-                    action
+                    action,
+                    escalation_parent_ids,
                 )
 
                 processed_count += 1
@@ -90,6 +97,7 @@ class SLAMonitoringService:
     def process_action(
         self,
         action: dict,
+        escalation_parent_ids: set[str] | None = None,
     ):
 
         due_date = (
@@ -121,8 +129,9 @@ class SLAMonitoringService:
 
             return
 
-        now = datetime.utcnow(
-        ).astimezone()
+        now = datetime.now(
+            timezone.utc
+        )
 
         is_overdue = (
             due_date < now
@@ -132,7 +141,8 @@ class SLAMonitoringService:
             return
 
         self.handle_overdue_action(
-            action
+            action,
+            escalation_parent_ids,
         )
 
     # ==========================================
@@ -142,6 +152,7 @@ class SLAMonitoringService:
     def handle_overdue_action(
         self,
         action: dict,
+        escalation_parent_ids: set[str] | None = None,
     ):
 
         print(
@@ -180,21 +191,15 @@ class SLAMonitoringService:
         # CHECK EXISTING ESCALATIONS
         # ======================================
 
-        existing_escalations = (
-            self.repository
-            .get_exceptions_by_project(
-                action["project_id"]
+        if escalation_parent_ids is None:
+            escalation_parent_ids = (
+                self.repository
+                .get_escalation_parent_action_ids()
             )
-        )
 
-        already_exists = any(
-
-            escalation.get(
-                "parent_action_id"
-            ) == action["id"]
-
-            for escalation
-            in existing_escalations
+        already_exists = (
+            action["id"]
+            in escalation_parent_ids
         )
 
         if already_exists:
@@ -260,6 +265,11 @@ class SLAMonitoringService:
             f"[AUTOMATION] Auto escalation created: "
             f"{created_escalation['id']}"
         )
+
+        if escalation_parent_ids is not None:
+            escalation_parent_ids.add(
+                action["id"]
+            )
 
         # ======================================
         # SEND ESCALATION NOTIFICATION

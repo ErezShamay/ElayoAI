@@ -44,7 +44,7 @@ class WeeklyReportRepository:
             .execute()
         )
 
-        return response.data
+        return response.data or []
 
     def get_reports_by_project(
         self,
@@ -62,4 +62,4 @@ class WeeklyReportRepository:
             .execute()
         )
 
-        return response.data
+        return response.data or []

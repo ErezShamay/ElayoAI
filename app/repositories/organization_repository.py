@@ -204,20 +204,42 @@ class OrganizationRepository:
         organizations: list[dict],
     ) -> list[dict]:
 
-        for organization in organizations:
-            projects_response = (
-                self.client
-                .table("projects")
-                .select("*")
-                .eq(
-                    "organization_id",
-                    organization["id"],
-                )
-                .execute()
-            )
+        if not organizations:
+            return organizations
 
+        org_ids = [
+            organization["id"]
+            for organization in organizations
+        ]
+
+        projects_response = (
+            self.client
+            .table("projects")
+            .select("*")
+            .in_(
+                "organization_id",
+                org_ids,
+            )
+            .execute()
+        )
+
+        projects_by_org: dict[str, list] = {
+            org_id: []
+            for org_id in org_ids
+        }
+
+        for project in projects_response.data or []:
+            org_id = project.get("organization_id")
+
+            if org_id in projects_by_org:
+                projects_by_org[org_id].append(project)
+
+        for organization in organizations:
             organization["projects"] = (
-                projects_response.data or []
+                projects_by_org.get(
+                    organization["id"],
+                    [],
+                )
             )
 
         return organizations

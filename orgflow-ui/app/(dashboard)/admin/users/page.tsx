@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   useCanManageOrganizations,
 } from "@/hooks/useEffectiveRole";
-import { inviteableRoles } from "@/lib/auth/permissions";
+import { inviteableRoles, organizationHasClientAdmin } from "@/lib/auth/permissions";
 import { getRoleLabel } from "@/lib/auth/roleLabels";
 import { apiFetch } from "@/lib/api/client";
 
@@ -48,7 +48,10 @@ function AdminUsersContent() {
   const { profile, organizations, currentOrgId, sessionRole } = useAuth();
   const canManageOrganizations = useCanManageOrganizations();
   const effectiveRole = profile?.role || sessionRole;
-  const roleOptions = inviteableRoles(effectiveRole);
+  const hasClientAdmin = organizationHasClientAdmin(users);
+  const roleOptions = inviteableRoles(effectiveRole, {
+    hasClientAdmin,
+  });
 
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [customerOrganizations, setCustomerOrganizations] =
@@ -66,6 +69,12 @@ function AdminUsersContent() {
   const [role, setRole] = useState<string>("VIEWER");
   const [organizationName, setOrganizationName] = useState("");
   const [organizationEmail, setOrganizationEmail] = useState("");
+
+  useEffect(() => {
+    if (!roleOptions.includes(role as typeof roleOptions[number])) {
+      setRole(roleOptions[0] || "VIEWER");
+    }
+  }, [roleOptions, role]);
 
   useEffect(() => {
     void loadUsers();
@@ -439,6 +448,11 @@ function AdminUsersContent() {
           {canManageOrganizations
             ? "משתמשים חדשים ישויכו ללקוח שנבחר ב-switcher למעלה."
             : "משתמשים חדשים ישויכו לחברה שלך בלבד. מנהל לקוח יכול לנהל רק את הארגון שלו."}
+          {" "}
+          לכל לקוח מותר מנהל לקוח אחד בלבד.
+          {hasClientAdmin && canManageOrganizations
+            ? " ללקוח הפעיל כבר יש מנהל לקוח — ניתן להזמין מפקח או משתמש כללי."
+            : ""}
         </p>
 
         <form

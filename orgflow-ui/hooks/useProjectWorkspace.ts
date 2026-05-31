@@ -15,6 +15,9 @@ import { useAuth } from "@/contexts/AuthContext";
 type Project = {
   id: string;
   project_name: string;
+  developer_name?: string | null;
+  contractor_name?: string | null;
+  lawyer_name?: string | null;
   supervisor_name: string;
   supervisor_email: string;
   status: string;
@@ -150,6 +153,51 @@ export function useProjectWorkspace(
   const [loading, setLoading] =
     useState(true);
 
+  const [
+    operationalSummaryLoading,
+    setOperationalSummaryLoading,
+  ] = useState(false);
+
+  const loadOperationalSummary =
+    useCallback(async () => {
+      if (!projectId || !user) {
+        return;
+      }
+
+      try {
+        setOperationalSummaryLoading(true);
+
+        const summaryResponse =
+          await apiFetch(
+            `/projects/${projectId}/operational-summary`
+          );
+
+        if (summaryResponse.ok) {
+          const operationalSummaryData:
+            OperationalSummary =
+              await summaryResponse.json();
+
+          setOperationalSummary(
+            operationalSummaryData
+          );
+        } else {
+          console.warn(
+            "Failed loading operational summary:",
+            summaryResponse.status
+          );
+          setOperationalSummary(null);
+        }
+      } catch (summaryError) {
+        console.warn(
+          "Failed loading operational summary:",
+          summaryError
+        );
+        setOperationalSummary(null);
+      } finally {
+        setOperationalSummaryLoading(false);
+      }
+    }, [projectId, user]);
+
   const loadWorkspace =
     useCallback(async (
       options: LoadWorkspaceOptions = {}
@@ -173,6 +221,7 @@ export function useProjectWorkspace(
 
         if (!silent) {
           setLoading(true);
+          setOperationalSummary(null);
         }
 
         const workspaceResponse =
@@ -181,9 +230,23 @@ export function useProjectWorkspace(
           );
 
         if (!workspaceResponse.ok) {
-          throw new Error(
-            `Failed loading workspace (${workspaceResponse.status})`
+          if (workspaceResponse.status === 404) {
+            setProject(null);
+            return;
+          }
+
+          console.error(
+            "Failed loading workspace:",
+            workspaceResponse.status
           );
+
+          if (!silent) {
+            toast.error(
+              "שגיאה בטעינת סביבת העבודה"
+            );
+          }
+
+          return;
         }
 
         const workspace:
@@ -222,35 +285,6 @@ export function useProjectWorkspace(
           workspace.health
         );
 
-        try {
-          const summaryResponse =
-            await apiFetch(
-              `/projects/${projectId}/operational-summary`
-            );
-
-          if (summaryResponse.ok) {
-            const operationalSummaryData:
-              OperationalSummary =
-                await summaryResponse.json();
-
-            setOperationalSummary(
-              operationalSummaryData
-            );
-          } else {
-            console.warn(
-              "Failed loading operational summary:",
-              summaryResponse.status
-            );
-            setOperationalSummary(null);
-          }
-        } catch (summaryError) {
-          console.warn(
-            "Failed loading operational summary:",
-            summaryError
-          );
-          setOperationalSummary(null);
-        }
-
       } catch (error) {
 
         console.error(
@@ -285,6 +319,31 @@ export function useProjectWorkspace(
     });
 
   }, [loadWorkspace]);
+
+  // =========================
+  // OPERATIONAL SUMMARY (background)
+  // =========================
+
+  useEffect(() => {
+
+    if (
+      authLoading
+      || loading
+      || !project
+    ) {
+      return;
+    }
+
+    startTransition(() => {
+      void loadOperationalSummary();
+    });
+
+  }, [
+    authLoading,
+    loading,
+    project,
+    loadOperationalSummary,
+  ]);
 
   // =========================
   // AUTO REFRESH (every 10 minutes)
@@ -645,6 +704,7 @@ export function useProjectWorkspace(
     summary,
     health,
     operationalSummary,
+    operationalSummaryLoading,
 
     loading,
 

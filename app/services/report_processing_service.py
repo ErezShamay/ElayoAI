@@ -87,10 +87,15 @@ class ReportProcessingService:
             extracted_text=extracted_text,
         )
         classification = self._classify_report(filename=filename, extracted_text=extracted_text)
+        existing_reports = (
+            self.report_repository
+            .get_reports_by_project(project_id)
+        )
         duplicate_detection = self._detect_duplicate_report(
             project_id=project_id,
             filename=filename,
             text_preview=text_preview,
+            existing_reports=existing_reports,
         )
         ai_insights = self._build_ai_insights(
             extracted_text=extracted_text,
@@ -121,7 +126,11 @@ class ReportProcessingService:
                 "metadata": metadata,
             }
 
-        versioned_subject, report_version = self._build_versioned_subject(project_id, filename)
+        versioned_subject, report_version = self._build_versioned_subject(
+            project_id,
+            filename,
+            existing_reports=existing_reports,
+        )
 
         created_report = self.report_repository.create_report(
             project_id=project_id,
@@ -353,9 +362,18 @@ class ReportProcessingService:
             "recommended_action": "Route to operations manager for manual classification",
         }
 
-    def _build_versioned_subject(self, project_id: str, filename: str) -> tuple[str, int]:
+    def _build_versioned_subject(
+        self,
+        project_id: str,
+        filename: str,
+        existing_reports: list | None = None,
+    ) -> tuple[str, int]:
         base_name = filename.strip()
-        existing_reports = self.report_repository.get_reports_by_project(project_id)
+        if existing_reports is None:
+            existing_reports = (
+                self.report_repository
+                .get_reports_by_project(project_id)
+            )
         max_version = 0
 
         for report in existing_reports:
@@ -389,9 +407,14 @@ class ReportProcessingService:
         project_id: str,
         filename: str,
         text_preview: str,
+        existing_reports: list | None = None,
     ) -> dict:
         signals: list[str] = []
-        existing_reports = self.report_repository.get_reports_by_project(project_id)
+        if existing_reports is None:
+            existing_reports = (
+                self.report_repository
+                .get_reports_by_project(project_id)
+            )
         normalized_filename = filename.strip().casefold()
 
         for report in existing_reports:

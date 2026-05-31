@@ -197,7 +197,14 @@ def test_create_project_flow(monkeypatch):
     client = _client_with_fake_service(monkeypatch)
     response = client.post(
         "/projects",
-        json={"project_name": "Beta Site", "supervisor_name": "Noa", "tags": ["Critical"]},
+        json={
+            "project_name": "Beta Site",
+            "developer_name": "Dev Co",
+            "contractor_name": "Build Co",
+            "lawyer_name": "Legal Co",
+            "supervisor_name": "Noa",
+            "tags": ["Critical"],
+        },
         headers=_auth_headers(),
     )
     assert response.status_code == 200

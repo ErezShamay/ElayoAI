@@ -26,11 +26,21 @@ import { useOffline } from "@/providers/OfflineProvider";
 type Project = {
   id: string;
   project_name: string;
+  developer_name?: string | null;
+  contractor_name?: string | null;
+  lawyer_name?: string | null;
   supervisor_name: string;
   supervisor_email: string;
   status: string;
   created_at: string;
 };
+
+function displayStakeholder(
+  value?: string | null
+) {
+  const trimmed = value?.trim();
+  return trimmed || "לא צוין";
+}
 
 type ProjectSortKey = "project_name" | "created_at" | "status";
 
@@ -41,6 +51,9 @@ export default function ProjectsPage() {
   const [creating, setCreating] = useState(false);
   const [newProject, setNewProject] = useState({
     project_name: "",
+    developer_name: "",
+    contractor_name: "",
+    lawyer_name: "",
     supervisor_name: "",
     supervisor_email: "",
   });
@@ -103,9 +116,15 @@ export default function ProjectsPage() {
 
     if (
       !newProject.project_name.trim() ||
+      !newProject.developer_name.trim() ||
+      !newProject.contractor_name.trim() ||
+      !newProject.lawyer_name.trim() ||
       !newProject.supervisor_name.trim()
     ) {
-      showToast("יש למלא שם פרויקט ומפקח", "error");
+      showToast(
+        "יש למלא את כל שדות החובה: שם פרויקט, יזם, קבלן, עו״ד מלווה ומפקח מלווה",
+        "error"
+      );
       return;
     }
 
@@ -116,6 +135,9 @@ export default function ProjectsPage() {
         method: "POST",
         body: JSON.stringify({
           project_name: newProject.project_name.trim(),
+          developer_name: newProject.developer_name.trim(),
+          contractor_name: newProject.contractor_name.trim(),
+          lawyer_name: newProject.lawyer_name.trim(),
           supervisor_name: newProject.supervisor_name.trim(),
           supervisor_email:
             newProject.supervisor_email.trim() || null,
@@ -130,6 +152,9 @@ export default function ProjectsPage() {
 
       setNewProject({
         project_name: "",
+        developer_name: "",
+        contractor_name: "",
+        lawyer_name: "",
         supervisor_name: "",
         supervisor_email: "",
       });
@@ -182,7 +207,43 @@ export default function ProjectsPage() {
           />
           <input
             className="rounded-2xl border border-zinc-200 bg-transparent p-4 dark:border-zinc-700"
-            placeholder="שם המפקח"
+            placeholder="שם היזם"
+            value={newProject.developer_name}
+            onChange={(event) =>
+              setNewProject({
+                ...newProject,
+                developer_name: event.target.value,
+              })
+            }
+            required
+          />
+          <input
+            className="rounded-2xl border border-zinc-200 bg-transparent p-4 dark:border-zinc-700"
+            placeholder="שם הקבלן"
+            value={newProject.contractor_name}
+            onChange={(event) =>
+              setNewProject({
+                ...newProject,
+                contractor_name: event.target.value,
+              })
+            }
+            required
+          />
+          <input
+            className="rounded-2xl border border-zinc-200 bg-transparent p-4 dark:border-zinc-700"
+            placeholder="עו״ד מלווה"
+            value={newProject.lawyer_name}
+            onChange={(event) =>
+              setNewProject({
+                ...newProject,
+                lawyer_name: event.target.value,
+              })
+            }
+            required
+          />
+          <input
+            className="rounded-2xl border border-zinc-200 bg-transparent p-4 dark:border-zinc-700"
+            placeholder="מפקח מלווה"
             value={newProject.supervisor_name}
             onChange={(event) =>
               setNewProject({
@@ -194,7 +255,7 @@ export default function ProjectsPage() {
           />
           <input
             className="rounded-2xl border border-zinc-200 bg-transparent p-4 md:col-span-2 dark:border-zinc-700"
-            placeholder="אימייל מפקח (אופציונלי)"
+            placeholder="אימייל מפקח מלווה (אופציונלי)"
             type="email"
             value={newProject.supervisor_email}
             onChange={(event) =>
@@ -264,7 +325,9 @@ export default function ProjectsPage() {
                     </Link>
                   </h2>
                   <p className="mt-2 text-zinc-500">
-                    {project.supervisor_name}
+                    יזם: {displayStakeholder(project.developer_name)}
+                    {" · "}
+                    קבלן: {displayStakeholder(project.contractor_name)}
                   </p>
                 </div>
 
@@ -276,9 +339,23 @@ export default function ProjectsPage() {
               <div className="space-y-4">
                 <div>
                   <h3 className="mb-2 font-semibold">
-                    אימייל מפקח
+                    עו״ד מלווה
                   </h3>
-                  <p>{project.supervisor_email}</p>
+                  <p>{displayStakeholder(project.lawyer_name)}</p>
+                </div>
+
+                <div>
+                  <h3 className="mb-2 font-semibold">
+                    מפקח מלווה
+                  </h3>
+                  <p>{project.supervisor_name}</p>
+                </div>
+
+                <div>
+                  <h3 className="mb-2 font-semibold">
+                    אימייל מפקח מלווה
+                  </h3>
+                  <p>{project.supervisor_email || "—"}</p>
                 </div>
 
                 <div>

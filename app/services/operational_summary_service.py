@@ -1,3 +1,5 @@
+import time
+
 from app.ai.ai_client import (
     AIClient
 )
@@ -9,6 +11,9 @@ from app.repositories.operational_action_repository import (
 from app.repositories.ai_interpretation_repository import (
     AIInterpretationRepository
 )
+
+_SUMMARY_CACHE_TTL_SECONDS = 300
+_summary_cache: dict[str, tuple[float, dict]] = {}
 
 
 class OperationalSummaryService:
@@ -26,21 +31,34 @@ class OperationalSummaryService:
     def generate_project_summary(
         self,
         project_id: str,
+        actions: list | None = None,
+        reviews: list | None = None,
     ):
 
-        actions = (
-            self.action_repository
-            .get_open_actions_by_project(
-                project_id
-            )
-        )
+        cached = _summary_cache.get(project_id)
+        if cached:
+            cached_at, payload = cached
+            if (
+                time.time() - cached_at
+                < _SUMMARY_CACHE_TTL_SECONDS
+            ):
+                return payload
 
-        reviews = (
-            self.review_repository
-            .get_reviews_by_project(
-                project_id
+        if actions is None:
+            actions = (
+                self.action_repository
+                .get_open_actions_by_project(
+                    project_id
+                )
             )
-        )
+
+        if reviews is None:
+            reviews = (
+                self.review_repository
+                .get_reviews_by_project(
+                    project_id
+                )
+            )
 
         prompt = f"""
 אתה מנהל תפעול בכיר בתחום הבנייה
@@ -90,7 +108,7 @@ class OperationalSummaryService:
                 f"ביקורות AI: {len(reviews)}"
             )
 
-        return {
+        payload = {
 
             "project_id":
                 project_id,
@@ -98,3 +116,10 @@ class OperationalSummaryService:
             "summary":
                 summary,
         }
+
+        _summary_cache[project_id] = (
+            time.time(),
+            payload,
+        )
+
+        return payload

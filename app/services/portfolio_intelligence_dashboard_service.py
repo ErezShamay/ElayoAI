@@ -1,3 +1,5 @@
+import time
+
 from app.repositories.organization_repository import (
     OrganizationRepository,
 )
@@ -26,6 +28,9 @@ from app.services.portfolio_trend_analysis_service import (
 )
 from app.services.predictive_alerts_service import PredictiveAlertsService
 from app.services.predictive_risk_service import PredictiveRiskService
+
+
+_SUMMARY_CACHE_TTL_SECONDS = 60
 
 
 class PortfolioIntelligenceDashboardService:
@@ -76,12 +81,28 @@ class PortfolioIntelligenceDashboardService:
         self.organization_repository = (
             organization_repository or OrganizationRepository()
         )
+        self._summary_cache: tuple[float, dict] | None = None
 
-    def _build_context(self, organization_id: str | None = None) -> dict:
-        portfolio_summary = (
+    def get_summary(self) -> dict:
+        now = time.time()
+
+        if self._summary_cache:
+            cached_at, payload = self._summary_cache
+            if (
+                now - cached_at
+                < _SUMMARY_CACHE_TTL_SECONDS
+            ):
+                return payload
+
+        payload = (
             self.portfolio_insights_service
             .generate_portfolio_summary()
         )
+        self._summary_cache = (now, payload)
+        return payload
+
+    def _build_context(self, organization_id: str | None = None) -> dict:
+        portfolio_summary = self.get_summary()
         if organization_id:
             portfolio_summary["organization_id"] = organization_id
 
@@ -146,9 +167,6 @@ class PortfolioIntelligenceDashboardService:
             "executive_summary": context["executive_summary"],
             "cross_organization": cross_org,
         }
-
-    def get_summary(self) -> dict:
-        return self.portfolio_insights_service.generate_portfolio_summary()
 
     def get_trends(self) -> dict:
         summary = self.get_summary()

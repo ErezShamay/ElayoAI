@@ -84,7 +84,7 @@ export function isPublicRoute(pathname: string) {
 
 export const GLOBAL_NAV_LINKS: NavLink[] = [
   { href: "/", label: "דף הבית" },
-  { href: "/portfolio", label: "תיק פרויקטים" },
+  { href: "/portfolio", label: "תיק הפרויקטים" },
   { href: "/projects", label: "פרויקטים" },
   { href: "/tenants", label: "מנהל דיירים" },
   { href: "/upload", label: "העלאת דוח" },

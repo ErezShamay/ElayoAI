@@ -225,6 +225,24 @@ MIGRATION_SCRIPTS: list[dict] = [
         "description": "Add organization_id to profiles and owner_profile_id to organizations",
         "tables": ["profiles", "organizations"],
     },
+    {
+        "version": "2026053102",
+        "name": "add_project_stakeholder_columns",
+        "description": "Add developer_name, contractor_name, and lawyer_name to projects",
+        "tables": ["projects"],
+    },
+    {
+        "version": "2026053103",
+        "name": "backfill_project_stakeholder_defaults",
+        "description": "Backfill missing project stakeholder fields with placeholder values",
+        "tables": ["projects"],
+    },
+    {
+        "version": "2026053104",
+        "name": "enforce_single_client_admin",
+        "description": "Demote duplicate client admins and enforce one ADMIN per organization",
+        "tables": ["profiles", "organizations"],
+    },
 ]
 
 

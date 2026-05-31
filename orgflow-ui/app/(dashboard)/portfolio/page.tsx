@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, startTransition } from "react";
 
 import { apiFetch } from "@/lib/api/client";
@@ -103,7 +104,7 @@ export default function PortfolioPage() {
 
     return (
       <main className="of-dashboard-page">
-        טוען Portfolio...
+        טוען תיק הפרויקטים...
       </main>
     );
   }
@@ -112,7 +113,7 @@ export default function PortfolioPage() {
 
     return (
       <main className="of-dashboard-page">
-        Portfolio לא זמין
+        תיק הפרויקטים לא זמין
       </main>
     );
   }
@@ -131,11 +132,11 @@ export default function PortfolioPage() {
             mb-2
           "
         >
-          Executive Operations
+          סקירה תפעולית
         </p>
 
         <h1 className="of-page-title">
-          Portfolio Intelligence
+          תיק הפרויקטים
         </h1>
 
       </div>
@@ -235,9 +236,12 @@ export default function PortfolioPage() {
                         font-bold
                       "
                     >
-                      {
-                        project.project_name
-                      }
+                      <Link
+                        href={`/projects/${project.project_id}`}
+                        className="hover:underline"
+                      >
+                        {project.project_name}
+                      </Link>
                     </h3>
 
                     <div
