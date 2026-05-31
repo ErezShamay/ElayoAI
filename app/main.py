@@ -108,6 +108,10 @@ from app.services.profile_service import (
     ProfileService
 )
 
+from app.services.tenant_extraction_service import (
+    TenantExtractionService,
+)
+
 from app.services.notification_service import (
     NotificationService
 )
@@ -573,6 +577,8 @@ profile_service = (
     )
 )
 
+tenant_extraction_service = TenantExtractionService()
+
 notification_service = (
     NotificationService()
 )
@@ -699,6 +705,15 @@ class ExchangeTokenRequest(
     BaseModel
 ):
     user_id: str
+
+
+class TenantExtractRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+
+
+class TenantExtractResponse(BaseModel):
+    tenants: list[dict]
+    error: str | None = None
 
 
 class ApproveReviewRequest(
@@ -1205,6 +1220,18 @@ def exchange_supabase_session(request: ExchangeTokenRequest):
         "org_id": org_id,
         "role": role,
     }
+
+
+@app.post("/tenants/extract", response_model=TenantExtractResponse)
+def extract_tenants(
+    request: TenantExtractRequest,
+    _: object = Depends(get_auth_context),
+):
+    result = tenant_extraction_service.extract_from_text(request.text)
+    return TenantExtractResponse(
+        tenants=result.get("tenants", []),
+        error=result.get("error"),
+    )
 
 # ==========================================
 # AGENT APIs

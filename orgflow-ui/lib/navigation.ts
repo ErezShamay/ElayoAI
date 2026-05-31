@@ -7,6 +7,7 @@ export const GLOBAL_NAV_LINKS: NavLink[] = [
   { href: "/", label: "דף הבית" },
   { href: "/portfolio", label: "תיק פרויקטים" },
   { href: "/projects", label: "פרויקטים" },
+  { href: "/tenants", label: "מנהל דיירים" },
   { href: "/upload", label: "העלאת דוח" },
   { href: "/reviews", label: "ביקורות AI" },
   { href: "/actions", label: "פעולות תפעוליות" },
