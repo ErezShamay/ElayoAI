@@ -4,10 +4,7 @@ import Link from "next/link";
 
 import BrandLogo from "@/components/ui/BrandLogo";
 import LandingSectionLink from "@/components/ui/LandingSectionLink";
-import {
-  LANDING_SECTION_LINKS,
-  SETTINGS_ROUTE,
-} from "@/lib/navigation";
+import { LANDING_SECTION_LINKS } from "@/lib/navigation";
 
 export default function PublicNavBar() {
   return (
@@ -40,66 +37,22 @@ export default function PublicNavBar() {
               label={link.label}
             />
           ))}
-
-          <Link
-            href={SETTINGS_ROUTE.href}
-            className="
-              rounded-xl
-              px-4
-              py-2
-              text-sm
-              font-medium
-              text-zinc-600
-              transition-colors
-              hover:bg-zinc-100
-              hover:text-zinc-900
-              dark:text-zinc-400
-              dark:hover:bg-zinc-800
-              dark:hover:text-zinc-100
-            "
-          >
-            {SETTINGS_ROUTE.label}
-          </Link>
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
           <Link
-            href={SETTINGS_ROUTE.href}
-            className="
-              rounded-xl
-              px-4
-              py-2
-              text-sm
-              font-medium
-              text-zinc-600
-              transition-colors
-              hover:bg-zinc-100
-              hover:text-zinc-900
-              md:hidden
-              dark:text-zinc-400
-              dark:hover:bg-zinc-800
-              dark:hover:text-zinc-100
-            "
-          >
-            {SETTINGS_ROUTE.label}
-          </Link>
-
-          <Link
             href="/auth/login"
             className="
               of-focus-ring
+              of-accent-gradient
               inline-flex
               rounded-2xl
-              bg-gradient-to-l
-              from-blue-600
-              to-violet-600
               px-4
               py-2.5
               text-sm
               font-semibold
-              text-white
               shadow-md
-              shadow-blue-600/20
+              shadow-brand/20
               transition-all
               hover:brightness-110
               sm:px-5

@@ -47,13 +47,18 @@
   --of-gradient-accent: linear-gradient(
     135deg,
     #07748d 0%,
-    #055f73 55%,
+    #066681 45%,
     #e8ab56 100%
   );
   --of-gradient-accent-soft: linear-gradient(
     135deg,
     #07748d 0%,
     #0a8fad 100%
+  );
+  --of-gradient-accent-horizontal: linear-gradient(
+    90deg,
+    #07748d 0%,
+    #e8ab56 100%
   );
 
   --of-focus-ring: 0 0 0 3px rgb(7 116 141 / 0.28);

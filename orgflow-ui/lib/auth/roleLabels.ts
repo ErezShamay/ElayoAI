@@ -55,5 +55,5 @@ export function getRoleBadgeClass(
     return "bg-brand-muted/80 text-brand-dark dark:bg-brand/10 dark:text-brand-light";
   }
 
-  return "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+  return "bg-brand-muted/70 text-[var(--of-color-text-muted)] dark:bg-brand/10 dark:text-[var(--of-color-text-muted)]";
 }

@@ -510,7 +510,7 @@ export default function ActionDetailsPage() {
               px-6
               py-3
               rounded-2xl
-              bg-blue-600
+              bg-brand
               text-white
               font-semibold
               hover:bg-blue-700

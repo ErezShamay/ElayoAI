@@ -428,7 +428,7 @@ export default function ActionsPage() {
                           px-5
                           py-3
                           rounded-2xl
-                          bg-indigo-600
+                          bg-brand-dark
                           text-white
                           hover:bg-indigo-700
                           transition

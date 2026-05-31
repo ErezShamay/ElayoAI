@@ -52,12 +52,12 @@ export default function BrandLogo({
           justify-center
           rounded-xl
           bg-gradient-to-br
-          from-blue-600
-          to-violet-600
+          from-brand
+          to-brand-gold
           font-black
           text-white
           shadow-lg
-          shadow-blue-600/20
+          shadow-brand/20
           transition-transform
           group-hover:scale-105
           ${iconSize}
@@ -72,7 +72,7 @@ export default function BrandLogo({
         </p>
 
         {showTagline ? (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="text-xs text-[var(--of-color-text-muted)]">
             שליטה ובקרה לפרויקטים
           </p>
         ) : null}

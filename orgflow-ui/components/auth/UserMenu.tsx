@@ -279,7 +279,7 @@ export default function UserMenu() {
                           h-3
                           w-3
                           rounded-full
-                          bg-blue-600
+                          bg-brand
                         "
                       />
                     ) : null}
@@ -309,16 +309,16 @@ export default function UserMenu() {
             gap-2
             rounded-2xl
             border
-            border-zinc-200/80
+            border-[rgb(var(--of-color-accent-rgb)/0.14)]
             bg-white/90
             px-3
             py-2
             text-right
             transition
-            hover:bg-zinc-50
-            dark:border-zinc-700/80
-            dark:bg-zinc-900/85
-            dark:hover:bg-zinc-800
+            hover:bg-brand-muted
+            dark:border-[rgb(var(--of-color-accent-rgb)/0.22)]
+            dark:bg-[rgb(26_31_35/0.9)]
+            dark:hover:bg-[rgb(var(--of-color-accent-rgb)/0.12)]
           "
           aria-expanded={showUserMenu}
           aria-haspopup="menu"

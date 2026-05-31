@@ -118,8 +118,8 @@ export default function HeroDashboardPreview() {
                   mb-2
                   h-4
                   w-4
-                  text-blue-600
-                  dark:text-blue-400
+                  text-brand
+                  dark:text-brand-light
                 "
               />
               <p
@@ -192,8 +192,8 @@ export default function HeroDashboardPreview() {
                   flex-1
                   rounded-t-md
                   bg-gradient-to-t
-                  from-blue-600
-                  to-violet-500
+                  from-brand
+                  to-brand-gold
                   opacity-80
                 "
                 style={{ height: `${height}%` }}
@@ -247,7 +247,7 @@ export default function HeroDashboardPreview() {
           <p className="text-xs text-zinc-500">
             AI Insight
           </p>
-          <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
+          <p className="text-sm font-bold text-brand dark:text-brand-light">
             3 פעולות מומלצות
           </p>
         </div>

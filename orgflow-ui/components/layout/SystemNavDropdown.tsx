@@ -109,8 +109,8 @@ export default function SystemNavDropdown({
           transition-all
           ${
             isActive
-              ? "bg-gradient-to-l from-blue-600 to-violet-600 text-white shadow-md shadow-blue-600/20"
-              : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              ? "of-nav-pill-active"
+              : "of-nav-pill"
           }
         `}
         aria-expanded={isOpen}
@@ -165,8 +165,8 @@ export default function SystemNavDropdown({
                       transition-colors
                       ${
                         linkIsActive
-                          ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
-                          : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                          ? "bg-brand-muted text-brand dark:bg-brand/15 dark:text-brand-light"
+                          : "of-nav-pill"
                       }
                     `}
                   >

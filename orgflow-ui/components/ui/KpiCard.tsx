@@ -15,16 +15,16 @@ export default function KpiCard({
 }) {
   const variantBorder =
     variant === "warning"
-      ? "border-orange-200 dark:border-orange-900/60"
+      ? "border-brand-gold/30 dark:border-brand-gold/40"
       : variant === "accent"
-        ? "border-blue-200 dark:border-blue-900/60"
+        ? "border-brand/25 dark:border-brand/35"
         : "";
 
   const labelClass =
     variant === "warning"
-      ? "text-orange-500"
+      ? "text-brand-gold-dark dark:text-brand-gold"
       : variant === "accent"
-        ? "text-blue-600 dark:text-blue-400"
+        ? "text-brand dark:text-brand-light"
         : "";
 
   const isLargeValue =

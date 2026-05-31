@@ -138,17 +138,17 @@ export default function PublicHomePage() {
                 gap-2
                 rounded-full
                 border
-                border-blue-200/60
-                bg-blue-50/80
+                border-brand/20/60
+                bg-brand-muted/80
                 px-4
                 py-2
                 text-sm
                 font-medium
-                text-blue-700
+                text-brand
                 backdrop-blur-sm
-                dark:border-blue-800/40
-                dark:bg-blue-950/40
-                dark:text-blue-300
+                dark:border-brand/40
+                dark:bg-brand/40
+                dark:text-brand-light
               "
             >
               <Sparkles className="h-4 w-4" />
@@ -211,18 +211,18 @@ export default function PublicHomePage() {
                   gap-2
                   rounded-2xl
                   bg-gradient-to-l
-                  from-blue-600
-                  to-violet-600
+                  from-brand
+                  to-brand-gold
                   px-8
                   py-4
                   text-base
                   font-semibold
                   text-white
                   shadow-lg
-                  shadow-blue-600/25
+                  shadow-brand/25
                   transition-all
                   hover:shadow-xl
-                  hover:shadow-blue-600/30
+                  hover:shadow-brand/30
                   hover:brightness-110
                 "
               >
@@ -343,8 +343,8 @@ export default function PublicHomePage() {
                 font-semibold
                 uppercase
                 tracking-wider
-                text-blue-600
-                dark:text-blue-400
+                text-brand
+                dark:text-brand-light
               "
             >
               יכולות המערכת
@@ -477,8 +477,8 @@ export default function PublicHomePage() {
                 font-semibold
                 uppercase
                 tracking-wider
-                text-violet-600
-                dark:text-violet-400
+                text-brand-gold
+                dark:text-brand-gold
               "
             >
               תהליך העבודה
@@ -531,13 +531,13 @@ export default function PublicHomePage() {
                     justify-center
                     rounded-2xl
                     bg-gradient-to-br
-                    from-violet-500
-                    to-purple-600
+                    from-brand-gold
+                    to-brand-gold-dark
                     text-sm
                     font-black
                     text-white
                     shadow-lg
-                    shadow-violet-600/20
+                    shadow-brand-gold/20
                   "
                 >
                   {item.step}
@@ -675,12 +675,12 @@ export default function PublicHomePage() {
               border
               border-zinc-200/80
               bg-gradient-to-br
-              from-blue-600
-              to-violet-700
+              from-brand
+              to-brand-gold-dark
               p-10
               text-white
               shadow-2xl
-              shadow-blue-600/20
+              shadow-brand/20
               dark:border-zinc-700
             "
           >
@@ -709,7 +709,7 @@ export default function PublicHomePage() {
               "
             />
 
-            <p className="relative text-sm font-medium text-blue-100">
+            <p className="relative text-sm font-medium text-white/80">
               Operational AI Engine
             </p>
             <p
@@ -727,7 +727,7 @@ export default function PublicHomePage() {
                 relative
                 mt-4
                 leading-relaxed
-                text-blue-100
+                text-white/80
               "
             >
               המערכת פעילה, מאובטחת ומחוברת

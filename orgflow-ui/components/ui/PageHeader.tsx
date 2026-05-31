@@ -29,7 +29,7 @@ export default function PageHeader({
     >
       <div>
         {eyebrow ? (
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+          <p className="mb-2 text-sm font-medium uppercase tracking-wider text-brand dark:text-brand-light">
             {eyebrow}
           </p>
         ) : null}

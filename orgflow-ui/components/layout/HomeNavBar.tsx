@@ -56,18 +56,14 @@ export default function HomeNavBar() {
                 key={link.href}
                 href={link.href}
                 className={`
+                  of-nav-pill
                   whitespace-nowrap
                   rounded-xl
                   px-3
                   py-2
                   text-sm
                   font-medium
-                  transition-all
-                  ${
-                    isActive
-                      ? "bg-gradient-to-l from-blue-600 to-violet-600 text-white shadow-md shadow-blue-600/20"
-                      : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  }
+                  ${isActive ? "of-nav-pill-active" : ""}
                 `}
               >
                 {link.label}

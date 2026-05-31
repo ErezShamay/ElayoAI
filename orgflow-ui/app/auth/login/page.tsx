@@ -71,7 +71,7 @@ export default function LoginPage() {
         </div>
 
         <div className="mb-8 text-center">
-          <p className="mb-2 text-sm font-medium text-blue-600 dark:text-blue-400">
+          <p className="mb-2 text-sm font-medium text-brand dark:text-brand-light">
             ברוכים השבים
           </p>
           <h1 className="text-3xl font-black tracking-tight">
@@ -131,7 +131,7 @@ export default function LoginPage() {
         <p className="mt-8 text-center text-sm text-zinc-500">
           <Link
             href="/"
-            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+            className="font-medium text-brand hover:underline dark:text-brand-light"
           >
             חזרה לדף הבית
           </Link>

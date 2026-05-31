@@ -311,7 +311,7 @@ export default function DeadLettersPage() {
                 onClick={() => retryDeadLetter(item.id)}
                 className="
                   rounded-xl
-                  bg-blue-600
+                  bg-brand
                   px-5
                   py-3
                   font-bold
@@ -326,7 +326,7 @@ export default function DeadLettersPage() {
                 onClick={() => replayDeadLetter(item.id)}
                 className="
                   rounded-xl
-                  bg-indigo-600
+                  bg-brand-dark
                   px-5
                   py-3
                   font-bold

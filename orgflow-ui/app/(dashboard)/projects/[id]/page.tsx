@@ -561,10 +561,10 @@ export default function ProjectDetailsPage() {
                               `
 
                               : `
-                                bg-blue-100
-                                text-blue-700
-                                dark:bg-blue-900/30
-                                dark:text-blue-300
+                                bg-brand-muted
+                                text-brand
+                                dark:bg-brand/15
+                                dark:text-brand-light
                               `
                           }
                         `}
@@ -915,9 +915,9 @@ function ActionButton({
         px-4
         py-2
         rounded-xl
-        bg-blue-600
+        bg-brand
         text-white
-        hover:bg-blue-700
+        hover:bg-brand-dark
         transition
       "
     >

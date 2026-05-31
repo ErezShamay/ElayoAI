@@ -40,7 +40,7 @@ export default function ThemeSettings() {
         <h2 className="text-xl font-bold">
           מראה
         </h2>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-[var(--of-color-text-muted)]">
           בחרו את ערכת הצבעים של הממשק
           {theme === "system" ? (
             <span>
@@ -71,22 +71,21 @@ export default function ThemeSettings() {
                 ${
                   isActive
                     ? `
-                      border-blue-500
-                      bg-blue-50
+                      border-brand
+                      bg-brand-muted
                       shadow-md
-                      shadow-blue-500/10
-                      dark:border-blue-500
-                      dark:bg-blue-950/40
+                      shadow-brand/10
+                      dark:border-brand-light
+                      dark:bg-brand/15
                     `
                     : `
-                      border-zinc-200/80
+                      border-[rgb(var(--of-color-accent-rgb)/0.14)]
                       bg-white/90
-                      hover:border-zinc-300
-                      hover:bg-zinc-50
-                      dark:border-zinc-800
-                      dark:bg-zinc-900/85
-                      dark:hover:border-zinc-700
-                      dark:hover:bg-zinc-800
+                      hover:border-[rgb(var(--of-color-accent-secondary-rgb)/0.35)]
+                      hover:bg-brand-muted
+                      dark:border-[rgb(var(--of-color-accent-rgb)/0.22)]
+                      dark:bg-[rgb(26_31_35/0.9)]
+                      dark:hover:bg-[rgb(var(--of-color-accent-rgb)/0.12)]
                     `
                 }
               `}
@@ -100,8 +99,8 @@ export default function ThemeSettings() {
                   p-2.5
                   ${
                     isActive
-                      ? "bg-gradient-to-br from-blue-600 to-violet-600 text-white"
-                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                      ? "of-accent-gradient rounded-xl p-2.5"
+                      : "bg-brand-muted text-brand dark:bg-brand/10 dark:text-brand-light rounded-xl p-2.5"
                   }
                 `}
               >

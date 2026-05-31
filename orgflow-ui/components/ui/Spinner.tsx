@@ -23,10 +23,9 @@ export default function Spinner({
           inline-block
           animate-spin
           rounded-full
-          border-zinc-300
-          border-t-zinc-900
-          dark:border-zinc-700
-          dark:border-t-white
+          border-[rgb(var(--of-color-accent-rgb)/0.22)]
+          border-t-brand
+          dark:border-t-brand-light
           ${sizeClass}
         `}
       />

@@ -67,17 +67,7 @@ export default function Sidebar() {
 
       <nav className="space-y-6">
         <div>
-          <p
-            className="
-              mb-2
-              px-4
-              text-xs
-              font-semibold
-              uppercase
-              tracking-wide
-              text-zinc-400
-            "
-          >
+          <p className="of-nav-section-label">
             ניווט ראשי
           </p>
 
@@ -95,17 +85,7 @@ export default function Sidebar() {
 
         {projectLinks.length > 0 ? (
           <div>
-            <p
-              className="
-                mb-2
-                px-4
-                text-xs
-                font-semibold
-                uppercase
-                tracking-wide
-                text-zinc-400
-              "
-            >
+            <p className="of-nav-section-label">
               פרויקט נוכחי
             </p>
 
@@ -123,17 +103,7 @@ export default function Sidebar() {
         ) : null}
 
         <div>
-          <p
-            className="
-              mb-2
-              px-4
-              text-xs
-              font-semibold
-              uppercase
-              tracking-wide
-              text-zinc-400
-            "
-          >
+          <p className="of-nav-section-label">
             מערכת
           </p>
 

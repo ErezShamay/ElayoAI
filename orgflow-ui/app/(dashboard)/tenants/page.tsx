@@ -37,8 +37,8 @@ export default function TenantsPage() {
             onClick={() => setMode("single")}
             className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
               mode === "single"
-                ? "bg-gradient-to-l from-blue-600 to-violet-600 text-white shadow-md"
-                : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                ? "of-accent-gradient rounded-xl px-3 py-2 text-sm font-medium shadow-md"
+                : "of-nav-pill rounded-xl px-3 py-2 text-sm font-medium"
             }`}
           >
             קובץ אחד
@@ -48,8 +48,8 @@ export default function TenantsPage() {
             onClick={() => setMode("merge")}
             className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
               mode === "merge"
-                ? "bg-gradient-to-l from-blue-600 to-violet-600 text-white shadow-md"
-                : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                ? "of-accent-gradient rounded-xl px-3 py-2 text-sm font-medium shadow-md"
+                : "of-nav-pill rounded-xl px-3 py-2 text-sm font-medium"
             }`}
           >
             איחוד שני קבצים
@@ -109,7 +109,7 @@ export default function TenantsPage() {
 function SectionTitle({ step, title }: { step: string; title: string }) {
   return (
     <div className="mb-4 flex items-center gap-3">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 text-sm font-bold text-white">
+      <div className="of-accent-gradient flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white">
         {step}
       </div>
       <h2 className="text-xl font-semibold">{title}</h2>
