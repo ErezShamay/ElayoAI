@@ -199,6 +199,91 @@ TABLES: dict[str, TableSchema] = {
             ),
         ),
     ),
+    "organization_field_report_modules": TableSchema(
+        name="organization_field_report_modules",
+        tenant_column="organization_id",
+        foreign_keys=(
+            ForeignKeyDef("organization_id", "organizations"),
+        ),
+        indexes=(
+            IndexDef(
+                "organization_field_report_modules_pkey",
+                ("organization_id",),
+                unique=True,
+            ),
+        ),
+        rls_policies=(
+            RlsPolicyDef(
+                name="organization_field_report_modules_tenant_isolation",
+                command="ALL",
+                using_expression=(
+                    "organization_id = "
+                    "current_setting('app.organization_id')::uuid"
+                ),
+            ),
+        ),
+        audited=False,
+    ),
+    "field_visit_reports": TableSchema(
+        name="field_visit_reports",
+        tenant_column="organization_id",
+        foreign_keys=(
+            ForeignKeyDef("organization_id", "organizations"),
+            ForeignKeyDef("project_id", "projects"),
+        ),
+        indexes=(
+            IndexDef("field_visit_reports_pkey", ("id",), unique=True),
+            IndexDef("field_visit_reports_org_idx", ("organization_id",)),
+            IndexDef("field_visit_reports_project_idx", ("project_id",)),
+            IndexDef(
+                "field_visit_reports_org_status_idx",
+                ("organization_id", "status"),
+            ),
+        ),
+        rls_policies=(
+            RlsPolicyDef(
+                name="field_visit_reports_tenant_isolation",
+                command="ALL",
+                using_expression=(
+                    "organization_id = "
+                    "current_setting('app.organization_id')::uuid"
+                ),
+            ),
+        ),
+    ),
+    "field_visit_report_lines": TableSchema(
+        name="field_visit_report_lines",
+        tenant_column="organization_id",
+        foreign_keys=(
+            ForeignKeyDef("organization_id", "organizations"),
+            ForeignKeyDef("report_id", "field_visit_reports"),
+        ),
+        indexes=(
+            IndexDef(
+                "field_visit_report_lines_pkey",
+                ("id",),
+                unique=True,
+            ),
+            IndexDef(
+                "field_visit_report_lines_report_idx",
+                ("report_id", "sort_order"),
+            ),
+            IndexDef(
+                "field_visit_report_lines_org_idx",
+                ("organization_id",),
+            ),
+        ),
+        rls_policies=(
+            RlsPolicyDef(
+                name="field_visit_report_lines_tenant_isolation",
+                command="ALL",
+                using_expression=(
+                    "organization_id = "
+                    "current_setting('app.organization_id')::uuid"
+                ),
+            ),
+        ),
+    ),
 }
 
 
@@ -242,6 +327,30 @@ MIGRATION_SCRIPTS: list[dict] = [
         "name": "enforce_single_client_admin",
         "description": "Demote duplicate client admins and enforce one ADMIN per organization",
         "tables": ["profiles", "organizations"],
+    },
+    {
+        "version": "2026060101",
+        "name": "organization_field_report_module",
+        "description": (
+            "Field report module toggle per organization "
+            "+ optional report header columns on organizations"
+        ),
+        "tables": [
+            "organization_field_report_modules",
+            "organizations",
+        ],
+    },
+    {
+        "version": "2026060102",
+        "name": "field_visit_reports",
+        "description": "Weekly field visit reports for the production module",
+        "tables": ["field_visit_reports"],
+    },
+    {
+        "version": "2026060103",
+        "name": "field_visit_report_lines",
+        "description": "Finding rows on field visit reports",
+        "tables": ["field_visit_report_lines"],
     },
 ]
 

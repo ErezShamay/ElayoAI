@@ -9,7 +9,9 @@ import {
 import BrandLogo from "@/components/ui/BrandLogo";
 import NavLinkItem from "@/components/ui/NavLinkItem";
 import { useIsAdmin } from "@/hooks/useEffectiveRole";
+import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import {
+  FIELD_REPORTS_ROUTE,
   getSystemNavLinks,
   GLOBAL_NAV_LINKS,
   isNavLinkActive,
@@ -19,6 +21,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const params = useParams();
   const isAdminUser = useIsAdmin();
+  const { isEnabled: fieldReportsEnabled } = useFieldReportModule();
   const projectId =
     typeof params?.id === "string"
       ? params.id
@@ -80,6 +83,16 @@ export default function Sidebar() {
                 isActive={pathname === link.href}
               />
             ))}
+            {fieldReportsEnabled ? (
+              <NavLinkItem
+                href={FIELD_REPORTS_ROUTE.href}
+                label={FIELD_REPORTS_ROUTE.label}
+                isActive={
+                  pathname === FIELD_REPORTS_ROUTE.href
+                  || pathname.startsWith(`${FIELD_REPORTS_ROUTE.href}/`)
+                }
+              />
+            ) : null}
           </div>
         </div>
 

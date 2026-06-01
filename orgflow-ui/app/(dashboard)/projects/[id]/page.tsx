@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useProjectWorkspace } from "@/hooks/useProjectWorkspace";
 
 import Badge from "@/components/ui/Badge";
+import ProjectFieldReportLink from "@/components/field-reports/ProjectFieldReportLink";
 import ProjectActivityTimeline from "@/components/projects/ProjectActivityTimeline";
 
 import ProjectInsightsPanel from "@/components/projects/ProjectInsightsPanel";
@@ -147,6 +148,10 @@ export default function ProjectDetailsPage() {
             <p className="of-page-desc mt-4">
               סביבת עבודה תפעולית לפרויקט
             </p>
+
+            <div className="mt-3">
+              <ProjectFieldReportLink projectId={projectId} />
+            </div>
 
           </div>
 

@@ -37,6 +37,18 @@ type CustomerOrganization = {
   contact_email?: string;
 };
 
+type FieldReportModuleRow = {
+  organization_id: string;
+  organization_name: string;
+  contact_email?: string;
+  is_enabled: boolean;
+};
+
+type FieldReportModulesResponse = {
+  organizations: FieldReportModuleRow[];
+  storage_available?: boolean;
+};
+
 export default function AdminUsersPage() {
   return (
     <AdminGuard>
@@ -68,6 +80,14 @@ function AdminUsersContent() {
 
   const [customerOrganizations, setCustomerOrganizations] =
     useState<CustomerOrganization[]>([]);
+  const [fieldReportModules, setFieldReportModules] = useState<
+    FieldReportModuleRow[]
+  >([]);
+  const [fieldReportStorageAvailable, setFieldReportStorageAvailable] =
+    useState(true);
+  const [togglingModuleOrgId, setTogglingModuleOrgId] = useState<
+    string | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [creatingOrganization, setCreatingOrganization] = useState(false);
@@ -84,7 +104,10 @@ function AdminUsersContent() {
   useEffect(() => {
     void loadUsers();
     void loadOrganizations();
-  }, [currentOrgId]);
+    if (canManageOrganizations) {
+      void loadFieldReportModules();
+    }
+  }, [currentOrgId, canManageOrganizations]);
 
   async function loadOrganizations() {
     try {
@@ -98,6 +121,68 @@ function AdminUsersContent() {
       setCustomerOrganizations(data.organizations || []);
     } catch {
       setCustomerOrganizations([]);
+    }
+  }
+
+  async function loadFieldReportModules() {
+    try {
+      const response = await apiFetch("/admin/field-reports/modules");
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = (await response.json()) as FieldReportModulesResponse;
+      setFieldReportModules(data.organizations || []);
+      setFieldReportStorageAvailable(
+        data.storage_available !== false
+      );
+    } catch {
+      setFieldReportModules([]);
+    }
+  }
+
+  async function handleToggleFieldReportModule(
+    organizationId: string,
+    nextEnabled: boolean
+  ) {
+    try {
+      setTogglingModuleOrgId(organizationId);
+      setError("");
+
+      const response = await apiFetch(
+        `/admin/field-reports/modules/${organizationId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ is_enabled: nextEnabled }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error?.message
+          || data?.detail
+          || "עדכון מודול הפקת דוחות נכשל"
+        );
+      }
+
+      toast.success(
+        nextEnabled
+          ? "מודול הפקת דוחות הופעל"
+          : "מודול הפקת דוחות כובה"
+      );
+      await loadFieldReportModules();
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "עדכון מודול הפקת דוחות נכשל";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setTogglingModuleOrgId(null);
     }
   }
 
@@ -440,6 +525,77 @@ function AdminUsersContent() {
             עדיין לא הוגדרו לקוחות. צור לקוח ראשון כדי להתחיל.
           </p>
         )}
+
+        <div className="mt-10 border-t border-zinc-200/80 pt-8 dark:border-zinc-800">
+          <h3 className="mb-2 text-lg font-semibold">
+            מודול הפקת דוחות (ספק)
+          </h3>
+          <p className="mb-4 text-sm text-zinc-500">
+            הפעלה וכיבוי לפי ארגון. ארגון ללא מודול לא יכול לגשת לאזור
+            «הפקת דוחות».
+          </p>
+
+          {!fieldReportStorageAvailable ? (
+            <p className="mb-4 text-sm text-amber-700 dark:text-amber-400">
+              טבלאות המודול אינן קיימות במסד — יש להריץ את המיגרציות
+              2026060101_organization_field_report_module.sql ו-
+              2026060102_field_visit_reports.sql
+            </p>
+          ) : null}
+
+          {fieldReportModules.length > 0 ? (
+            <ul className="space-y-2 text-sm">
+              {fieldReportModules.map((row) => (
+                <li
+                  key={row.organization_id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200/80 px-4 py-3 dark:border-zinc-800"
+                >
+                  <div>
+                    <span className="font-medium">
+                      {row.organization_name}
+                    </span>
+                    <span className="mx-2 text-zinc-400">·</span>
+                    <span className="text-zinc-500">
+                      {row.contact_email || row.organization_id}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {row.is_enabled ? (
+                      <Badge variant="success">מופעל</Badge>
+                    ) : (
+                      <Badge variant="neutral">כבוי</Badge>
+                    )}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={
+                        !fieldReportStorageAvailable
+                        || togglingModuleOrgId === row.organization_id
+                      }
+                      onClick={() =>
+                        void handleToggleFieldReportModule(
+                          row.organization_id,
+                          !row.is_enabled
+                        )
+                      }
+                    >
+                      {togglingModuleOrgId === row.organization_id
+                        ? "מעדכן..."
+                        : row.is_enabled
+                          ? "כיבוי"
+                          : "הפעלה"}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              אין ארגונים להצגה.
+            </p>
+          )}
+        </div>
       </section>
       ) : null}
 

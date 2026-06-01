@@ -122,8 +122,32 @@ from app.schemas.organization import (
     OrganizationCreateRequest,
 )
 
+from app.schemas.field_reports import (
+    FieldReportModuleToggleRequest,
+    FieldVisitReportCreateRequest,
+    FieldVisitReportLineCreateRequest,
+    FieldVisitReportLineUpdateRequest,
+    FieldVisitReportUpdateRequest,
+)
+
 from app.services.organization_admin_service import (
     OrganizationAdminService,
+)
+
+from app.services.field_report_module_service import (
+    FieldReportModuleService,
+)
+
+from app.services.field_report_organization_profile_service import (
+    FieldReportOrganizationProfileService,
+)
+
+from app.services.field_visit_report_service import (
+    FieldVisitReportService,
+)
+
+from app.auth.field_report_dependencies import (
+    require_field_report_module,
 )
 
 from app.services.tenant_migration_service import (
@@ -604,6 +628,20 @@ user_management_service = UserManagementService()
 
 organization_admin_service = OrganizationAdminService()
 
+field_report_module_service = FieldReportModuleService()
+
+field_report_organization_profile_service = (
+    FieldReportOrganizationProfileService(
+        module_service=field_report_module_service,
+    )
+)
+
+field_visit_report_service = FieldVisitReportService(
+    organization_profile_service=(
+        field_report_organization_profile_service
+    ),
+)
+
 tenant_migration_service = TenantMigrationService()
 
 tenant_extraction_service = TenantExtractionService()
@@ -644,6 +682,9 @@ def startup_event():
             "Automation disabled by feature flag"
         )
 
+    app.state.field_report_module_service = (
+        field_report_module_service
+    )
     app.state.startup_complete = True
 
 
@@ -1329,6 +1370,240 @@ def create_admin_organization(
         organization_name=request.organization_name,
         contact_email=request.contact_email,
         owner_profile_id=auth.user_id,
+    )
+
+
+@app.get("/admin/field-reports/modules")
+def list_field_report_modules(
+    _: object = Depends(
+        require_permission("field_reports:admin")
+    ),
+):
+    return field_report_module_service.list_all_with_organizations()
+
+
+@app.patch(
+    "/admin/field-reports/modules/{organization_id}"
+)
+def set_field_report_module(
+    organization_id: str,
+    request: FieldReportModuleToggleRequest,
+    auth=Depends(require_permission("field_reports:admin")),
+):
+    return field_report_module_service.set_enabled(
+        organization_id=organization_id,
+        is_enabled=request.is_enabled,
+        actor_profile_id=auth.user_id,
+    )
+
+
+@app.get("/field-reports/module-status")
+def get_field_report_module_status(
+    auth=Depends(get_auth_context),
+):
+    return field_report_module_service.get_status(
+        auth.org_id
+    )
+
+
+@app.get("/field-reports/organization-profile")
+def get_field_report_organization_profile(
+    auth=Depends(require_field_report_module),
+):
+    return field_report_organization_profile_service.get_profile(
+        auth.org_id
+    )
+
+
+@app.get("/field-reports/home")
+def field_reports_home(
+    auth=Depends(require_field_report_module),
+):
+    return {
+        "module": "field_reports",
+        "organization_id": auth.org_id,
+        "status": "ready",
+    }
+
+
+@app.get("/field-reports/visit-types")
+def list_field_report_visit_types(
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.get_visit_types()
+
+
+@app.get("/field-reports/visits")
+def list_field_visit_reports(
+    status: str | None = None,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    projects = project_repository.get_projects_by_organization(
+        auth.org_id
+    )
+    project_names = {
+        str(project["id"]): project.get("project_name")
+        for project in projects
+    }
+
+    return field_visit_report_service.list_reports(
+        auth.org_id,
+        status=status,
+        project_names=project_names,
+    )
+
+
+@app.get("/field-reports/visits/{report_id}")
+def get_field_visit_report(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.get_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
+@app.post("/field-reports/visits")
+def create_field_visit_report(
+    request: FieldVisitReportCreateRequest,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.create_report(
+        organization_id=auth.org_id,
+        actor_profile_id=auth.user_id,
+        project_id=request.project_id,
+        visit_type=request.visit_type,
+        visit_date=request.visit_date.isoformat(),
+        header_fields=request.header_fields,
+        catalog_version=request.catalog_version,
+    )
+
+
+@app.patch("/field-reports/visits/{report_id}")
+def update_field_visit_report(
+    report_id: str,
+    request: FieldVisitReportUpdateRequest,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.update_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        visit_date=(
+            request.visit_date.isoformat()
+            if request.visit_date
+            else None
+        ),
+        header_fields=request.header_fields,
+        catalog_version=request.catalog_version,
+    )
+
+
+@app.get("/field-reports/catalog")
+def get_field_report_catalog(
+    visit_type: str | None = None,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.get_catalog(
+        visit_type=visit_type,
+    )
+
+
+@app.get("/field-reports/offline-prep")
+def get_field_report_offline_prep(
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.build_offline_prep_bundle(
+        auth.org_id,
+    )
+
+
+@app.get("/field-reports/visits/{report_id}/lines")
+def list_field_visit_report_lines(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.list_lines(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
+@app.post("/field-reports/visits/{report_id}/lines")
+def create_field_visit_report_line(
+    report_id: str,
+    request: FieldVisitReportLineCreateRequest,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.create_line(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        payload=request.model_dump(exclude_none=True),
+    )
+
+
+@app.patch(
+    "/field-reports/visits/{report_id}/lines/{line_id}"
+)
+def update_field_visit_report_line(
+    report_id: str,
+    line_id: str,
+    request: FieldVisitReportLineUpdateRequest,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.update_line(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+        payload=request.model_dump(exclude_none=True),
+    )
+
+
+@app.delete(
+    "/field-reports/visits/{report_id}/lines/{line_id}"
+)
+def delete_field_visit_report_line(
+    report_id: str,
+    line_id: str,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.delete_line(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
     )
 
 

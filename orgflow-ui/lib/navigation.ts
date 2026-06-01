@@ -82,6 +82,11 @@ export function isPublicRoute(pathname: string) {
   );
 }
 
+export const FIELD_REPORTS_ROUTE = {
+  href: "/field-reports",
+  label: "הפקת דוחות",
+} as const;
+
 export const GLOBAL_NAV_LINKS: NavLink[] = [
   { href: "/", label: "דף הבית" },
   { href: "/portfolio", label: "תיק הפרויקטים" },

@@ -135,7 +135,7 @@ class GlobalExceptionHandler(BaseHTTPMiddleware):
             f"OrgFlow exception: {exc.error_code}",
             extra={
                 "error_code": exc.error_code,
-                "message": exc.message,
+                "error_message": exc.message,
                 "status_code": exc.status_code,
                 "request_id": request_id,
                 "trace_id": trace_id,

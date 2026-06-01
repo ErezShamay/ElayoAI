@@ -2,6 +2,7 @@ import Sidebar from "@/app/components/sidebar";
 
 import UserMenu from "@/components/auth/UserMenu";
 import OrgSwitcher from "@/components/admin/OrgSwitcher";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export default function DashboardLayout({
   children,
@@ -32,6 +33,7 @@ export default function DashboardLayout({
           "
         >
           <div className="flex flex-wrap items-center gap-2">
+            <ThemeToggle />
             <OrgSwitcher />
             <UserMenu />
           </div>
