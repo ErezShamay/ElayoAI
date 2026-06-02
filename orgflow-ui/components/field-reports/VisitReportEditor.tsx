@@ -1,10 +1,26 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import CatalogIssuePicker, {
+  type CatalogCategory,
+  type CatalogFamily,
+  type CatalogIssue,
+} from "@/components/field-reports/CatalogIssuePicker";
+import ReportConstructionProgressSection from "@/components/field-reports/ReportConstructionProgressSection";
+import ReportFixedBlocksSection from "@/components/field-reports/ReportFixedBlocksSection";
+import ReportLineEditor from "@/components/field-reports/ReportLineEditor";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { apiFetch } from "@/lib/api/client";
+import { loadOfflineCatalogForVisitType } from "@/lib/field-reports/catalog-offline";
+import {
+  normalizeHeaderFields,
+  serializeHeaderFieldsForApi,
+} from "@/lib/field-reports/header-fields";
+import { saveReportMetadataDraft } from "@/lib/field-reports/report-metadata-draft";
 import { useOffline } from "@/providers/OfflineProvider";
 
 type ReportLine = {
@@ -19,6 +35,9 @@ type ReportLine = {
   standard_ref?: string | null;
   issue_id?: string | null;
   has_catalog_issue?: boolean;
+  has_photo?: boolean;
+  photo_url?: string | null;
+  catalog_warning?: string | null;
 };
 
 type VisitReport = {
@@ -31,16 +50,14 @@ type VisitReport = {
   visit_date: string;
   header_fields: Record<string, unknown>;
   catalog_version?: string | null;
+  current_catalog_version?: string | null;
+  catalog_sync?: {
+    is_current?: boolean;
+    message?: string | null;
+  };
   lines: ReportLine[];
+  line_count?: number;
   is_editable: boolean;
-};
-
-type CatalogIssue = {
-  issue_id: string;
-  issue_name_he: string;
-  standard_ref?: string | null;
-  top_family: string;
-  category_name_he: string;
 };
 
 const LINE_STATUS_OPTIONS = [
@@ -60,14 +77,25 @@ export default function VisitReportEditor({
   onReportChange,
 }: VisitReportEditorProps) {
   const { isOnline } = useOffline();
+  const { status: moduleStatus } = useFieldReportModule();
+  const organizationId = moduleStatus?.organization_id || "";
   const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "offline"
+  >("idle");
   const [lineSaving, setLineSaving] = useState(false);
   const [error, setError] = useState("");
-  const [headerFields, setHeaderFields] = useState(
-    () => normalizeHeaderFields(report.header_fields)
+  const [headerFields, setHeaderFields] = useState(() =>
+    normalizeHeaderFields(report.header_fields, report.visit_type)
   );
+  const headerInitialized = useRef(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogFamilies, setCatalogFamilies] = useState<CatalogFamily[]>(
+    []
+  );
+  const [catalogCategories, setCatalogCategories] = useState<
+    CatalogCategory[]
+  >([]);
   const [catalogIssues, setCatalogIssues] = useState<CatalogIssue[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
 
@@ -93,7 +121,9 @@ export default function VisitReportEditor({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ header_fields: headerFields }),
+          body: JSON.stringify({
+            header_fields: serializeHeaderFieldsForApi(headerFields),
+          }),
         }
       );
 
@@ -107,20 +137,89 @@ export default function VisitReportEditor({
       }
 
       onReportChange(await response.json());
+      setSaveState("saved");
     } catch (err: unknown) {
       setError(
         err instanceof Error
           ? err.message
           : "שמירת פרטי הדוח נכשלה"
       );
+      setSaveState("idle");
     } finally {
       setSaving(false);
     }
   }
 
+  const debouncedSaveHeader = useDebouncedCallback(() => {
+    if (!report.is_editable) {
+      return;
+    }
+
+    if (!isOnline) {
+      if (organizationId) {
+        saveReportMetadataDraft(
+          organizationId,
+          report.id,
+          serializeHeaderFieldsForApi(headerFields)
+        );
+      }
+      setSaveState("offline");
+      return;
+    }
+
+    void saveHeaderFields();
+  }, 900);
+
+  useEffect(() => {
+    if (!report.is_editable) {
+      return;
+    }
+
+    if (!headerInitialized.current) {
+      headerInitialized.current = true;
+      return;
+    }
+
+    setSaveState("saving");
+    debouncedSaveHeader();
+  }, [headerFields, report.is_editable, debouncedSaveHeader, isOnline]);
+
+  function updateLinePhotoState(lineId: string, hasPhoto: boolean) {
+    onReportChange({
+      ...report,
+      lines: report.lines.map((line) =>
+        line.id === lineId
+          ? {
+              ...line,
+              has_photo: hasPhoto,
+              photo_url: hasPhoto
+                ? `/field-reports/visits/${report.id}/lines/${lineId}/photo`
+                : null,
+            }
+          : line
+      ),
+    });
+  }
+
   async function loadCatalog() {
     try {
       setCatalogLoading(true);
+
+      if (!isOnline && organizationId) {
+        const offlineCatalog = loadOfflineCatalogForVisitType(
+          organizationId,
+          report.visit_type
+        );
+        if (!offlineCatalog?.issues?.length) {
+          throw new Error(
+            "אין מפרט מקומי — הרץ «הכנה לא מקוון» כשיש רשת"
+          );
+        }
+        applyCatalogPayload(offlineCatalog);
+        setCatalogOpen(true);
+        return;
+      }
+
       const response = await apiFetch(
         `/field-reports/catalog?visit_type=${encodeURIComponent(report.visit_type)}`
       );
@@ -129,8 +228,7 @@ export default function VisitReportEditor({
         throw new Error("טעינת המפרט נכשלה");
       }
 
-      const payload = await response.json();
-      setCatalogIssues(payload.issues || []);
+      applyCatalogPayload(await response.json());
       setCatalogOpen(true);
     } catch (err: unknown) {
       setError(
@@ -141,25 +239,21 @@ export default function VisitReportEditor({
     }
   }
 
-  const filteredCatalogIssues = useMemo(() => {
-    const query = catalogSearch.trim().toLowerCase();
-    if (!query) {
-      return catalogIssues.slice(0, 40);
-    }
+  function applyCatalogPayload(payload: {
+    families?: CatalogFamily[];
+    categories?: CatalogCategory[];
+    issues?: CatalogIssue[];
+  }) {
+    setCatalogFamilies(payload.families || []);
+    setCatalogCategories(payload.categories || []);
+    setCatalogIssues(payload.issues || []);
+  }
 
-    return catalogIssues
-      .filter((issue) => {
-        const haystack = [
-          issue.issue_id,
-          issue.issue_name_he,
-          issue.category_name_he,
-        ]
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(query);
-      })
-      .slice(0, 40);
-  }, [catalogIssues, catalogSearch]);
+  const catalogLineWarnings = useMemo(
+    () =>
+      report.lines.filter((line) => Boolean(line.catalog_warning)).length,
+    [report.lines]
+  );
 
   async function addFreeLine(event: FormEvent) {
     event.preventDefault();
@@ -256,7 +350,6 @@ export default function VisitReportEditor({
         lines: [...report.lines, createdLine],
       });
       setCatalogOpen(false);
-      setCatalogSearch("");
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -266,6 +359,52 @@ export default function VisitReportEditor({
     } finally {
       setLineSaving(false);
     }
+  }
+
+  async function saveLine(
+    lineId: string,
+    payload: Record<string, unknown>
+  ) {
+    if (!report.is_editable) {
+      return;
+    }
+
+    try {
+      setLineSaving(true);
+      setError("");
+
+      const response = await apiFetch(
+        `/field-reports/visits/${report.id}/lines/${lineId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(
+          body.error?.message || body.message || "עדכון שורה נכשל"
+        );
+      }
+
+      const updatedLine = await response.json();
+      onReportChange({
+        ...report,
+        lines: report.lines.map((line) =>
+          line.id === lineId ? { ...line, ...updatedLine } : line
+        ),
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "עדכון שורה נכשל");
+    } finally {
+      setLineSaving(false);
+    }
+  }
+
+  async function convertLineToFreeText(lineId: string) {
+    await saveLine(lineId, { issue_id: null });
   }
 
   async function deleteLine(lineId: string) {
@@ -318,7 +457,29 @@ export default function VisitReportEditor({
         {report.catalog_version ? (
           <span>קטלוג: {report.catalog_version}</span>
         ) : null}
+        {saveState === "saving" ? (
+          <span className="text-zinc-500">שומר פרטי כותרת...</span>
+        ) : null}
+        {saveState === "saved" ? (
+          <span className="text-emerald-700">נשמר</span>
+        ) : null}
+        {saveState === "offline" ? (
+          <span className="text-amber-800">נשמר במכשיר — יסונכרן ברשת</span>
+        ) : null}
       </div>
+
+      {report.catalog_sync?.is_current === false &&
+      report.catalog_sync.message ? (
+        <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {report.catalog_sync.message}
+        </p>
+      ) : null}
+
+      {catalogLineWarnings > 0 ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          {catalogLineWarnings} שורות עם אזהרת מפרט — בדוק לפני סגירת הדוח.
+        </p>
+      ) : null}
 
       <section className="space-y-4 rounded-xl border border-zinc-200 p-4">
         <h2 className="text-lg font-semibold">פרטי כותרת הדוח</h2>
@@ -382,13 +543,31 @@ export default function VisitReportEditor({
         {report.is_editable ? (
           <Button
             variant="secondary"
-            disabled={saving}
+            disabled={saving || !isOnline}
             onClick={() => void saveHeaderFields()}
           >
-            {saving ? "שומר..." : "שמור פרטי כותרת"}
+            {saving ? "שומר..." : "שמור עכשיו"}
           </Button>
         ) : null}
       </section>
+
+      <ReportConstructionProgressSection
+        visitType={report.visit_type}
+        rows={headerFields.construction_progress}
+        disabled={!report.is_editable}
+        onChange={(construction_progress) =>
+          setHeaderFields((current) => ({
+            ...current,
+            construction_progress,
+          }))
+        }
+      />
+
+      <ReportFixedBlocksSection
+        fields={headerFields}
+        disabled={!report.is_editable}
+        onChange={setHeaderFields}
+      />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -409,48 +588,14 @@ export default function VisitReportEditor({
         </div>
 
         {catalogOpen ? (
-          <div className="space-y-3 rounded-xl border border-brand/30 bg-brand/5 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-medium">בחירת ממצא מהמפרט</h3>
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={() => setCatalogOpen(false)}
-              >
-                סגור
-              </Button>
-            </div>
-            <input
-              className="of-input w-full"
-              placeholder="חיפוש לפי מזהה, שם או קטגוריה"
-              value={catalogSearch}
-              onChange={(event) =>
-                setCatalogSearch(event.target.value)
-              }
-            />
-            <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
-              {filteredCatalogIssues.map((issue) => (
-                <li key={issue.issue_id}>
-                  <button
-                    type="button"
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-right hover:border-brand"
-                    onClick={() => void addCatalogLine(issue)}
-                    disabled={lineSaving}
-                  >
-                    <div className="font-medium">
-                      {issue.issue_name_he}
-                    </div>
-                    <div className="text-zinc-500">
-                      {issue.issue_id} · {issue.category_name_he}
-                      {issue.standard_ref
-                        ? ` · ${issue.standard_ref}`
-                        : ""}
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <CatalogIssuePicker
+            families={catalogFamilies}
+            categories={catalogCategories}
+            issues={catalogIssues}
+            disabled={lineSaving}
+            onClose={() => setCatalogOpen(false)}
+            onConfirm={(issue) => void addCatalogLine(issue)}
+          />
         ) : null}
 
         {report.lines.length === 0 ? (
@@ -458,48 +603,17 @@ export default function VisitReportEditor({
         ) : (
           <ul className="space-y-3">
             {report.lines.map((line) => (
-              <li
+              <ReportLineEditor
                 key={line.id}
-                className="rounded-xl border border-zinc-200 p-4 text-sm"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium">
-                      {line.trade || "ללא מלאכה"}
-                      {line.location ? ` · ${line.location}` : ""}
-                    </p>
-                    {line.issue_id ? (
-                      <p className="text-xs text-zinc-500">
-                        {line.issue_id}
-                        {line.standard_ref
-                          ? ` · תקן: ${line.standard_ref}`
-                          : ""}
-                        {line.severity
-                          ? ` · חומרה: ${line.severity}`
-                          : ""}
-                      </p>
-                    ) : null}
-                  </div>
-                  {report.is_editable ? (
-                    <Button
-                      variant="secondary"
-                      type="button"
-                      disabled={lineSaving}
-                      onClick={() => void deleteLine(line.id)}
-                    >
-                      מחק
-                    </Button>
-                  ) : null}
-                </div>
-                <p className="mt-2 whitespace-pre-wrap">
-                  {line.description || "—"}
-                </p>
-                {line.notes ? (
-                  <p className="mt-1 text-zinc-600">
-                    הערות: {line.notes}
-                  </p>
-                ) : null}
-              </li>
+                reportId={report.id}
+                line={line}
+                editable={report.is_editable}
+                saving={lineSaving}
+                onSave={saveLine}
+                onConvertToFreeText={convertLineToFreeText}
+                onDelete={deleteLine}
+                onPhotoChange={updateLinePhotoState}
+              />
             ))}
           </ul>
         )}
@@ -620,19 +734,3 @@ function HeaderField({
   );
 }
 
-function normalizeHeaderFields(
-  fields: Record<string, unknown>
-) {
-  return {
-    site_address: stringField(fields.site_address),
-    developer_name: stringField(fields.developer_name),
-    developer_pm_name: stringField(fields.developer_pm_name),
-    lawyer_name: stringField(fields.lawyer_name),
-    accompanying_lawyer: stringField(fields.accompanying_lawyer),
-    contractor_name: stringField(fields.contractor_name),
-  };
-}
-
-function stringField(value: unknown) {
-  return typeof value === "string" ? value : "";
-}

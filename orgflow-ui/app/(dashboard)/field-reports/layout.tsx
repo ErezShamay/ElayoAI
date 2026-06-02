@@ -1,3 +1,5 @@
+import FieldReportSyncProvider from "@/components/field-reports/FieldReportSyncProvider";
+
 export default function FieldReportsLayout({
   children,
 }: {
@@ -5,7 +7,7 @@ export default function FieldReportsLayout({
 }) {
   return (
     <div className="min-h-full bg-zinc-50/50 dark:bg-zinc-950/40">
-      {children}
+      <FieldReportSyncProvider>{children}</FieldReportSyncProvider>
     </div>
   );
 }

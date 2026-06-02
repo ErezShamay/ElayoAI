@@ -354,8 +354,6 @@ export async function tryParseExcelToTenants(file: File): Promise<Tenant[] | nul
     ]);
     const colPhone = findCol(headers, ["נייד", "טלפוןנייד", "mobile", "טלפון", "phone"]);
     const colEmail = findCol(headers, ["מייל", "email", "דואל", "אימייל", "דואלקטרוני"]);
-    const colBuilding = findCol(headers, ["בניין", "בנין", "building"]);
-    const colEntrance = findCol(headers, ["כניסה", "entrance"]);
 
     const tenants: Tenant[] = [];
     // Forward-fill state: when an owner has several phone rows in Excel, the

@@ -10,6 +10,12 @@ from app.services.field_report_module_service import (
 from app.services.field_report_organization_profile_service import (
     FieldReportOrganizationProfileService,
 )
+from app.config.field_report_construction_progress import (
+    DEFAULT_STRUCTURE_SITE_PROGRESS_ROWS,
+)
+from app.config.field_report_pdf_defaults import (
+    DEFAULT_WINTER_RECOMMENDATIONS_HE,
+)
 from app.services.field_visit_report_service import (
     FieldVisitReportService,
 )
@@ -265,6 +271,15 @@ def test_visit_types_and_create_list(monkeypatch):
     created = create_response.json()
     assert created["status"] == "IN_PROGRESS"
     assert created["visit_type_label_he"] == "שלד / אתר"
+    header_fields = created["header_fields"]
+    assert header_fields["project_updates"] == []
+    assert header_fields["contractor_notes"] == []
+    assert header_fields["winter_recommendations"] == (
+        DEFAULT_WINTER_RECOMMENDATIONS_HE
+    )
+    assert header_fields["construction_progress"] == (
+        DEFAULT_STRUCTURE_SITE_PROGRESS_ROWS
+    )
 
     duplicate_response = client.post(
         "/field-reports/visits",
@@ -344,6 +359,352 @@ def test_create_line_from_catalog_and_free_text(monkeypatch):
     )
     assert detail.status_code == 200
     assert detail.json()["line_count"] == 2
+
+    line_id = catalog_payload["id"]
+    clear_catalog = client.patch(
+        f"/field-reports/visits/{report_id}/lines/{line_id}",
+        headers=_headers(token),
+        json={"issue_id": None, "description": "תיאור חופשי אחרי המרה"},
+    )
+    assert clear_catalog.status_code == 200
+    cleared = clear_catalog.json()
+    assert cleared["issue_id"] is None
+    assert cleared["standard_ref"] is None
+    assert cleared["has_catalog_issue"] is False
+
+
+def test_catalog_endpoint_includes_family_labels(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    response = client.get(
+        "/field-reports/catalog?visit_type=STRUCTURE_SITE",
+        headers=_headers(token),
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["families"]
+    assert payload["families"][0].get("label_he")
+
+
+def test_line_catalog_warning_helpers():
+    from app.services.field_visit_report_service import (
+        _catalog_sync_state,
+        _line_catalog_warning,
+    )
+
+    assert _line_catalog_warning(
+        issue_id="STR-99-999",
+        line_catalog_version="1.0.0",
+        current_catalog_version="1.1.0",
+        catalog_issue=None,
+    )
+
+    assert _catalog_sync_state(
+        report_catalog_version="1.0.0",
+        current_catalog_version="1.1.0",
+    )["is_current"] is False
+
+
+def test_upload_and_delete_line_photo(monkeypatch, tmp_path):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    from app.services.field_visit_report_photo_service import (
+        FieldVisitReportPhotoService,
+    )
+
+    visit_service = FieldVisitReportService(
+        report_repository=FakeVisitReportRepository(),
+        line_repository=FakeVisitReportLineRepository(),
+        project_repository=FakeProjectRepository(),
+        organization_profile_service=FieldReportOrganizationProfileService(
+            organization_repository=FakeOrganizationRepository(),
+            module_service=FieldReportModuleService(
+                module_repository=FakeModuleRepository(),
+                organization_repository=FakeOrganizationRepository(),
+            ),
+        ),
+        photo_service=FieldVisitReportPhotoService(
+            photos_root=tmp_path
+        ),
+    )
+    monkeypatch.setattr(
+        "app.main.field_visit_report_service",
+        visit_service,
+    )
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "STRUCTURE_SITE",
+            "visit_date": "2026-06-01",
+        },
+    )
+    report_id = create_response.json()["id"]
+
+    line_response = client.post(
+        f"/field-reports/visits/{report_id}/lines",
+        headers=_headers(token),
+        json={"description": "שורה עם תמונה"},
+    )
+    line_id = line_response.json()["id"]
+
+    upload_response = client.post(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photo",
+        headers=_headers(token),
+        files={
+            "file": ("finding.jpg", b"fake-jpeg-bytes", "image/jpeg"),
+        },
+    )
+    assert upload_response.status_code == 200
+    uploaded = upload_response.json()
+    assert uploaded["has_photo"] is True
+    assert uploaded["photo_url"]
+
+    photo_response = client.get(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photo",
+        headers=_headers(token),
+    )
+    assert photo_response.status_code == 200
+    assert photo_response.content == b"fake-jpeg-bytes"
+
+    delete_response = client.delete(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photo",
+        headers=_headers(token),
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json()["has_photo"] is False
+
+
+def test_close_preview_and_close_report(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "STRUCTURE_SITE",
+            "visit_date": "2026-06-01",
+        },
+    )
+    report_id = create_response.json()["id"]
+
+    client.post(
+        f"/field-reports/visits/{report_id}/lines",
+        headers=_headers(token),
+        json={"description": "שורה תקינה"},
+    )
+    client.post(
+        f"/field-reports/visits/{report_id}/lines",
+        headers=_headers(token),
+        json={"description": "   "},
+    )
+
+    preview_response = client.get(
+        f"/field-reports/visits/{report_id}/close-preview",
+        headers=_headers(token),
+    )
+    assert preview_response.status_code == 200
+    preview = preview_response.json()
+    assert preview["line_count"] == 2
+    assert preview["empty_line_count"] == 1
+    assert preview["warnings"]
+
+    close_response = client.post(
+        f"/field-reports/visits/{report_id}/close",
+        headers=_headers(token),
+    )
+    assert close_response.status_code == 200
+    closed = close_response.json()
+    assert closed["status"] == "CLOSED"
+    assert closed["is_editable"] is False
+    assert closed["closed_at"]
+    assert closed["close_preview"]["empty_line_count"] == 1
+
+    second_close = client.post(
+        f"/field-reports/visits/{report_id}/close",
+        headers=_headers(token),
+    )
+    assert second_close.status_code == 409
+
+    reopen_response = client.post(
+        f"/field-reports/visits/{report_id}/reopen",
+        headers=_headers(token),
+    )
+    assert reopen_response.status_code == 200
+    reopened = reopen_response.json()
+    assert reopened["status"] == "IN_PROGRESS"
+    assert reopened["is_editable"] is True
+    assert reopened["can_reopen"] is False
+    assert reopened["was_closed"] is True
+    assert reopened["closed_at"]
+
+    patch_response = client.patch(
+        f"/field-reports/visits/{report_id}",
+        headers=_headers(token),
+        json={
+            "header_fields": {
+                **reopened["header_fields"],
+                "inspector_notes": "עודכן אחרי סגירה",
+            },
+        },
+    )
+    assert patch_response.status_code == 200
+
+    second_close_after_reopen = client.post(
+        f"/field-reports/visits/{report_id}/close",
+        headers=_headers(token),
+    )
+    assert second_close_after_reopen.status_code == 200
+    assert second_close_after_reopen.json()["status"] == "CLOSED"
+
+
+def test_reopen_rejects_non_closed_report(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "STRUCTURE_SITE",
+            "visit_date": "2026-06-01",
+        },
+    )
+    report_id = create_response.json()["id"]
+
+    reopen_response = client.post(
+        f"/field-reports/visits/{report_id}/reopen",
+        headers=_headers(token),
+    )
+    assert reopen_response.status_code == 409
+
+
+def test_request_send_to_core_from_closed_report(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "STRUCTURE_SITE",
+            "visit_date": "2026-06-01",
+        },
+    )
+    report_id = create_response.json()["id"]
+
+    close_response = client.post(
+        f"/field-reports/visits/{report_id}/close",
+        headers=_headers(token),
+    )
+    assert close_response.status_code == 200
+    closed = close_response.json()
+    assert closed["can_send_to_core"] is True
+
+    send_response = client.post(
+        f"/field-reports/visits/{report_id}/request-send",
+        headers=_headers(token),
+    )
+    assert send_response.status_code == 200
+    pending = send_response.json()
+    assert pending["status"] == "LOCKED"
+    assert pending["status_label_he"] == "נעול"
+    assert pending["locked_at"] is not None
+    assert pending["is_editable"] is False
+    assert pending["can_reopen"] is False
+    assert pending["can_send_to_core"] is False
+
+    second_send = client.post(
+        f"/field-reports/visits/{report_id}/request-send",
+        headers=_headers(token),
+    )
+    assert second_send.status_code == 200
+    second_pending = second_send.json()
+    assert second_pending["status"] == "LOCKED"
+    assert second_pending["status_label_he"] == "נעול"
+
+    reopen_response = client.post(
+        f"/field-reports/visits/{report_id}/reopen",
+        headers=_headers(token),
+    )
+    assert reopen_response.status_code == 409
+
+
+def test_request_send_rejects_in_progress_report(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "STRUCTURE_SITE",
+            "visit_date": "2026-06-01",
+        },
+    )
+    report_id = create_response.json()["id"]
+
+    send_response = client.post(
+        f"/field-reports/visits/{report_id}/request-send",
+        headers=_headers(token),
+    )
+    assert send_response.status_code == 409
+
+
+def test_report_includes_organization_profile_snapshot(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "STRUCTURE_SITE",
+            "visit_date": "2026-06-01",
+        },
+    )
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["organization_profile_snapshot"]
+    assert created["organization_profile_snapshot"]["organization_name"] == "Org"
+
+    report_id = created["id"]
+    get_response = client.get(
+        f"/field-reports/visits/{report_id}",
+        headers=_headers(token),
+    )
+    assert get_response.status_code == 200
+    fetched = get_response.json()
+    assert fetched["organization_profile_snapshot"]["organization_id"] == "org-1"
+
+
+def test_build_close_preview_helpers():
+    from app.services.field_visit_report_service import (
+        _build_close_preview,
+        _line_is_empty,
+    )
+
+    assert _line_is_empty({"description": "  "}) is True
+    assert _line_is_empty({"description": "תיאור"}) is False
+
+    preview = _build_close_preview(
+        [
+            {"id": "line-1", "description": "מלא"},
+            {"id": "line-2", "description": ""},
+        ]
+    )
+    assert preview["empty_line_count"] == 1
+    assert preview["empty_line_ids"] == ["line-2"]
 
 
 def test_catalog_endpoint_filters_structure_site(monkeypatch):

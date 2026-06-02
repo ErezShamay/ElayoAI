@@ -9,9 +9,46 @@ import {
   useState,
 } from "react";
 
+import FinishReportDialog, {
+  type ClosePreview,
+} from "@/components/field-reports/FinishReportDialog";
+import GenerateVisitReportPdfButton from "@/components/field-reports/GenerateVisitReportPdfButton";
+import SendToCoreDialog from "@/components/field-reports/SendToCoreDialog";
 import VisitReportEditor from "@/components/field-reports/VisitReportEditor";
 import Button from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useFieldReportEditSession } from "@/hooks/useFieldReportEditSession";
+import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { apiFetch } from "@/lib/api/client";
+import { buildClosePreview } from "@/lib/field-reports/close-preview";
+import { downloadVisitReportPdf } from "@/lib/field-reports/pdf/generate-visit-report-pdf";
+import { hasVisitReportPdfLocally } from "@/lib/field-reports/pdf/visit-report-pdf-store";
+import type { OrganizationProfileSnapshot } from "@/lib/field-reports/pdf/types";
+import { flushReportMetadataDraft } from "@/lib/field-reports/report-metadata-draft";
+import {
+  enqueuePendingSendRequest,
+  loadPendingSendRequests,
+  pendingSendPhaseLabelHe,
+  removePendingSendRequest,
+} from "@/lib/field-reports/send-queue";
+import { syncPendingLinePhotosForReport } from "@/lib/field-reports/sync-pending-line-photos";
+import { useOffline } from "@/providers/OfflineProvider";
+
+type VisitReportLine = {
+  id: string;
+  sort_order: number;
+  description?: string | null;
+  catalog_warning?: string | null;
+  location?: string | null;
+  trade?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  severity?: string | null;
+  standard_ref?: string | null;
+  issue_id?: string | null;
+  has_photo?: boolean;
+  photo_url?: string | null;
+};
 
 type VisitReport = {
   id: string;
@@ -23,17 +60,59 @@ type VisitReport = {
   status: string;
   header_fields: Record<string, unknown>;
   catalog_version?: string | null;
-  lines: Array<Record<string, unknown>>;
+  closed_at?: string | null;
+  organization_profile_snapshot?: OrganizationProfileSnapshot | null;
+  lines: VisitReportLine[];
   line_count?: number;
   is_editable: boolean;
+  can_reopen?: boolean;
+  can_send_to_core?: boolean;
+  was_closed?: boolean;
 };
 
 export default function FieldVisitReportPage() {
   const params = useParams();
   const reportId = typeof params.id === "string" ? params.id : "";
+  const { status: moduleStatus } = useFieldReportModule();
+  const organizationId = moduleStatus?.organization_id || "";
+  const { isOnline } = useOffline();
+  const { profile } = useAuth();
+  const editSession = useFieldReportEditSession(
+    organizationId,
+    reportId
+  );
   const [report, setReport] = useState<VisitReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [finishLoading, setFinishLoading] = useState(false);
+  const [finishError, setFinishError] = useState("");
+  const [closePreview, setClosePreview] = useState<ClosePreview | null>(
+    null
+  );
+  const [pdfError, setPdfError] = useState("");
+  const [pdfNotice, setPdfNotice] = useState("");
+  const [hasLocalPdf, setHasLocalPdf] = useState(false);
+  const [reopenLoading, setReopenLoading] = useState(false);
+  const [reopenError, setReopenError] = useState("");
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [sendNotice, setSendNotice] = useState("");
+  const pendingSendEntry =
+    organizationId && reportId
+      ? loadPendingSendRequests(organizationId).find(
+          (entry) => entry.reportId === reportId
+        )
+      : null;
+  const localPendingSend = Boolean(pendingSendEntry);
+  const pendingSendPhase = pendingSendEntry?.syncPhase
+    ? pendingSendPhaseLabelHe(pendingSendEntry.syncPhase)
+    : "";
+  const pendingSendError = pendingSendEntry?.lastError || "";
+
+  const isReopenedForEdit =
+    report?.is_editable && Boolean(report?.was_closed);
 
   const loadReport = useCallback(async () => {
     if (!reportId) {
@@ -67,6 +146,264 @@ export default function FieldVisitReportPage() {
       void loadReport();
     });
   }, [loadReport]);
+
+  useEffect(() => {
+    function handleSyncComplete() {
+      void loadReport();
+    }
+
+    window.addEventListener(
+      "field-report-sync-complete",
+      handleSyncComplete
+    );
+    return () => {
+      window.removeEventListener(
+        "field-report-sync-complete",
+        handleSyncComplete
+      );
+    };
+  }, [loadReport]);
+
+  useEffect(() => {
+    if (!reportId) {
+      return;
+    }
+
+    let active = true;
+
+    void hasVisitReportPdfLocally(reportId).then((exists) => {
+      if (active) {
+        setHasLocalPdf(exists);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [reportId, report?.status]);
+
+  async function openFinishDialog() {
+    if (!report?.is_editable) {
+      return;
+    }
+
+    setFinishOpen(true);
+    setFinishError("");
+    setFinishLoading(true);
+
+    const localPreview = buildClosePreview(report.lines);
+    setClosePreview(localPreview);
+
+    if (!isOnline) {
+      setFinishLoading(false);
+      return;
+    }
+
+    try {
+      const response = await apiFetch(
+        `/field-reports/visits/${report.id}/close-preview`
+      );
+
+      if (response.ok) {
+        setClosePreview(await response.json());
+      }
+    } catch {
+      // Keep local preview when the server check fails.
+    } finally {
+      setFinishLoading(false);
+    }
+  }
+
+  async function confirmFinishReport() {
+    if (!report?.is_editable) {
+      return;
+    }
+
+    if (!isOnline) {
+      setFinishError("סגירת דוח דורשת חיבור לרשת");
+      return;
+    }
+
+    try {
+      setFinishLoading(true);
+      setFinishError("");
+
+      const response = await apiFetch(
+        `/field-reports/visits/${report.id}/close`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(
+          payload.error?.message
+            || payload.message
+            || "סגירת הדוח נכשלה"
+        );
+      }
+
+      const closed = (await response.json()) as VisitReport;
+      setReport(closed);
+      setFinishOpen(false);
+      editSession.release();
+      setPdfNotice("");
+      setPdfError("");
+
+      try {
+        const source = await downloadVisitReportPdf({
+          report: closed,
+          inspector: { full_name: profile?.full_name },
+        });
+        setHasLocalPdf(true);
+        setPdfNotice(
+          source === "cache"
+            ? "הדוח נסגר וה-PDF הורד מהעותק השמור במכשיר."
+            : "הדוח נסגר, ה-PDF נשמר במכשיר והורד."
+        );
+      } catch (pdfErr: unknown) {
+        setPdfError(
+          pdfErr instanceof Error
+            ? pdfErr.message
+            : "הדוח נסגר אך הפקת PDF נכשלה — נסה שוב מהכפתור למטה."
+        );
+      }
+    } catch (err: unknown) {
+      setFinishError(
+        err instanceof Error ? err.message : "סגירת הדוח נכשלה"
+      );
+    } finally {
+      setFinishLoading(false);
+    }
+  }
+
+  async function confirmReopenReport() {
+    if (!report?.can_reopen) {
+      return;
+    }
+
+    if (!isOnline) {
+      setReopenError("עריכה מחדש דורשת חיבור לרשת");
+      return;
+    }
+
+    try {
+      setReopenLoading(true);
+      setReopenError("");
+
+      const response = await apiFetch(
+        `/field-reports/visits/${report.id}/reopen`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(
+          payload.error?.message
+            || payload.message
+            || "פתיחת הדוח לעריכה נכשלה"
+        );
+      }
+
+      const reopened = (await response.json()) as VisitReport;
+      setReport(reopened);
+      editSession.claim();
+      setPdfNotice("");
+      setPdfError("");
+    } catch (err: unknown) {
+      setReopenError(
+        err instanceof Error
+          ? err.message
+          : "פתיחת הדוח לעריכה נכשלה"
+      );
+    } finally {
+      setReopenLoading(false);
+    }
+  }
+
+  function openSendDialog() {
+    if (!report?.can_send_to_core) {
+      return;
+    }
+
+    setSendOpen(true);
+    setSendError("");
+    setSendNotice("");
+  }
+
+  async function confirmSendToCore() {
+    if (!report?.can_send_to_core || !organizationId) {
+      return;
+    }
+
+    if (!hasLocalPdf) {
+      setSendError("יש להפיק PDF במכשיר לפני שליחה לליבה");
+      return;
+    }
+
+    try {
+      setSendLoading(true);
+      setSendError("");
+
+      if (!isOnline) {
+        enqueuePendingSendRequest(organizationId, report.id);
+        setSendOpen(false);
+        setSendNotice(
+          "הדוח סומן כממתין לשליחה. מטא־דאטה, תמונות ו-PDF יסונכרנו כשתחזור הרשת."
+        );
+        return;
+      }
+
+      if (organizationId) {
+        await flushReportMetadataDraft(organizationId, report.id);
+      }
+
+      const photoResult = await syncPendingLinePhotosForReport(report.id);
+      if (photoResult.failed.length) {
+        throw new Error(
+          `העלאת ${photoResult.failed.length} תמונות נכשלה — נסה שוב`
+        );
+      }
+
+      const hasPdf = await hasVisitReportPdfLocally(report.id);
+      if (!hasPdf) {
+        throw new Error("יש להפיק PDF במכשיר לפני שליחה לליבה");
+      }
+
+      const response = await apiFetch(
+        `/field-reports/visits/${report.id}/request-send`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(
+          payload.error?.message
+            || payload.message
+            || "שליחה לליבה נכשלה"
+        );
+      }
+
+      const pending = (await response.json()) as VisitReport;
+      if (pending.status !== "LOCKED") {
+        throw new Error("השרת לא אישר נעילת דוח לאחר שליחה לליבה");
+      }
+      setReport(pending);
+      removePendingSendRequest(organizationId, report.id);
+      setSendOpen(false);
+      setSendNotice(
+        "הדוח נשלח לליבה וננעל בהצלחה."
+      );
+    } catch (err: unknown) {
+      setSendError(
+        err instanceof Error ? err.message : "שליחה לליבה נכשלה"
+      );
+    } finally {
+      setSendLoading(false);
+    }
+  }
+
+  const showPendingSendState =
+    report?.status === "PENDING_UPLOAD" || localPendingSend;
 
   if (loading) {
     return (
@@ -105,12 +442,209 @@ export default function FieldVisitReportPage() {
         <p className="text-sm text-zinc-600">
           {report.visit_type_label_he} · תאריך ביקור: {report.visit_date}
         </p>
+        <p className="text-sm">
+          <span className="rounded-full bg-zinc-100 px-3 py-1 font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+            {showPendingSendState
+              ? "ממתין לשליחה"
+              : report.status_label_he}
+          </span>
+        </p>
+        {report.is_editable && !editSession.blockingSession ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Button
+              onClick={() => void openFinishDialog()}
+              disabled={!isOnline}
+            >
+              {isReopenedForEdit ? "סגור דוח שוב" : "סיום דוח"}
+            </Button>
+            {isReopenedForEdit ? (
+              <GenerateVisitReportPdfButton
+                report={report}
+                variant="secondary"
+                forceRegenerate
+                onCacheChange={setHasLocalPdf}
+                onComplete={() => {
+                  setHasLocalPdf(true);
+                  setPdfNotice(
+                    "ה-PDF עודכן לפי השינויים האחרונים, נשמר במכשיר והורד."
+                  );
+                  setPdfError("");
+                }}
+                onError={(message) => {
+                  setPdfError(message);
+                  setPdfNotice("");
+                }}
+              />
+            ) : null}
+            {!isOnline ? (
+              <span className="self-center text-sm text-amber-800">
+                סגירה דורשת רשת
+              </span>
+            ) : null}
+            {isReopenedForEdit ? (
+              <span className="text-sm text-zinc-600">
+                ניתן לעדכן PDF לפני סגירה — נשמרת גרסה אחרונה בלבד במכשיר.
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {!report.is_editable && report.can_reopen ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Button
+              onClick={() => void confirmReopenReport()}
+              disabled={!isOnline || reopenLoading}
+            >
+              {reopenLoading ? "פותח לעריכה..." : "ערוך שוב"}
+            </Button>
+            {report.can_send_to_core ? (
+              <Button
+                variant="secondary"
+                onClick={() => openSendDialog()}
+                disabled={!hasLocalPdf}
+              >
+                שלח לליבה
+              </Button>
+            ) : null}
+            {!isOnline ? (
+              <span className="self-center text-sm text-amber-800">
+                עריכה מחדש דורשת רשת
+              </span>
+            ) : null}
+            {!hasLocalPdf && report.can_send_to_core ? (
+              <span className="text-sm text-amber-800">
+                הפק PDF לפני שליחה לליבה
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {!report.is_editable
+        && (report.status === "CLOSED"
+          || report.status === "PENDING_UPLOAD"
+          || report.status === "LOCKED"
+          || showPendingSendState) ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <GenerateVisitReportPdfButton
+              report={report}
+              onCacheChange={setHasLocalPdf}
+              onComplete={(source) => {
+                setHasLocalPdf(true);
+                setPdfNotice(
+                  source === "cache"
+                    ? "ה-PDF הורד מהעותק השמור במכשיר (ללא רשת)."
+                    : "ה-PDF הופק, נשמר במכשיר והורד."
+                );
+                setPdfError("");
+              }}
+              onError={(message) => {
+                setPdfError(message);
+                setPdfNotice("");
+              }}
+            />
+            {hasLocalPdf ? (
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+                PDF שמור במכשיר
+              </span>
+            ) : null}
+            <span className="text-sm text-zinc-600">
+              {hasLocalPdf
+                ? "ניתן להוריד שוב את ה-PDF גם ללא רשת."
+                : "הפקה ראשונה דורשת גופן מקומי; לאחר מכן ההורדה זמינה גם בלי רשת."}
+            </span>
+          </div>
+        ) : null}
+        {pdfNotice ? (
+          <p className="text-sm text-emerald-700 dark:text-emerald-300">
+            {pdfNotice}
+          </p>
+        ) : null}
+        {pdfError ? (
+          <p className="text-sm text-red-600">{pdfError}</p>
+        ) : null}
+        {reopenError ? (
+          <p className="text-sm text-red-600">{reopenError}</p>
+        ) : null}
+        {sendNotice ? (
+          <p className="text-sm text-emerald-700 dark:text-emerald-300">
+            {sendNotice}
+          </p>
+        ) : null}
+        {showPendingSendState ? (
+          <div className="space-y-1 text-sm text-sky-800 dark:text-sky-300">
+            <p>
+              הדוח ממתין לשליחה לליבה. לא ניתן לערוך עד לסיום ההעלאה.
+            </p>
+            {pendingSendPhase ? (
+              <p className="text-sky-700 dark:text-sky-200">
+                {pendingSendPhase}
+              </p>
+            ) : null}
+            {pendingSendError ? (
+              <p className="text-amber-800 dark:text-amber-200">
+                {pendingSendError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
-      <VisitReportEditor
-        report={report}
-        onReportChange={setReport}
+      <FinishReportDialog
+        open={finishOpen}
+        loading={finishLoading}
+        preview={closePreview}
+        error={finishError}
+        onCancel={() => {
+          if (!finishLoading) {
+            setFinishOpen(false);
+            setFinishError("");
+          }
+        }}
+        onConfirm={() => void confirmFinishReport()}
       />
+
+      <SendToCoreDialog
+        open={sendOpen}
+        loading={sendLoading}
+        offline={!isOnline}
+        hasLocalPdf={hasLocalPdf}
+        error={sendError}
+        onCancel={() => {
+          if (!sendLoading) {
+            setSendOpen(false);
+            setSendError("");
+          }
+        }}
+        onConfirm={() => void confirmSendToCore()}
+      />
+
+      {editSession.blockingSession ? (
+        <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+          <p>
+            דוח אחר נפתח לעריכה במכשיר זה. ניתן לערוך דוח אחד בכל רגע.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/field-reports/${editSession.blockingSession.reportId}`}
+              className="of-focus-ring inline-flex items-center justify-center rounded-2xl border border-amber-400 px-4 py-2 text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40"
+            >
+              חזור לדוח הפעיל
+            </Link>
+            <Button
+              variant="secondary"
+              onClick={() => editSession.claim()}
+            >
+              ערוך דוח זה במקום
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {!editSession.blockingSession ? (
+        <VisitReportEditor
+          key={`${report.id}:${report.visit_type}`}
+          report={report}
+          onReportChange={setReport}
+        />
+      ) : null}
     </div>
   );
 }

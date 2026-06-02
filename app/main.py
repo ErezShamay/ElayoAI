@@ -14,7 +14,7 @@ from fastapi import (
     File,
     Form,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from fastapi.middleware.cors import (
     CORSMiddleware
@@ -124,6 +124,7 @@ from app.schemas.organization import (
 
 from app.schemas.field_reports import (
     FieldReportModuleToggleRequest,
+    FieldVisitReportClosePreview,
     FieldVisitReportCreateRequest,
     FieldVisitReportLineCreateRequest,
     FieldVisitReportLineUpdateRequest,
@@ -1514,6 +1515,65 @@ def update_field_visit_report(
     )
 
 
+@app.get(
+    "/field-reports/visits/{report_id}/close-preview",
+    response_model=FieldVisitReportClosePreview,
+)
+def preview_close_field_visit_report(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.preview_close_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
+@app.post("/field-reports/visits/{report_id}/close")
+def close_field_visit_report(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.close_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
+@app.post("/field-reports/visits/{report_id}/reopen")
+def reopen_field_visit_report(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.reopen_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
+@app.post("/field-reports/visits/{report_id}/request-send")
+def request_send_field_visit_report(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.request_send_to_core(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
 @app.get("/field-reports/catalog")
 def get_field_report_catalog(
     visit_type: str | None = None,
@@ -1585,7 +1645,7 @@ def update_field_visit_report_line(
         organization_id=auth.org_id,
         report_id=report_id,
         line_id=line_id,
-        payload=request.model_dump(exclude_none=True),
+        payload=request.model_dump(exclude_unset=True),
     )
 
 
@@ -1601,6 +1661,66 @@ def delete_field_visit_report_line(
     _module=Depends(require_field_report_module),
 ):
     return field_visit_report_service.delete_line(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+    )
+
+
+@app.post(
+    "/field-reports/visits/{report_id}/lines/{line_id}/photo"
+)
+async def upload_field_visit_report_line_photo(
+    report_id: str,
+    line_id: str,
+    file: UploadFile = File(...),
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    content = await file.read()
+    return field_visit_report_service.upload_line_photo(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+        content=content,
+        content_type=file.content_type,
+        filename=file.filename,
+    )
+
+
+@app.get(
+    "/field-reports/visits/{report_id}/lines/{line_id}/photo"
+)
+def get_field_visit_report_line_photo(
+    report_id: str,
+    line_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    content, content_type = field_visit_report_service.get_line_photo(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+    )
+    return Response(content=content, media_type=content_type)
+
+
+@app.delete(
+    "/field-reports/visits/{report_id}/lines/{line_id}/photo"
+)
+def delete_field_visit_report_line_photo(
+    report_id: str,
+    line_id: str,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.delete_line_photo(
         organization_id=auth.org_id,
         report_id=report_id,
         line_id=line_id,

@@ -1,7 +1,6 @@
 "use client";
 
 import type { SortOption } from "@/lib/ui/sorting";
-import { getAriaSort } from "@/lib/ui/accessibility";
 import { useI18n } from "@/providers/I18nProvider";
 
 export default function SortSelect<K extends string>({
@@ -25,7 +24,7 @@ export default function SortSelect<K extends string>({
       <select
         value={sortKey}
         onChange={(event) => onChange(event.target.value as K)}
-        aria-sort={getAriaSort(direction)}
+        aria-label={`${t("common.sort")} (${direction === "asc" ? "עולה" : "יורד"})`}
         className="
           of-focus-ring
           w-full

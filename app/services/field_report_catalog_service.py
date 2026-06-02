@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from app.config.field_report_catalog_labels import (
+    top_family_label_he,
+)
 from app.config.field_report_visit_types import (
     allowed_top_families,
 )
@@ -42,7 +45,10 @@ class FieldReportCatalogService:
             if category["top_family"] in allowed
         ]
         filtered_families = [
-            family
+            {
+                **family,
+                "label_he": top_family_label_he(family["top_family"]),
+            }
             for family in catalog["families"]
             if family["top_family"] in allowed
         ]

@@ -99,6 +99,18 @@ class FieldVisitReportSummary(BaseModel):
     lines: list[dict] = Field(default_factory=list)
     line_count: int = 0
     is_editable: bool = True
+    can_reopen: bool = False
+    can_send_to_core: bool = False
+    was_closed: bool = False
+    organization_profile_snapshot: dict | None = None
+
+
+class FieldVisitReportClosePreview(BaseModel):
+    line_count: int = 0
+    empty_line_count: int = 0
+    empty_line_ids: list[str] = Field(default_factory=list)
+    catalog_warning_count: int = 0
+    warnings: list[str] = Field(default_factory=list)
 
 
 class FieldVisitReportLineSummary(BaseModel):
@@ -119,6 +131,8 @@ class FieldVisitReportLineSummary(BaseModel):
     category_id: str | None = None
     category_name_he: str | None = None
     photo_storage_path: str | None = None
+    has_photo: bool = False
+    photo_url: str | None = None
     has_catalog_issue: bool = False
     created_at: datetime | str | None = None
     updated_at: datetime | str | None = None

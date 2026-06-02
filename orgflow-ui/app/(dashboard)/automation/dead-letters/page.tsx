@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -45,11 +45,7 @@ export default function DeadLettersPage() {
     failure_type: "",
   });
 
-  useEffect(() => {
-    void loadDashboard();
-  }, []);
-
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async function loadDashboard() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -101,7 +97,17 @@ export default function DeadLettersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filters.execution_type, filters.failure_type, filters.query]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadDashboard();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadDashboard]);
 
   async function retryDeadLetter(logId: string) {
     setActionLogId(logId);

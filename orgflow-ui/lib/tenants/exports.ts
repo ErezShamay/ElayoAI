@@ -81,7 +81,7 @@ export function downloadVcf(content: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function buildEmailContactsCsv(tenants: Tenant[], projectAddress = ""): string {
+export function buildEmailContactsCsv(tenants: Tenant[]): string {
   // Exact Outlook contacts export/import format (Outlook / People CSV).
   const headers = [
     "First Name",
@@ -157,50 +157,6 @@ export function buildEmailContactsCsv(tenants: Tenant[], projectAddress = ""): s
   });
   // Outlook's own exported CSV uses UTF-8 with BOM; this preserves Hebrew names and maps fields correctly.
   return toCsv(headers, rows, { bom: true });
-}
-
-// Encodes a string to Windows-1255 (Hebrew) bytes.
-// Outlook's CSV import on Hebrew Windows expects this code page, not UTF-8.
-function encodeWindows1255(input: string): Uint8Array {
-  const bytes: number[] = [];
-  for (const ch of input) {
-    const code = ch.codePointAt(0)!;
-    if (code < 0x80) bytes.push(code);
-    else if (code >= 0x05D0 && code <= 0x05EA) bytes.push(code - 0x05D0 + 0xE0);
-    else if (code >= 0x05B0 && code <= 0x05C2) bytes.push(code - 0x05B0 + 0xC0);
-    else if (code === 0x20AC) bytes.push(0x80);
-    else if (code === 0x201A) bytes.push(0x82);
-    else if (code === 0x0192) bytes.push(0x83);
-    else if (code === 0x201E) bytes.push(0x84);
-    else if (code === 0x2026) bytes.push(0x85);
-    else if (code === 0x2020) bytes.push(0x86);
-    else if (code === 0x2021) bytes.push(0x87);
-    else if (code === 0x02C6) bytes.push(0x88);
-    else if (code === 0x2030) bytes.push(0x89);
-    else if (code === 0x2039) bytes.push(0x8B);
-    else if (code === 0x2018) bytes.push(0x91);
-    else if (code === 0x2019) bytes.push(0x92);
-    else if (code === 0x201C) bytes.push(0x93);
-    else if (code === 0x201D) bytes.push(0x94);
-    else if (code === 0x2022) bytes.push(0x95);
-    else if (code === 0x2013) bytes.push(0x96);
-    else if (code === 0x2014) bytes.push(0x97);
-    else if (code === 0x02DC) bytes.push(0x98);
-    else if (code === 0x2122) bytes.push(0x99);
-    else if (code === 0x203A) bytes.push(0x9B);
-    else if (code >= 0xA0 && code <= 0xBE) bytes.push(code);
-    else if (code === 0x00D7) bytes.push(0xAA);
-    else if (code === 0x00F7) bytes.push(0xBA);
-    else if (code === 0x05F0) bytes.push(0xD4);
-    else if (code === 0x05F1) bytes.push(0xD5);
-    else if (code === 0x05F2) bytes.push(0xD6);
-    else if (code === 0x05F3) bytes.push(0xD7);
-    else if (code === 0x05F4) bytes.push(0xD8);
-    else if (code === 0x200E) bytes.push(0xFD);
-    else if (code === 0x200F) bytes.push(0xFE);
-    else bytes.push(0x3F);
-  }
-  return new Uint8Array(bytes);
 }
 
 export function downloadOutlookCsv(content: string, filename: string) {

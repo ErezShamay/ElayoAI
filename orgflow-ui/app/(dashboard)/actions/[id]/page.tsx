@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -108,13 +109,74 @@ export default function ActionDetailsPage() {
     setSubmitting
   ] = useState(false);
 
+  const loadAction = useCallback(async function loadAction() {
+
+    try {
+
+      const response =
+        await apiFetch(`/actions/${actionId}`);
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Failed loading action"
+        );
+      }
+
+      const result =
+        await response.json();
+
+      setData(result);
+
+    } catch (error) {
+
+      console.error(error);
+
+    } finally {
+
+      setLoading(false);
+    }
+  }, [actionId]);
+
+  const loadComments = useCallback(async function loadComments() {
+
+    try {
+
+      const response =
+        await apiFetch(`/actions/${actionId}/comments`);
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Failed loading comments"
+        );
+      }
+
+      const result =
+        await response.json();
+
+      setComments(
+        Array.isArray(result)
+          ? result
+          : result.comments || []
+      );
+
+    } catch (error) {
+
+      console.error(error);
+    }
+  }, [actionId]);
+
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadAction();
+      void loadComments();
+    }, 0);
 
-    loadAction();
-
-    loadComments();
-
-  }, []);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadAction, loadComments]);
 
   // ==========================================
   // REALTIME
@@ -147,64 +209,6 @@ export default function ActionDetailsPage() {
       loadAction();
     },
   });
-
-  async function loadAction() {
-
-    try {
-
-      const response =
-        await apiFetch(`/actions/${actionId}`);
-
-      if (!response.ok) {
-
-        throw new Error(
-          "Failed loading action"
-        );
-      }
-
-      const result =
-        await response.json();
-
-      setData(result);
-
-    } catch (error) {
-
-      console.error(error);
-
-    } finally {
-
-      setLoading(false);
-    }
-  }
-
-  async function loadComments() {
-
-    try {
-
-      const response =
-        await apiFetch(`/actions/${actionId}/comments`);
-
-      if (!response.ok) {
-
-        throw new Error(
-          "Failed loading comments"
-        );
-      }
-
-      const result =
-        await response.json();
-
-      setComments(
-        Array.isArray(result)
-          ? result
-          : result.comments || []
-      );
-
-    } catch (error) {
-
-      console.error(error);
-    }
-  }
 
   async function submitComment() {
 

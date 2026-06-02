@@ -58,7 +58,7 @@ export default function AdminUsersPage() {
 }
 
 function AdminUsersContent() {
-  const { profile, organizations, currentOrgId, sessionRole } = useAuth();
+  const { profile, currentOrgId, sessionRole } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const canManageOrganizations = useCanManageOrganizations();
   const effectiveRole = profile?.role || sessionRole;

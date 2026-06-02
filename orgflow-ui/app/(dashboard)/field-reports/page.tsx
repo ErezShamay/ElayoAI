@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api/client";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { useFieldReportOfflinePrep } from "@/hooks/useFieldReportOfflinePrep";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type VisitReport = {
   id: string;
@@ -18,28 +18,50 @@ type VisitReport = {
   status: string;
 };
 
+const STATUS_FILTERS = [
+  { value: "", label: "הכל" },
+  { value: "IN_PROGRESS", label: "בעבודה" },
+  { value: "CLOSED", label: "סגור" },
+  { value: "PENDING_UPLOAD", label: "ממתין לשליחה" },
+  { value: "LOCKED", label: "נעול" },
+] as const;
+
 export default function FieldReportsPage() {
   const { status, isEnabled, loading, error, reload } =
     useFieldReportModule();
   const offlinePrep = useFieldReportOfflinePrep();
   const [reports, setReports] = useState<VisitReport[]>([]);
+  const [inProgressCount, setInProgressCount] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("");
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState("");
 
-  useEffect(() => {
-    if (!isEnabled) {
-      return;
+  const loadInProgressCount = useCallback(async function loadInProgressCount() {
+    try {
+      const response = await apiFetch(
+        "/field-reports/visits?status=IN_PROGRESS"
+      );
+      if (!response.ok) {
+        return;
+      }
+      const payload = await response.json();
+      setInProgressCount((payload.reports || []).length);
+    } catch {
+      setInProgressCount(0);
     }
+  }, []);
 
-    void loadReports();
-  }, [isEnabled]);
-
-  async function loadReports() {
+  const loadReports = useCallback(async function loadReports(
+    status: string = statusFilter
+  ) {
     try {
       setReportsLoading(true);
       setReportsError("");
 
-      const response = await apiFetch("/field-reports/visits");
+      const query = status
+        ? `?status=${encodeURIComponent(status)}`
+        : "";
+      const response = await apiFetch(`/field-reports/visits${query}`);
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -51,7 +73,11 @@ export default function FieldReportsPage() {
       }
 
       const payload = await response.json();
-      setReports(payload.reports || []);
+      const nextReports = payload.reports || [];
+      setReports(nextReports);
+      if (status === "IN_PROGRESS") {
+        setInProgressCount(nextReports.length);
+      }
     } catch (err: unknown) {
       setReportsError(
         err instanceof Error
@@ -61,7 +87,24 @@ export default function FieldReportsPage() {
     } finally {
       setReportsLoading(false);
     }
-  }
+  }, [statusFilter]);
+
+  useEffect(() => {
+    if (!isEnabled) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadReports(statusFilter);
+      if (statusFilter !== "IN_PROGRESS") {
+        void loadInProgressCount();
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isEnabled, statusFilter, loadReports, loadInProgressCount]);
 
   if (loading) {
     return (
@@ -145,6 +188,39 @@ export default function FieldReportsPage() {
         <p className="text-sm text-red-600">{offlinePrep.error}</p>
       ) : null}
 
+      {inProgressCount > 0 && statusFilter !== "IN_PROGRESS" ? (
+        <p className="text-sm text-zinc-600">
+          {inProgressCount} דוחות בעבודה — ניתן לערוך דוח אחד בכל רגע במכשיר.
+          <button
+            type="button"
+            className="mr-2 text-brand hover:underline"
+            onClick={() => setStatusFilter("IN_PROGRESS")}
+          >
+            הצג רק בעבודה
+          </button>
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        {STATUS_FILTERS.map((filter) => {
+          const isActive = statusFilter === filter.value;
+          return (
+            <button
+              key={filter.value || "all"}
+              type="button"
+              className={
+                isActive
+                  ? "rounded-full bg-brand px-3 py-1.5 text-sm font-medium text-white"
+                  : "rounded-full border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:border-brand dark:border-zinc-700 dark:text-zinc-200"
+              }
+              onClick={() => setStatusFilter(filter.value)}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
+      </div>
+
       {reportsLoading ? (
         <p className="text-sm text-zinc-500">טוען דוחות...</p>
       ) : reportsError ? (
@@ -158,7 +234,10 @@ export default function FieldReportsPage() {
               </code>
             </p>
           ) : null}
-          <Button variant="secondary" onClick={() => void loadReports()}>
+          <Button
+            variant="secondary"
+            onClick={() => void loadReports(statusFilter)}
+          >
             נסה שוב
           </Button>
         </div>
