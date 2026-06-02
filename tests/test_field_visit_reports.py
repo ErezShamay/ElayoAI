@@ -732,6 +732,12 @@ def test_request_send_to_core_returns_conflict_when_core_pipeline_fails(monkeypa
         },
     )
     assert send_response.status_code == 409
+    error_payload = send_response.json()
+    assert (
+        error_payload["error"]["details"]["error_code"]
+        == "CORE_PIPELINE_FAILED"
+    )
+    assert error_payload["error"]["details"]["retryable"] is True
 
     report_response = client.get(
         f"/field-reports/visits/{report_id}",
@@ -768,6 +774,12 @@ def test_request_send_rejects_in_progress_report(monkeypatch):
         },
     )
     assert send_response.status_code == 409
+    error_payload = send_response.json()
+    assert (
+        error_payload["error"]["details"]["error_code"]
+        == "FIELD_VISIT_REPORT_SEND_INVALID_STATUS"
+    )
+    assert error_payload["error"]["details"]["retryable"] is False
 
 
 def test_report_includes_organization_profile_snapshot(monkeypatch):

@@ -64,6 +64,17 @@ describe("send-queue", () => {
     expect(pendingSendPhaseLabelHe("photos")).toContain("תמונות");
     expect(pendingSendPhaseLabelHe("request_send")).toContain("ליבה");
   });
+
+  it("cancels pending send for one report without touching other reports (3D.7)", () => {
+    enqueuePendingSendRequest("org-1", "report-a");
+    enqueuePendingSendRequest("org-1", "report-b");
+
+    removePendingSendRequest("org-1", "report-a");
+
+    const remaining = loadPendingSendRequests("org-1");
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].reportId).toBe("report-b");
+  });
 });
 
 vi.mock("@/lib/api/client", () => ({
@@ -176,5 +187,46 @@ describe("process-send-queue", () => {
     expect(entry.reportId).toBe("report-a");
     expect(entry.syncPhase).toBe("request_send");
     expect(entry.lastError).toContain("לא אישר נעילת דוח");
+  });
+
+  it("stores request-send error with API error code for retry", async () => {
+    const { apiFetch } = await import("@/lib/api/client");
+    vi.mocked(apiFetch).mockImplementation(async (path: string, init) => {
+      if (path.endsWith("/request-send") && init?.method === "POST") {
+        return {
+          ok: false,
+          json: async () => ({
+            error: {
+              message: "שליחה לליבה נכשלה",
+              details: {
+                error_code: "CORE_PIPELINE_FAILED",
+              },
+            },
+          }),
+        } as Response;
+      }
+      return { ok: true, json: async () => ({}) } as Response;
+    });
+
+    const { processPendingSendRequest } = await import(
+      "@/lib/field-reports/process-send-queue"
+    );
+
+    enqueuePendingSendRequest("org-1", "report-a");
+    const result = await processPendingSendRequest({
+      reportId: "report-a",
+      organizationId: "org-1",
+      requestedAt: new Date().toISOString(),
+      idempotencyKey: "idem-report-a",
+      syncPhase: "queued",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("CORE_PIPELINE_FAILED");
+
+    const [entry] = loadPendingSendRequests("org-1");
+    expect(entry.reportId).toBe("report-a");
+    expect(entry.syncPhase).toBe("request_send");
+    expect(entry.lastError).toContain("CORE_PIPELINE_FAILED");
   });
 });

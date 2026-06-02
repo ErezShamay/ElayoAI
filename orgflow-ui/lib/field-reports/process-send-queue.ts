@@ -22,6 +22,27 @@ export type ProcessSendQueueResult = {
   processed: SendQueueItemResult[];
 };
 
+function buildRequestSendErrorMessage(payload: unknown): string {
+  const apiPayload = (payload || {}) as {
+    error?: {
+      message?: string;
+      details?: {
+        error_code?: string;
+      };
+    };
+    message?: string;
+  };
+  const apiMessage =
+    apiPayload.error?.message
+    || apiPayload.message
+    || "שליחה לליבה נכשלה";
+  const apiErrorCode = apiPayload.error?.details?.error_code;
+  if (!apiErrorCode) {
+    return apiMessage;
+  }
+  return `${apiMessage} (${apiErrorCode})`;
+}
+
 async function requestSendToCore(
   reportId: string,
   idempotencyKey: string,
@@ -42,11 +63,7 @@ async function requestSendToCore(
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(
-      payload.error?.message
-        || payload.message
-        || "שליחה לליבה נכשלה"
-    );
+    throw new Error(buildRequestSendErrorMessage(payload));
   }
 
   const payload = await response.json();

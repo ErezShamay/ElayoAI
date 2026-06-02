@@ -73,6 +73,27 @@ type VisitReport = {
   was_closed?: boolean;
 };
 
+function buildRequestSendErrorMessage(payload: unknown): string {
+  const apiPayload = (payload || {}) as {
+    error?: {
+      message?: string;
+      details?: {
+        error_code?: string;
+      };
+    };
+    message?: string;
+  };
+  const apiMessage =
+    apiPayload.error?.message
+    || apiPayload.message
+    || "שליחה לליבה נכשלה";
+  const apiErrorCode = apiPayload.error?.details?.error_code;
+  if (!apiErrorCode) {
+    return apiMessage;
+  }
+  return `${apiMessage} (${apiErrorCode})`;
+}
+
 export default function FieldVisitReportPage() {
   const params = useParams();
   const reportId = typeof params.id === "string" ? params.id : "";
@@ -113,6 +134,10 @@ export default function FieldVisitReportPage() {
     ? pendingSendPhaseLabelHe(pendingSendEntry.syncPhase)
     : "";
   const pendingSendError = pendingSendEntry?.lastError || "";
+  const isServerPendingSend = report?.status === "PENDING_UPLOAD";
+  const hasPendingSendFailure = localPendingSend && Boolean(pendingSendError);
+  const showPendingSendState =
+    isServerPendingSend || (localPendingSend && !hasPendingSendFailure);
 
   const isReopenedForEdit =
     report?.is_editable && Boolean(report?.was_closed);
@@ -399,11 +424,7 @@ export default function FieldVisitReportPage() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(
-          payload.error?.message
-            || payload.message
-            || "שליחה לליבה נכשלה"
-        );
+        throw new Error(buildRequestSendErrorMessage(payload));
       }
 
       const pending = (await response.json()) as VisitReport;
@@ -420,13 +441,23 @@ export default function FieldVisitReportPage() {
       setSendError(
         err instanceof Error ? err.message : "שליחה לליבה נכשלה"
       );
+      setSendNotice(
+        "השליחה לא הושלמה. הדוח נשאר סגור וניתן לעריכה מחדש או לניסיון שליחה חוזר."
+      );
     } finally {
       setSendLoading(false);
     }
   }
 
-  const showPendingSendState =
-    report?.status === "PENDING_UPLOAD" || localPendingSend;
+  function cancelPendingSend() {
+    if (!organizationId || !report) {
+      return;
+    }
+
+    removePendingSendRequest(organizationId, report.id);
+    setSendError("");
+    setSendNotice("ההמתנה לשליחה בוטלה. הדוח חזר למצב סגור וניתן לעריכה מחדש.");
+  }
 
   if (loading) {
     return (
@@ -605,6 +636,34 @@ export default function FieldVisitReportPage() {
               <p className="text-amber-800 dark:text-amber-200">
                 {pendingSendError}
               </p>
+            ) : null}
+            {localPendingSend ? (
+              <div className="pt-1">
+                <Button
+                  variant="secondary"
+                  onClick={cancelPendingSend}
+                >
+                  בטל המתנה לשליחה
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {hasPendingSendFailure ? (
+          <div className="space-y-1 text-sm text-amber-800 dark:text-amber-200">
+            <p>
+              השליחה לליבה נכשלה. ניתן לערוך את הדוח או לנסות שליחה מחדש.
+            </p>
+            {pendingSendError ? <p>{pendingSendError}</p> : null}
+            {report.can_send_to_core ? (
+              <div className="pt-1">
+                <Button
+                  variant="secondary"
+                  onClick={() => openSendDialog()}
+                >
+                  נסה שליחה מחדש
+                </Button>
+              </div>
             ) : null}
           </div>
         ) : null}
