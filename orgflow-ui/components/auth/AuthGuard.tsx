@@ -36,7 +36,7 @@ export default function AuthGuard({
       || pathname.startsWith("/auth/callback");
 
     if (!user && !isPublic) {
-      router.push("/auth/login");
+      router.push("/");
       return;
     }
 

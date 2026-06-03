@@ -59,32 +59,45 @@ const FEATURES = [
   },
 ] as const;
 
-const STEPS = [
+const WORKFLOW_STEPS = [
   {
     step: "01",
-    title: "העלאת דוחות",
+    title: "הקשר פרויקט וקליטת חומר",
     description:
-      "מעלים דוחות הנדסיים, ביקורות ומסמכי תפעול — המערכת מעבדת אוטומטית.",
+      "בוחרים ארגון ופרויקט, מעלים דוח הנדסי או מסמך תפעולי — "
+      + "המערכת מקשרת את הקלט לפרויקט הנכון ומפעילה עיבוד.",
   },
   {
     step: "02",
-    title: "ניתוח AI",
+    title: "ממצאים וביקורת AI",
     description:
-      "המנוע מזהה חריגות, סיכונים ונקודות תשומת לב — ומסווג לפי חומרה.",
+      "ה-AI מחלץ ממצאים, בונה פרשנות עם השפעה עסקית, "
+      + "רמת סיכון ופעולה מומלצת — הביקורות ממתינות לאישור "
+      + "בלוח ביקורות AI.",
   },
   {
     step: "03",
-    title: "פעולה והמשך",
+    title: "אישור ויצירת פעולות",
     description:
-      "מקבלים המלצות, פעולות ומעקב — עד לסגירה מלאה של כל נושא.",
+      "מנהל מאשר או דוחה את הביקורת; באישור נוצרות "
+      + "פעולות תפעוליות (מעקב, ביקורת באתר, הסלמה ועוד) "
+      + "המקושרות לפרשנות.",
+  },
+  {
+    step: "04",
+    title: "מעקב, הסלמה וסגירה",
+    description:
+      "עוקבים אחר פעולות פתוחות ונקודות סיכון ב-workspace "
+      + "הפרויקט, ברמת הארגון ובתיק הפרויקטים — כולל הסלמה "
+      + "אוטומטית בפיגור יעד, עד סגירה מלאה.",
   },
 ] as const;
 
-const STATS = [
-  { value: "148+", label: "ביקורות AI" },
-  { value: "24/7", label: "ניטור רציף" },
-  { value: "94%", label: "שיעור סגירה" },
-  { value: "∞", label: "פרויקטים במקביל" },
+const WORKFLOW_PILLARS = [
+  { value: "ביקורות AI", label: "פרשנות, אישור ודחייה מנהלתית" },
+  { value: "פעולות תפעוליות", label: "מעקב סטטוס, השלמה וחסימה" },
+  { value: "נקודות סיכון", label: "הסלמה ידנית ואוטומטית לפי SLA" },
+  { value: "אוטומציה", label: "תורים, ניטור בריאות ו-Dead Letters" },
 ] as const;
 
 export default function PublicHomePage() {
@@ -286,20 +299,22 @@ export default function PublicHomePage() {
             md:grid-cols-4
           "
         >
-          {STATS.map((stat) => (
+          {WORKFLOW_PILLARS.map((pillar) => (
             <div
-              key={stat.label}
+              key={pillar.label}
               className="text-center md:text-start"
             >
               <p
                 className="
-                  text-3xl
+                  text-lg
                   font-black
                   tracking-tight
-                  md:text-4xl
+                  text-brand
+                  dark:text-brand-light
+                  md:text-xl
                 "
               >
-                {stat.value}
+                {pillar.value}
               </p>
               <p
                 className="
@@ -310,7 +325,7 @@ export default function PublicHomePage() {
                   dark:text-zinc-400
                 "
               >
-                {stat.label}
+                {pillar.label}
               </p>
             </div>
           ))}
@@ -491,18 +506,31 @@ export default function PublicHomePage() {
                 md:text-4xl
               "
             >
-              שלושה שלבים. תוצאות מיידיות.
+              מקליטת דוח ועד סגירת פעולה
             </h2>
+            <p
+              className="
+                mt-4
+                text-lg
+                leading-relaxed
+                text-zinc-600
+                dark:text-zinc-400
+              "
+            >
+              אותו מסלול שעוברים בו במערכת: פרויקט → ביקורת AI →
+              פעולות תפעוליות → מעקב והסלמה.
+            </p>
           </div>
 
           <div
             className="
               grid
               gap-5
-              md:grid-cols-3
+              md:grid-cols-2
+              xl:grid-cols-4
             "
           >
-            {STEPS.map((item) => (
+            {WORKFLOW_STEPS.map((item) => (
               <article
                 key={item.step}
                 className="

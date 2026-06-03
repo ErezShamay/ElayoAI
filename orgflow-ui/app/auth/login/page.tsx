@@ -38,7 +38,7 @@ export default function LoginPage() {
         throw error;
       }
 
-      router.push("/");
+      router.push("/portfolio");
     } catch (err: unknown) {
       setError(
         err instanceof Error

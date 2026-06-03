@@ -19,6 +19,7 @@ import {
   exchangeBackendToken,
   TokenExchangeError,
 } from "@/lib/api/client";
+import { useIdleSessionTimeout } from "@/hooks/useIdleSessionTimeout";
 import { supabase } from "@/lib/supabase";
 
 type Profile = {
@@ -219,7 +220,7 @@ export function AuthProvider({
     await establishBackendSession(session, organizationId);
   }
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     await clearSupabaseSession();
     setSession(null);
     setUser(null);
@@ -227,7 +228,12 @@ export function AuthProvider({
     setSessionRole(null);
     setOrganizations([]);
     setCurrentOrgId(null);
-  }
+  }, []);
+
+  useIdleSessionTimeout(
+    Boolean(user) && !loading,
+    signOut
+  );
 
   return (
     <AuthContext.Provider
