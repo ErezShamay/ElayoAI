@@ -3,8 +3,10 @@
 import Link from "next/link";
 
 import {
+  useCallback,
   useEffect,
   useState,
+  startTransition,
 } from "react";
 
 import Badge from "@/components/ui/Badge";
@@ -43,6 +45,7 @@ export default function ActionsPage() {
 
   const {
     profile,
+    currentOrgId,
   } = useAuth();
 
   const [
@@ -62,33 +65,42 @@ export default function ActionsPage() {
     string | null
   >(null);
 
-  useEffect(() => {
+  const loadActions = useCallback(async () => {
+    if (!currentOrgId) {
+      setActions([]);
+      setLoading(false);
+      return;
+    }
 
-    loadActions();
-
-  }, []);
-
-  async function loadActions() {
+    setLoading(true);
 
     try {
-
       const response =
         await apiFetch("/actions/open");
+
+      if (!response.ok) {
+        setActions([]);
+        return;
+      }
 
       const data =
         await response.json();
 
       setActions(data);
-
     } catch (error) {
-
       console.error(error);
-
+      setActions([]);
     } finally {
-
       setLoading(false);
     }
-  }
+  }, [currentOrgId]);
+
+  useEffect(() => {
+    setActions([]);
+    startTransition(() => {
+      void loadActions();
+    });
+  }, [loadActions, currentOrgId]);
 
   function getActionTypeLabel(
     type: string

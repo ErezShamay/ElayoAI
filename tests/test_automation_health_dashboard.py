@@ -62,6 +62,48 @@ def test_build_run_summary_counts_health_metrics():
     assert summary["error_rate"] == 13.3
 
 
+def test_build_run_summary_without_runs_has_no_rates():
+
+    service = (
+        build_service()
+    )
+
+    summary = service.build_run_summary([])
+
+    assert summary["total_runs"] == 0
+    assert summary["success_rate"] is None
+    assert summary["error_rate"] is None
+
+
+def test_resolve_dashboard_health_without_activity_is_no_data():
+
+    service = (
+        build_service()
+    )
+
+    health = service.resolve_dashboard_health(
+
+        summary={
+            "failed_runs": 0,
+            "completed_with_errors": 0,
+            "total_runs": 0,
+        },
+
+        circuit_breaker_summary={
+            "open": 0,
+            "half_open": 0,
+        },
+
+        ai_recovery={
+            "recent_count": 0,
+            "dead_letter_count": 0,
+            "recovery_queue_count": 0,
+        },
+    )
+
+    assert health == "NO_DATA"
+
+
 def test_resolve_dashboard_health_prioritizes_critical():
 
     service = (

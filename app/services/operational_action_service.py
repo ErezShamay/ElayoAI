@@ -1,6 +1,9 @@
 from app.repositories.operational_action_repository import (
     OperationalActionRepository
 )
+from app.services.tenant_scope_service import (
+    TenantScopeService,
+)
 
 from app.constants.action_statuses import (
     OPEN,
@@ -27,14 +30,24 @@ class OperationalActionService:
         self._action_history: dict[str, list[dict]] = {}
         self._recurring_actions: dict[str, list[dict]] = {}
         self._action_templates: dict[str, list[dict]] = {}
+        self.tenant_scope = (
+            TenantScopeService()
+        )
 
     # ==========================================
     # GETTERS
     # ==========================================
 
     def get_open_actions(
-        self
+        self,
+        organization_id: str | None = None,
     ):
+        if organization_id:
+            return (
+                self._get_scoped_open_actions(
+                    organization_id
+                )
+            )
 
         return (
             self.repository
@@ -126,13 +139,86 @@ class OperationalActionService:
         }
 
     def get_escalations(
-        self
+        self,
+        organization_id: str | None = None,
     ):
+        if organization_id:
+            return (
+                self._get_scoped_escalations(
+                    organization_id
+                )
+            )
 
         return (
             self.repository
             .get_open_escalations()
         )
+
+    def _get_scoped_open_actions(
+        self,
+        organization_id: str,
+    ) -> list[dict]:
+        project_ids = (
+            self.tenant_scope
+            .get_organization_project_ids(
+                organization_id
+            )
+        )
+
+        if not project_ids:
+            return []
+
+        project_id_set = set(project_ids)
+        actions_by_project = (
+            self.repository
+            .get_open_actions_by_project_ids(
+                project_ids
+            )
+        )
+        actions_by_org = (
+            self.repository
+            .get_open_actions_by_organization(
+                organization_id
+            )
+        )
+
+        merged: dict[str, dict] = {}
+
+        for action in (
+            actions_by_project
+            + actions_by_org
+        ):
+            action_id = action.get("id")
+
+            if action_id:
+                merged[action_id] = action
+
+        return [
+            action
+            for action in merged.values()
+            if (
+                self.tenant_scope
+                .action_belongs_to_organization(
+                    action,
+                    organization_id,
+                    project_id_set,
+                )
+            )
+        ]
+
+    def _get_scoped_escalations(
+        self,
+        organization_id: str,
+    ) -> list[dict]:
+        return [
+            action
+            for action in (
+                self._get_scoped_open_actions(
+                    organization_id
+                )
+            )
+            if action.get("action_type") == "ESCALATION"
+        ]
 
     # ==========================================
     # STATUS MANAGEMENT

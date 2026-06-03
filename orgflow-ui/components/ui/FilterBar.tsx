@@ -15,7 +15,9 @@ export default function FilterBar({
 
   return (
     <label className="block">
-      <span className="of-sr-only">{t("common.filter")}</span>
+      <span className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-400">
+        {t("common.filter")}
+      </span>
       <input
         type="search"
         value={value}

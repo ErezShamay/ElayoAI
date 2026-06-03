@@ -6,6 +6,10 @@ from app.repositories.ai_execution_log_repository import (
     AIExecutionLogRepository
 )
 
+from app.services.tenant_scope_service import (
+    TenantScopeService,
+)
+
 from datetime import (
     datetime,
     timezone,
@@ -24,6 +28,41 @@ class AutomationMonitoringService:
             AIExecutionLogRepository()
         )
 
+        self.tenant_scope_service = (
+            TenantScopeService()
+        )
+
+    def _organization_project_ids(
+        self,
+        organization_id: str,
+    ) -> list[str]:
+
+        return (
+            self.tenant_scope_service
+            .get_organization_project_ids(
+                organization_id
+            )
+        )
+
+    def _scoped_automation_runs_query(
+        self,
+        organization_id: str | None,
+    ):
+
+        request = (
+            self.client
+            .table("automation_runs")
+            .select("*")
+        )
+
+        if organization_id:
+            request = request.eq(
+                "organization_id",
+                organization_id,
+            )
+
+        return request
+
     # ==========================================
     # GET RECENT RUNS
     # ==========================================
@@ -31,12 +70,13 @@ class AutomationMonitoringService:
     def get_recent_runs(
         self,
         limit: int = 20,
+        organization_id: str | None = None,
     ):
 
         response = (
-            self.client
-            .table("automation_runs")
-            .select("*")
+            self._scoped_automation_runs_query(
+                organization_id
+            )
             .order(
                 "started_at",
                 desc=True
@@ -45,7 +85,7 @@ class AutomationMonitoringService:
             .execute()
         )
 
-        return response.data
+        return response.data or []
 
     # ==========================================
     # GET AUTOMATION STATS
@@ -53,11 +93,13 @@ class AutomationMonitoringService:
 
     def get_automation_stats(
         self,
+        organization_id: str | None = None,
     ):
 
         runs = (
             self.get_recent_runs(
-                100
+                100,
+                organization_id=organization_id,
             )
         )
 
@@ -99,11 +141,12 @@ class AutomationMonitoringService:
             for run in runs
         ])
 
-        health = (
-            "HEALTHY"
-            if failed_runs == 0
-            else "DEGRADED"
-        )
+        if total_runs == 0:
+            health = "NO_DATA"
+        elif failed_runs == 0:
+            health = "HEALTHY"
+        else:
+            health = "DEGRADED"
 
         return {
 
@@ -132,20 +175,30 @@ class AutomationMonitoringService:
 
     def get_automation_health_dashboard(
         self,
+        organization_id: str | None = None,
     ):
 
         runs = (
             self.get_recent_runs(
-                100
+                100,
+                organization_id=organization_id,
             )
+        )
+
+        include_platform_infrastructure = (
+            organization_id is None
         )
 
         circuit_breakers = (
             self.get_circuit_breakers()
+            if include_platform_infrastructure
+            else []
         )
 
         ai_recovery = (
-            self.get_ai_recovery_monitoring()
+            self.get_ai_recovery_monitoring(
+                organization_id=organization_id,
+            )
         )
 
         summary = (
@@ -176,6 +229,9 @@ class AutomationMonitoringService:
 
                 ai_recovery=
                     ai_recovery,
+
+                include_circuit_breaker_alerts=
+                    include_platform_infrastructure,
             )
         )
 
@@ -192,10 +248,20 @@ class AutomationMonitoringService:
             )
         )
 
+        has_activity = (
+            self._has_observed_automation_activity(
+                summary,
+                ai_recovery,
+            )
+        )
+
         return {
 
             "health":
                 health,
+
+            "has_activity":
+                has_activity,
 
             "generated_at":
                 datetime.now(
@@ -305,7 +371,7 @@ class AutomationMonitoringService:
                 1,
             )
             if total_runs
-            else 100
+            else None
         )
 
         error_rate = (
@@ -316,7 +382,7 @@ class AutomationMonitoringService:
                 1,
             )
             if processed_count
-            else 0
+            else None
         )
 
         return {
@@ -466,6 +532,7 @@ class AutomationMonitoringService:
         summary: dict,
         circuit_breaker_summary: dict,
         ai_recovery: dict,
+        include_circuit_breaker_alerts: bool = True,
     ):
 
         alerts = []
@@ -498,7 +565,10 @@ class AutomationMonitoringService:
                     ),
             })
 
-        if circuit_breaker_summary["open"] > 0:
+        if (
+            include_circuit_breaker_alerts
+            and circuit_breaker_summary["open"] > 0
+        ):
 
             alerts.append({
                 "severity":
@@ -528,12 +598,51 @@ class AutomationMonitoringService:
 
         return alerts
 
+    def _has_observed_automation_activity(
+        self,
+        summary: dict,
+        ai_recovery: dict,
+    ) -> bool:
+
+        return (
+            summary.get(
+                "total_runs",
+                0,
+            ) > 0
+            or summary.get(
+                "failed_runs",
+                0,
+            ) > 0
+            or summary.get(
+                "completed_with_errors",
+                0,
+            ) > 0
+            or ai_recovery.get(
+                "recent_count",
+                0,
+            ) > 0
+            or ai_recovery.get(
+                "recovery_queue_count",
+                0,
+            ) > 0
+            or ai_recovery.get(
+                "dead_letter_count",
+                0,
+            ) > 0
+        )
+
     def resolve_dashboard_health(
         self,
         summary: dict,
         circuit_breaker_summary: dict,
         ai_recovery: dict,
     ):
+
+        if not self._has_observed_automation_activity(
+            summary,
+            ai_recovery,
+        ):
+            return "NO_DATA"
 
         if (
             summary["failed_runs"] > 0
@@ -604,7 +713,11 @@ class AutomationMonitoringService:
 
     def get_circuit_breakers(
         self,
+        organization_id: str | None = None,
     ):
+
+        if organization_id:
+            return []
 
         response = (
             self.client
@@ -617,7 +730,7 @@ class AutomationMonitoringService:
             .execute()
         )
 
-        return response.data
+        return response.data or []
 
     # ==========================================
     # GET AI RECOVERY MONITORING
@@ -625,21 +738,40 @@ class AutomationMonitoringService:
 
     def get_ai_recovery_monitoring(
         self,
+        organization_id: str | None = None,
     ):
+
+        project_ids = None
+
+        if organization_id:
+            project_ids = (
+                self._organization_project_ids(
+                    organization_id
+                )
+            )
 
         recent_executions = (
             self.ai_execution_log_repository
-            .get_recent_executions()
+            .get_recent_executions(
+                organization_id=organization_id,
+                project_ids=project_ids,
+            )
         )
 
         recovery_queue = (
             self.ai_execution_log_repository
-            .get_failed_executions()
+            .get_failed_executions(
+                organization_id=organization_id,
+                project_ids=project_ids,
+            )
         )
 
         dead_letters = (
             self.ai_execution_log_repository
-            .get_dead_letters()
+            .get_dead_letters(
+                organization_id=organization_id,
+                project_ids=project_ids,
+            )
         )
 
         return {
@@ -669,12 +801,24 @@ class AutomationMonitoringService:
 
     def get_ai_execution_logs_dashboard(
         self,
+        organization_id: str | None = None,
     ):
+
+        project_ids = None
+
+        if organization_id:
+            project_ids = (
+                self._organization_project_ids(
+                    organization_id
+                )
+            )
 
         executions = (
             self.ai_execution_log_repository
             .get_recent_executions(
-                100
+                100,
+                organization_id=organization_id,
+                project_ids=project_ids,
             )
         )
 
@@ -782,7 +926,7 @@ class AutomationMonitoringService:
                 1,
             )
             if failed
-            else 100
+            else None
         )
 
         success_rate = (
@@ -793,7 +937,7 @@ class AutomationMonitoringService:
                 1,
             )
             if total
-            else 100
+            else None
         )
 
         return {

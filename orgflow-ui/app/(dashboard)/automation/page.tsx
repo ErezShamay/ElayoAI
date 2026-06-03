@@ -106,9 +106,9 @@ type AIExecutionLogsSummary = {
 
   dead_lettered: number;
 
-  classification_rate: number;
+  classification_rate: number | null;
 
-  success_rate: number;
+  success_rate: number | null;
 };
 
 type AIExecutionLogsDashboard = {
@@ -144,9 +144,9 @@ type AutomationHealthSummary = {
 
   error_count: number;
 
-  success_rate: number;
+  success_rate: number | null;
 
-  error_rate: number;
+  error_rate: number | null;
 };
 
 type JobHealth = AutomationHealthSummary & {
@@ -193,6 +193,8 @@ type AutomationHealthDashboard = {
 
   health: string;
 
+  has_activity?: boolean;
+
   generated_at: string;
 
   summary: AutomationHealthSummary;
@@ -205,6 +207,37 @@ type AutomationHealthDashboard = {
 
   alerts: AutomationHealthAlert[];
 };
+
+function formatRate(
+  value: number | null | undefined,
+): string {
+  if (
+    value === null
+    || value === undefined
+  ) {
+    return "—";
+  }
+
+  return `${value}%`;
+}
+
+function formatHealthLabel(
+  health: string,
+): string {
+  if (health === "NO_DATA") {
+    return "אין נתונים";
+  }
+
+  return health;
+}
+
+function asList<T>(
+  value: unknown,
+): T[] {
+  return Array.isArray(value)
+    ? value
+    : [];
+}
 
 export default function AutomationPage() {
 
@@ -308,11 +341,15 @@ export default function AutomationPage() {
       );
 
       setRuns(
-        runsData
+        asList<AutomationRun>(
+          runsData
+        )
       );
 
       setBreakers(
-        breakersData
+        asList<CircuitBreaker>(
+          breakersData
+        )
       );
 
       setRecovery(
@@ -357,6 +394,15 @@ export default function AutomationPage() {
     );
   }
 
+  const hasOrgAutomationActivity = (
+    health?.has_activity
+    ?? (
+      (health?.summary?.total_runs || 0) > 0
+      || (aiLogs?.summary?.total || 0) > 0
+      || (recovery?.recent_count || 0) > 0
+    )
+  );
+
   return (
 
     <main className="of-dashboard-page">
@@ -370,10 +416,26 @@ export default function AutomationPage() {
         </h1>
 
         <p className="of-page-desc mt-4">
-          ניטור תשתיות אוטומציה ותהליכי AI
+          ניטור אוטומציה ו-AI עבור הארגון המחובר בלבד
         </p>
 
       </div>
+
+      {!hasOrgAutomationActivity && (
+
+        <div
+          className="
+            of-kpi-card
+            mb-10
+            text-zinc-600
+            dark:text-zinc-400
+          "
+        >
+          אין עדיין פעילות אוטומציה עבור הארגון הזה.
+          הסטטוסים והאחוזים מוצגים כ״אין נתונים״ — לא כבריאות או 100% הצלחה.
+        </div>
+
+      )}
 
       {/* HEALTH DASHBOARD */}
 
@@ -419,7 +481,9 @@ export default function AutomationPage() {
                   font-black
                 "
               >
-                {health?.health || "-"}
+                {formatHealthLabel(
+                  health?.health || "UNKNOWN"
+                )}
               </h2>
 
               <HealthBadge
@@ -442,14 +506,18 @@ export default function AutomationPage() {
               <InfoCard
                 title="Success Rate"
                 value={
-                  `${health?.summary?.success_rate || 0}%`
+                  formatRate(
+                    health?.summary?.success_rate
+                  )
                 }
               />
 
               <InfoCard
                 title="Error Rate"
                 value={
-                  `${health?.summary?.error_rate || 0}%`
+                  formatRate(
+                    health?.summary?.error_rate
+                  )
                 }
               />
 
@@ -604,7 +672,9 @@ export default function AutomationPage() {
           <MetricCard
             title="AI Success Rate"
             value={
-              `${aiLogs?.summary?.success_rate || 0}%`
+              formatRate(
+                aiLogs?.summary?.success_rate
+              )
             }
           />
 
@@ -620,7 +690,9 @@ export default function AutomationPage() {
           <MetricCard
             title="Failure Classification"
             value={
-              `${aiLogs?.summary?.classification_rate || 0}%`
+              formatRate(
+                aiLogs?.summary?.classification_rate
+              )
             }
           />
 
@@ -702,7 +774,9 @@ export default function AutomationPage() {
         <MetricCard
           title="Automation Health"
           value={
-            stats?.health || "-"
+            formatHealthLabel(
+              stats?.health || "UNKNOWN"
+            )
           }
         />
 
@@ -930,7 +1004,8 @@ export default function AutomationPage() {
           {breakers.length === 0 && (
 
             <div className="of-kpi-card text-zinc-500">
-              No circuit breakers recorded yet.
+              Circuit breakers הם תשתית מערכתית גלובלית
+              ואינם מוצגים לפי ארגון.
             </div>
           )}
 
@@ -1205,7 +1280,11 @@ function JobHealthTable({
 
               <InfoCard
                 title="Success"
-                value={`${job.success_rate}%`}
+                value={
+                  formatRate(
+                    job.success_rate
+                  )
+                }
               />
 
               <InfoCard
@@ -1556,12 +1635,13 @@ function HealthBadge({
     HEALTHY: "success",
     DEGRADED: "warning",
     CRITICAL: "danger",
+    NO_DATA: "neutral",
     UNKNOWN: "neutral",
   };
 
   return (
     <Badge variant={variantByHealth[health] || "neutral"}>
-      {health}
+      {formatHealthLabel(health)}
     </Badge>
   );
 }

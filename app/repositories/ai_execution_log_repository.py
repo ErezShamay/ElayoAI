@@ -24,6 +24,32 @@ class AIExecutionLogRepository:
             "ai_execution_logs"
         )
 
+    def _apply_organization_scope(
+        self,
+        request,
+        organization_id: str | None,
+        project_ids: list[str] | None = None,
+    ):
+        if not organization_id:
+            return request
+
+        scoped_project_ids = [
+            project_id
+            for project_id in (project_ids or [])
+            if project_id
+        ]
+
+        if scoped_project_ids:
+            return request.or_(
+                f"organization_id.eq.{organization_id},"
+                f"project_id.in.({','.join(scoped_project_ids)})"
+            )
+
+        return request.eq(
+            "organization_id",
+            organization_id,
+        )
+
     # ==========================================
     # CREATE LOG
     # ==========================================
@@ -53,6 +79,8 @@ class AIExecutionLogRepository:
 
     def get_failed_executions(
         self,
+        organization_id: str | None = None,
+        project_ids: list[str] | None = None,
     ):
 
         now = (
@@ -61,7 +89,7 @@ class AIExecutionLogRepository:
             ).isoformat()
         )
 
-        response = (
+        request = (
             self.client
             .table(self.table_name)
             .select("*")
@@ -90,12 +118,20 @@ class AIExecutionLogRepository:
                 f"next_retry_at.is.null,"
                 f"next_retry_at.lte.{now}"
             )
+        )
 
+        request = self._apply_organization_scope(
+            request,
+            organization_id,
+            project_ids,
+        )
+
+        response = (
+            request
             .order(
                 "created_at",
                 desc=False
             )
-
             .execute()
         )
 
@@ -108,12 +144,24 @@ class AIExecutionLogRepository:
     def get_recent_executions(
         self,
         limit: int = 20,
+        organization_id: str | None = None,
+        project_ids: list[str] | None = None,
     ):
 
-        response = (
+        request = (
             self.client
             .table(self.table_name)
             .select("*")
+        )
+
+        request = self._apply_organization_scope(
+            request,
+            organization_id,
+            project_ids,
+        )
+
+        response = (
+            request
             .order(
                 "created_at",
                 desc=True
@@ -131,9 +179,11 @@ class AIExecutionLogRepository:
     def get_dead_letters(
         self,
         limit: int = 20,
+        organization_id: str | None = None,
+        project_ids: list[str] | None = None,
     ):
 
-        response = (
+        request = (
             self.client
             .table(self.table_name)
             .select("*")
@@ -141,6 +191,16 @@ class AIExecutionLogRepository:
                 "dead_lettered",
                 True
             )
+        )
+
+        request = self._apply_organization_scope(
+            request,
+            organization_id,
+            project_ids,
+        )
+
+        response = (
+            request
             .order(
                 "created_at",
                 desc=True
@@ -189,6 +249,8 @@ class AIExecutionLogRepository:
         project_id: str | None = None,
         query: str | None = None,
         limit: int = 50,
+        organization_id: str | None = None,
+        project_ids: list[str] | None = None,
     ):
 
         request = (
@@ -199,6 +261,12 @@ class AIExecutionLogRepository:
                 "dead_lettered",
                 True,
             )
+        )
+
+        request = self._apply_organization_scope(
+            request,
+            organization_id,
+            project_ids,
         )
 
         if execution_type:

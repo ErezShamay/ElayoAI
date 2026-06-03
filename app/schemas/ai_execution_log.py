@@ -11,6 +11,8 @@ class AIExecutionLog(
 
     project_id: str | None = None
 
+    organization_id: str | None = None
+
     execution_type: str
 
     status: str

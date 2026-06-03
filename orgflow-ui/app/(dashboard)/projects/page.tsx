@@ -277,7 +277,7 @@ export default function ProjectsPage() {
         </form>
       </Card>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2">
+      <div className="mb-6 grid items-end gap-4 md:grid-cols-2">
         <FilterBar
           value={searchQuery}
           onChange={setSearchQuery}

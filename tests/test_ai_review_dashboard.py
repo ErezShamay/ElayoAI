@@ -8,6 +8,9 @@ from app.main import app
 from app.services.ai_review_service import (
     AIReviewService,
 )
+from app.services.tenant_scope_service import (
+    TenantScopeService,
+)
 
 
 def _auth_headers():
@@ -91,9 +94,9 @@ def test_ai_review_dashboard_service_scopes_counts_to_organization(monkeypatch):
             return []
 
     service.repository = FakeRepository()
-    monkeypatch.setattr(
-        "app.services.ai_review_service.ProjectRepository",
-        FakeProjectRepository,
+    service.tenant_scope = TenantScopeService()
+    service.tenant_scope.project_repository = (
+        FakeProjectRepository()
     )
 
     payload = service.get_review_dashboard(
@@ -105,6 +108,80 @@ def test_ai_review_dashboard_service_scopes_counts_to_organization(monkeypatch):
     assert payload["pending_reviews"] == 1
     assert payload["approved_reviews"] == 1
     assert payload["rejected_reviews"] == 0
+
+
+def test_get_pending_reviews_scopes_to_organization(monkeypatch):
+    service = AIReviewService.__new__(AIReviewService)
+
+    class FakeRepository:
+        def get_pending_reviews(self):
+            return [
+                {"id": "orphan", "review_status": "PENDING"},
+            ]
+
+        def get_reviews_by_project(self, project_id: str):
+            if project_id == "project-a":
+                return [
+                    {
+                        "id": "r-1",
+                        "review_status": "PENDING",
+                        "finding_id": "f-1",
+                    },
+                    {
+                        "id": "r-2",
+                        "review_status": "APPROVED",
+                        "finding_id": "f-2",
+                    },
+                ]
+            return []
+
+    class FakeProjectRepository:
+        def get_projects_by_organization(self, organization_id: str):
+            if organization_id == "org-client":
+                return [{"id": "project-a"}]
+            return []
+
+    service.repository = FakeRepository()
+    service.tenant_scope = TenantScopeService()
+    service.tenant_scope.project_repository = (
+        FakeProjectRepository()
+    )
+    service.tenant_scope.resolve_project_id_for_finding = (
+        lambda finding_id: (
+            "project-a"
+            if finding_id in {"f-1", "f-2"}
+            else None
+        )
+    )
+
+    scoped = service.get_pending_reviews(
+        organization_id="org-client",
+    )
+    global_pending = service.get_pending_reviews()
+
+    assert [review["id"] for review in scoped] == ["r-1"]
+    assert [review["id"] for review in global_pending] == ["orphan"]
+
+
+def test_pending_reviews_endpoint_scopes_to_authenticated_org(monkeypatch):
+    class FakeReviewService:
+        def get_pending_reviews(
+            self,
+            organization_id: str | None = None,
+        ):
+            assert organization_id == "org-1"
+            return [{"id": "r-1", "review_status": "PENDING"}]
+
+    monkeypatch.setattr(main_module, "ai_review_service", FakeReviewService())
+    client = TestClient(app)
+
+    response = client.get(
+        "/reviews/pending",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": "r-1", "review_status": "PENDING"}]
 
 
 def test_ai_review_dashboard_endpoint_returns_payload(monkeypatch):

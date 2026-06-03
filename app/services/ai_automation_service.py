@@ -974,6 +974,28 @@ class AIAutomationService:
             },
         )
 
+    def _resolve_organization_id_for_project(
+        self,
+        project_id: str | None,
+    ) -> str | None:
+
+        if not project_id:
+            return None
+
+        project = (
+            self.project_repository
+            .get_project_by_id(
+                project_id
+            )
+        )
+
+        if not project:
+            return None
+
+        return project.get(
+            "organization_id"
+        )
+
     # ==========================================
     # LOG AI EXECUTION
     # ==========================================
@@ -1012,12 +1034,21 @@ class AIAutomationService:
                 )
             )
 
+        organization_id = (
+            self._resolve_organization_id_for_project(
+                project_id
+            )
+        )
+
         log = AIExecutionLog(
 
             id=str(uuid4()),
 
             project_id=
                 project_id,
+
+            organization_id=
+                organization_id,
 
             execution_type=
                 execution_type,

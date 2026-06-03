@@ -1,9 +1,6 @@
 from app.repositories.ai_interpretation_repository import (
     AIInterpretationRepository
 )
-from app.repositories.project_repository import (
-    ProjectRepository
-)
 from datetime import UTC, datetime
 
 from app.repositories.operational_action_repository import (
@@ -17,6 +14,9 @@ from app.repositories.ai_log_repository import (
 )
 from app.services.approval_service import (
     ApprovalService,
+)
+from app.services.tenant_scope_service import (
+    TenantScopeService,
 )
 
 
@@ -37,8 +37,47 @@ class AIReviewService:
         self.approval_service = (
             ApprovalService()
         )
+        self.tenant_scope = (
+            TenantScopeService()
+        )
 
-    def get_pending_reviews(self):
+    def get_pending_reviews(
+        self,
+        organization_id: str | None = None,
+    ):
+        if organization_id:
+            project_ids = (
+                self.tenant_scope
+                .get_organization_project_ids(
+                    organization_id
+                )
+            )
+
+            if not project_ids:
+                return []
+
+            project_id_set = set(project_ids)
+            pending_reviews = [
+                review
+                for review in (
+                    self.get_reviews_for_organization(
+                        organization_id
+                    )
+                )
+                if review.get("review_status") == "PENDING"
+            ]
+
+            return [
+                review
+                for review in pending_reviews
+                if (
+                    self.tenant_scope
+                    .review_belongs_to_organization(
+                        review,
+                        project_id_set,
+                    )
+                )
+            ]
 
         return (
             self.repository
@@ -163,20 +202,19 @@ class AIReviewService:
         self,
         organization_id: str,
     ) -> list[dict]:
-        project_repository = ProjectRepository()
-        projects = (
-            project_repository
-            .get_projects_by_organization(
+        project_ids = (
+            self.tenant_scope
+            .get_organization_project_ids(
                 organization_id
             )
         )
 
         reviews: list[dict] = []
 
-        for project in projects:
+        for project_id in project_ids:
             project_reviews = (
                 self.get_reviews_by_project(
-                    project["id"]
+                    project_id
                 )
                 or []
             )

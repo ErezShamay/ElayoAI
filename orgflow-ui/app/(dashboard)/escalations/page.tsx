@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, startTransition } from "react";
 
 import Badge from "@/components/ui/Badge";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api/client";
 
 type Escalation = {
@@ -14,6 +15,8 @@ type Escalation = {
 };
 
 export default function EscalationsPage() {
+  const { currentOrgId } = useAuth();
+
   const [escalations, setEscalations] =
     useState<Escalation[]>([]);
 
@@ -21,24 +24,39 @@ export default function EscalationsPage() {
     useState(true);
 
   const loadEscalations = useCallback(async () => {
+    if (!currentOrgId) {
+      setEscalations([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
     try {
       const response = await apiFetch("/actions/escalations");
+
+      if (!response.ok) {
+        setEscalations([]);
+        return;
+      }
 
       const data = await response.json();
 
       setEscalations(data);
     } catch (error) {
       console.error(error);
+      setEscalations([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentOrgId]);
 
   useEffect(() => {
+    setEscalations([]);
     startTransition(() => {
       void loadEscalations();
     });
-  }, [loadEscalations]);
+  }, [loadEscalations, currentOrgId]);
 
   return (
     <main className="of-dashboard-page">

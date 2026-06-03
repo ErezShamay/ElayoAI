@@ -1,6 +1,9 @@
 from app.repositories.ai_execution_log_repository import (
     AIExecutionLogRepository,
 )
+from app.services.tenant_scope_service import (
+    TenantScopeService,
+)
 from app.services.ai_failure_classification_service import (
     AIFailureClassificationService,
 )
@@ -35,6 +38,39 @@ class DeadLetterRecoveryService:
             failure_classification_service
             or AIFailureClassificationService()
         )
+        self.tenant_scope_service = (
+            TenantScopeService()
+        )
+
+    def _organization_project_ids(
+        self,
+        organization_id: str,
+    ) -> list[str]:
+        return (
+            self.tenant_scope_service
+            .get_organization_project_ids(
+                organization_id
+            )
+        )
+
+    def _execution_belongs_to_organization(
+        self,
+        log: dict,
+        organization_id: str,
+    ) -> bool:
+        if log.get("organization_id") == organization_id:
+            return True
+
+        project_id = log.get("project_id")
+
+        if not project_id:
+            return False
+
+        return project_id in set(
+            self._organization_project_ids(
+                organization_id
+            )
+        )
 
     def search_dead_letters(
         self,
@@ -44,7 +80,17 @@ class DeadLetterRecoveryService:
         project_id: str | None = None,
         query: str | None = None,
         limit: int = 50,
+        organization_id: str | None = None,
     ):
+        project_ids = None
+
+        if organization_id:
+            project_ids = (
+                self._organization_project_ids(
+                    organization_id
+                )
+            )
+
         return self.repository.search_dead_letters(
             execution_type=execution_type,
             failure_type=failure_type,
@@ -52,6 +98,8 @@ class DeadLetterRecoveryService:
             project_id=project_id,
             query=query,
             limit=limit,
+            organization_id=organization_id,
+            project_ids=project_ids,
         )
 
     def categorize_failure(
@@ -68,9 +116,18 @@ class DeadLetterRecoveryService:
         self,
         log_id: str,
         initiated_by: str = "operator",
+        organization_id: str | None = None,
     ):
         log = self.repository.get_by_id(log_id)
         if not log:
+            raise LookupError(f"Execution log '{log_id}' not found")
+        if (
+            organization_id
+            and not self._execution_belongs_to_organization(
+                log,
+                organization_id,
+            )
+        ):
             raise LookupError(f"Execution log '{log_id}' not found")
         if not log.get("dead_lettered"):
             raise ValueError(
@@ -126,9 +183,18 @@ class DeadLetterRecoveryService:
         self,
         log_id: str,
         initiated_by: str = "operator",
+        organization_id: str | None = None,
     ):
         log = self.repository.get_by_id(log_id)
         if not log:
+            raise LookupError(f"Execution log '{log_id}' not found")
+        if (
+            organization_id
+            and not self._execution_belongs_to_organization(
+                log,
+                organization_id,
+            )
+        ):
             raise LookupError(f"Execution log '{log_id}' not found")
         if not log.get("dead_lettered"):
             raise ValueError(
@@ -154,14 +220,32 @@ class DeadLetterRecoveryService:
         self,
         log_id: str,
         initiated_by: str = "operator",
+        organization_id: str | None = None,
     ):
         return self.replay_execution(
             log_id=log_id,
             initiated_by=initiated_by,
+            organization_id=organization_id,
         )
 
-    def get_metrics(self):
-        dead_letters = self.repository.get_dead_letters(limit=500)
+    def get_metrics(
+        self,
+        organization_id: str | None = None,
+    ):
+        project_ids = None
+
+        if organization_id:
+            project_ids = (
+                self._organization_project_ids(
+                    organization_id
+                )
+            )
+
+        dead_letters = self.repository.get_dead_letters(
+            limit=500,
+            organization_id=organization_id,
+            project_ids=project_ids,
+        )
         by_failure_type = {}
         by_severity = {}
         by_execution_type = {}
@@ -188,9 +272,27 @@ class DeadLetterRecoveryService:
             "audit_event_count": len(audit_entries),
         }
 
-    def get_analytics(self):
-        metrics = self.get_metrics()
-        dead_letters = self.repository.get_dead_letters(limit=500)
+    def get_analytics(
+        self,
+        organization_id: str | None = None,
+    ):
+        metrics = self.get_metrics(
+            organization_id=organization_id,
+        )
+        project_ids = None
+
+        if organization_id:
+            project_ids = (
+                self._organization_project_ids(
+                    organization_id
+                )
+            )
+
+        dead_letters = self.repository.get_dead_letters(
+            limit=500,
+            organization_id=organization_id,
+            project_ids=project_ids,
+        )
 
         locked_count = len(
             [

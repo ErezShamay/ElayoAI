@@ -25,19 +25,7 @@ export default function SortSelect<K extends string>({
         value={sortKey}
         onChange={(event) => onChange(event.target.value as K)}
         aria-label={`${t("common.sort")} (${direction === "asc" ? "עולה" : "יורד"})`}
-        className="
-          of-focus-ring
-          w-full
-          rounded-2xl
-          border
-          border-zinc-200
-          bg-white
-          px-4
-          py-3
-          text-sm
-          dark:border-zinc-800
-          dark:bg-zinc-900
-        "
+        className="of-input of-focus-ring px-4 py-3 text-sm"
       >
         {options.map((option) => (
           <option key={option.key} value={option.key}>

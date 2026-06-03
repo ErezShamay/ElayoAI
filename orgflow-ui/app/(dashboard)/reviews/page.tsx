@@ -18,8 +18,32 @@ type Review = {
   model_name: string;
 };
 
+const REVIEW_ATTENTION_HOURS = 48;
+
+function reviewNeedsAttention(review: Review): boolean {
+  const risk = (review.tenant_risk || "").toLowerCase();
+
+  if (
+    risk.includes("high") ||
+    risk.includes("גבוה")
+  ) {
+    return true;
+  }
+
+  const createdAt = new Date(review.created_at).getTime();
+
+  if (!Number.isFinite(createdAt)) {
+    return false;
+  }
+
+  return (
+    Date.now() - createdAt
+    > REVIEW_ATTENTION_HOURS * 3600 * 1000
+  );
+}
+
 export default function ReviewsPage() {
-  const { profile } = useAuth();
+  const { profile, currentOrgId } = useAuth();
 
   const [reviews, setReviews] =
     useState<Review[]>([]);
@@ -31,30 +55,44 @@ export default function ReviewsPage() {
     useState<string | null>(null);
 
   const loadReviews = useCallback(async () => {
+    if (!currentOrgId) {
+      setReviews([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
     try {
       const response = await apiFetch("/reviews/pending");
+
+      if (!response.ok) {
+        setReviews([]);
+        return;
+      }
 
       const data =
         await response.json();
 
       setReviews(data);
-
     } catch (error) {
-
       console.error(error);
-
+      setReviews([]);
     } finally {
-
       setLoading(false);
-
     }
-  }, []);
+  }, [currentOrgId]);
 
   useEffect(() => {
+    setReviews([]);
     startTransition(() => {
       void loadReviews();
     });
-  }, [loadReviews]);
+  }, [loadReviews, currentOrgId]);
+
+  const needsAttentionCount = reviews.filter(
+    reviewNeedsAttention
+  ).length;
 
   async function approveReview(reviewId: string) {
     setProcessingId(reviewId);
@@ -195,7 +233,7 @@ export default function ReviewsPage() {
               font-black
             "
           >
-            {reviews.length}
+            {needsAttentionCount}
           </h2>
 
         </div>

@@ -1935,11 +1935,15 @@ def get_approval_request(
 # ==========================================
 
 @app.get("/reviews/pending")
-def get_pending_reviews():
+def get_pending_reviews(
+    auth=Depends(require_permission("projects:read")),
+):
 
     return (
         ai_review_service
-        .get_pending_reviews()
+        .get_pending_reviews(
+            organization_id=auth.org_id,
+        )
     )
 
 
@@ -3334,13 +3338,21 @@ def get_project_operational_summary(project_id: str):
 
 
 @app.get("/actions/open")
-def get_open_actions():
-    return operational_action_service.get_open_actions()
+def get_open_actions(
+    auth=Depends(require_permission("projects:read")),
+):
+    return operational_action_service.get_open_actions(
+        organization_id=auth.org_id,
+    )
 
 
 @app.get("/actions/escalations")
-def get_action_escalations():
-    return operational_action_service.get_escalations()
+def get_action_escalations(
+    auth=Depends(require_permission("projects:read")),
+):
+    return operational_action_service.get_escalations(
+        organization_id=auth.org_id,
+    )
 
 
 @app.get("/actions/{action_id}")
@@ -3437,44 +3449,60 @@ def mark_notification_as_read(notification_id: str):
 @app.get(
     "/automation/runs"
 )
-def get_automation_runs():
+def get_automation_runs(
+    auth=Depends(get_auth_context),
+):
 
     return (
         automation_monitoring_service
-        .get_recent_runs()
+        .get_recent_runs(
+            organization_id=auth.org_id,
+        )
     )
 
 
 @app.get(
     "/automation/stats"
 )
-def get_automation_stats():
+def get_automation_stats(
+    auth=Depends(get_auth_context),
+):
 
     return (
         automation_monitoring_service
-        .get_automation_stats()
+        .get_automation_stats(
+            organization_id=auth.org_id,
+        )
     )
 
 
 @app.get(
     "/automation/health"
 )
-def get_automation_health():
+def get_automation_health(
+    auth=Depends(get_auth_context),
+):
 
     return (
         automation_monitoring_service
-        .get_automation_health_dashboard()
+        .get_automation_health_dashboard(
+            organization_id=auth.org_id,
+        )
     )
 
 
 @app.get(
     "/automation/circuit-breakers"
 )
-def get_automation_circuit_breakers():
+def get_automation_circuit_breakers(
+    auth=Depends(get_auth_context),
+):
 
     return (
         automation_monitoring_service
-        .get_circuit_breakers()
+        .get_circuit_breakers(
+            organization_id=auth.org_id,
+        )
     )
 
 
@@ -3575,17 +3603,25 @@ def get_ai_provider_failover_status():
 @app.get(
     "/automation/ai-recovery"
 )
-def get_automation_ai_recovery():
+def get_automation_ai_recovery(
+    auth=Depends(get_auth_context),
+):
 
     return (
         automation_monitoring_service
-        .get_ai_recovery_monitoring()
+        .get_ai_recovery_monitoring(
+            organization_id=auth.org_id,
+        )
     )
 
 
 @app.get("/automation/dead-letters/dashboard")
-def get_dead_letter_recovery_dashboard():
-    return recovery_dashboard_service.get_dashboard()
+def get_dead_letter_recovery_dashboard(
+    auth=Depends(get_auth_context),
+):
+    return recovery_dashboard_service.get_dashboard(
+        organization_id=auth.org_id,
+    )
 
 
 @app.get("/automation/dead-letters")
@@ -3596,6 +3632,7 @@ def search_dead_letters(
     project_id: str | None = None,
     query: str | None = None,
     limit: int = 50,
+    auth=Depends(get_auth_context),
 ):
     return {
         "dead_letters": dead_letter_recovery_service.search_dead_letters(
@@ -3605,18 +3642,27 @@ def search_dead_letters(
             project_id=project_id,
             query=query,
             limit=limit,
+            organization_id=auth.org_id,
         ),
     }
 
 
 @app.get("/automation/dead-letters/metrics")
-def get_dead_letter_recovery_metrics():
-    return dead_letter_recovery_service.get_metrics()
+def get_dead_letter_recovery_metrics(
+    auth=Depends(get_auth_context),
+):
+    return dead_letter_recovery_service.get_metrics(
+        organization_id=auth.org_id,
+    )
 
 
 @app.get("/automation/dead-letters/analytics")
-def get_dead_letter_analytics():
-    return dead_letter_recovery_service.get_analytics()
+def get_dead_letter_analytics(
+    auth=Depends(get_auth_context),
+):
+    return dead_letter_recovery_service.get_analytics(
+        organization_id=auth.org_id,
+    )
 
 
 @app.get("/automation/dead-letters/audit-logs")
@@ -3653,7 +3699,10 @@ def list_auto_recovery_rules():
 
 
 @app.post("/automation/dead-letters/search")
-def post_search_dead_letters(request: DeadLetterSearchRequest):
+def post_search_dead_letters(
+    request: DeadLetterSearchRequest,
+    auth=Depends(get_auth_context),
+):
     return {
         "dead_letters": dead_letter_recovery_service.search_dead_letters(
             execution_type=request.execution_type,
@@ -3662,6 +3711,7 @@ def post_search_dead_letters(request: DeadLetterSearchRequest):
             project_id=request.project_id,
             query=request.query,
             limit=request.limit,
+            organization_id=auth.org_id,
         ),
     }
 
@@ -3670,11 +3720,13 @@ def post_search_dead_letters(request: DeadLetterSearchRequest):
 def replay_dead_letter_execution(
     log_id: str,
     request: RecoveryActionRequest,
+    auth=Depends(get_auth_context),
 ):
     try:
         return dead_letter_recovery_service.replay_execution(
             log_id=log_id,
             initiated_by=request.initiated_by,
+            organization_id=auth.org_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -3686,11 +3738,13 @@ def replay_dead_letter_execution(
 def retry_dead_letter_execution(
     log_id: str,
     request: RecoveryActionRequest,
+    auth=Depends(get_auth_context),
 ):
     try:
         return dead_letter_recovery_service.retry_dead_letter(
             log_id=log_id,
             initiated_by=request.initiated_by,
+            organization_id=auth.org_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -3702,11 +3756,13 @@ def retry_dead_letter_execution(
 def manual_recover_dead_letter(
     log_id: str,
     request: RecoveryActionRequest,
+    auth=Depends(get_auth_context),
 ):
     try:
         return dead_letter_recovery_service.manual_recover(
             log_id=log_id,
             initiated_by=request.initiated_by,
+            organization_id=auth.org_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -3732,11 +3788,15 @@ def orchestrate_dead_letter_recovery(request: RecoveryOrchestrationRequest):
 @app.get(
     "/automation/ai-execution-logs"
 )
-def get_automation_ai_execution_logs():
+def get_automation_ai_execution_logs(
+    auth=Depends(get_auth_context),
+):
 
     return (
         automation_monitoring_service
-        .get_ai_execution_logs_dashboard()
+        .get_ai_execution_logs_dashboard(
+            organization_id=auth.org_id,
+        )
     )
 
 

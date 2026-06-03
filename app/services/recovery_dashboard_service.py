@@ -34,13 +34,21 @@ class RecoveryDashboardService:
     def get_dashboard(
         self,
         dead_letter_limit: int = 50,
+        organization_id: str | None = None,
     ):
         dead_letters = (
             self.dead_letter_recovery_service
-            .search_dead_letters(limit=dead_letter_limit)
+            .search_dead_letters(
+                limit=dead_letter_limit,
+                organization_id=organization_id,
+            )
         )
-        metrics = self.dead_letter_recovery_service.get_metrics()
-        analytics = self.dead_letter_recovery_service.get_analytics()
+        metrics = self.dead_letter_recovery_service.get_metrics(
+            organization_id=organization_id,
+        )
+        analytics = self.dead_letter_recovery_service.get_analytics(
+            organization_id=organization_id,
+        )
         audit_logs = (
             self.dead_letter_recovery_service
             .list_audit_logs(limit=25)

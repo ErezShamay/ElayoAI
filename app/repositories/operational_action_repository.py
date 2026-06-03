@@ -114,6 +114,27 @@ class OperationalActionRepository:
 
         return response.data or []
 
+    def get_open_actions_by_organization(
+        self,
+        organization_id: str,
+    ):
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "status",
+                "OPEN",
+            )
+            .eq(
+                "organization_id",
+                organization_id,
+            )
+            .execute()
+        )
+
+        return response.data or []
+
     def get_open_actions_by_project(
         self,
         project_id: str
@@ -130,6 +151,30 @@ class OperationalActionRepository:
             .eq(
                 "project_id",
                 project_id
+            )
+            .execute()
+        )
+
+        return response.data or []
+
+    def get_open_actions_by_project_ids(
+        self,
+        project_ids: list[str],
+    ):
+        if not project_ids:
+            return []
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "status",
+                "OPEN",
+            )
+            .in_(
+                "project_id",
+                project_ids,
             )
             .execute()
         )
@@ -177,6 +222,34 @@ class OperationalActionRepository:
             .eq(
                 "action_type",
                 "ESCALATION",
+            )
+            .execute()
+        )
+
+        return response.data or []
+
+    def get_open_escalations_by_project_ids(
+        self,
+        project_ids: list[str],
+    ):
+        if not project_ids:
+            return []
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .eq(
+                "status",
+                "OPEN",
+            )
+            .eq(
+                "action_type",
+                "ESCALATION",
+            )
+            .in_(
+                "project_id",
+                project_ids,
             )
             .execute()
         )
