@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+env:
+  AUTH_JWT_SECRET: ci-dev-secret-change-me-at-least-32-chars-long
+  ORG_FLOW_LLM_MODE: mock
+
 jobs:
   backend-lint:
     runs-on: ubuntu-latest

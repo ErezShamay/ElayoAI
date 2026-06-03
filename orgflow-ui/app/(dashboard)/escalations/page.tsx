@@ -30,6 +30,7 @@ export default function EscalationsPage() {
       return;
     }
 
+    setEscalations([]);
     setLoading(true);
 
     try {
@@ -52,11 +53,10 @@ export default function EscalationsPage() {
   }, [currentOrgId]);
 
   useEffect(() => {
-    setEscalations([]);
     startTransition(() => {
       void loadEscalations();
     });
-  }, [loadEscalations, currentOrgId]);
+  }, [loadEscalations]);
 
   return (
     <main className="of-dashboard-page">

@@ -1,8 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
-import {
-  listLinePhotosForLine,
-  loadLinePhotoLocally,
-} from "@/lib/field-reports/line-photo-store";
+import { listLinePhotosForLine } from "@/lib/field-reports/line-photo-store";
 
 import type { LinePhotoData, PdfReportLine } from "./types";
 

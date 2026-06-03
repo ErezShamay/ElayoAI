@@ -72,6 +72,7 @@ export default function ActionsPage() {
       return;
     }
 
+    setActions([]);
     setLoading(true);
 
     try {
@@ -96,11 +97,10 @@ export default function ActionsPage() {
   }, [currentOrgId]);
 
   useEffect(() => {
-    setActions([]);
     startTransition(() => {
       void loadActions();
     });
-  }, [loadActions, currentOrgId]);
+  }, [loadActions]);
 
   function getActionTypeLabel(
     type: string

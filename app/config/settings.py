@@ -220,9 +220,16 @@ class Settings(BaseModel):
         return deduplicated
 
 
+def _env(name: str, default: str | None = None) -> str | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw
+
+
 def load_settings() -> Settings:
     try:
-        environment = os.getenv("ENVIRONMENT", "local").strip().lower()
+        environment = (_env("ENVIRONMENT", "local") or "local").strip().lower()
 
         # Base .env + environment-specific overrides.
         load_dotenv()
@@ -235,7 +242,7 @@ def load_settings() -> Settings:
             "AI_FALLBACK_PROVIDERS": os.getenv("AI_FALLBACK_PROVIDERS"),
             "DEFAULT_AI_MODEL": os.getenv("DEFAULT_AI_MODEL", "mistral"),
             "AI_MAX_RETRIES": int(os.getenv("AI_MAX_RETRIES", "2")),
-            "ORG_FLOW_LLM_MODE": os.getenv("ORG_FLOW_LLM_MODE", "mock"),
+            "ORG_FLOW_LLM_MODE": _env("ORG_FLOW_LLM_MODE", "mock"),
             "OPENAI_MODEL": os.getenv("OPENAI_MODEL", "gpt-5.5"),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
             "OPENAI_API_KEYS": os.getenv("OPENAI_API_KEYS"),
@@ -257,11 +264,11 @@ def load_settings() -> Settings:
             "DB_OPERATION_TIMEOUT_SECONDS": float(
                 os.getenv("DB_OPERATION_TIMEOUT_SECONDS", "5.0")
             ),
-            "AUTH_JWT_SECRET": os.getenv(
+            "AUTH_JWT_SECRET": _env(
                 "AUTH_JWT_SECRET",
                 "dev-secret-change-me-at-least-32-chars",
             ),
-            "AUTH_JWT_ALGORITHM": os.getenv("AUTH_JWT_ALGORITHM", "HS256"),
+            "AUTH_JWT_ALGORITHM": _env("AUTH_JWT_ALGORITHM", "HS256"),
             "AUTH_SESSION_TIMEOUT_MINUTES": int(
                 os.getenv("AUTH_SESSION_TIMEOUT_MINUTES", "60")
             ),

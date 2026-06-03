@@ -61,6 +61,7 @@ export default function ReviewsPage() {
       return;
     }
 
+    setReviews([]);
     setLoading(true);
 
     try {
@@ -84,11 +85,10 @@ export default function ReviewsPage() {
   }, [currentOrgId]);
 
   useEffect(() => {
-    setReviews([]);
     startTransition(() => {
       void loadReviews();
     });
-  }, [loadReviews, currentOrgId]);
+  }, [loadReviews]);
 
   const needsAttentionCount = reviews.filter(
     reviewNeedsAttention
