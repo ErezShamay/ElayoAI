@@ -76,12 +76,22 @@ class PortfolioInsightsService:
 
     def generate_portfolio_summary(
         self,
+        *,
+        organization_id: str | None = None,
     ):
 
-        projects = (
-            self.project_repository
-            .get_all_projects()
-        )
+        if organization_id:
+            projects = (
+                self.project_repository
+                .get_projects_by_organization(
+                    organization_id
+                )
+            )
+        else:
+            projects = (
+                self.project_repository
+                .get_all_projects()
+            )
 
         portfolio = []
 

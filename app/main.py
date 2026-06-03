@@ -1860,12 +1860,16 @@ def get_pending_reviews():
 
 
 @app.get("/reviews/dashboard")
-def get_review_dashboard(limit: int = 20):
+def get_review_dashboard(
+    limit: int = 20,
+    auth=Depends(require_permission("projects:read")),
+):
 
     return (
         ai_review_service
         .get_review_dashboard(
-            recent_limit=limit
+            recent_limit=limit,
+            organization_id=auth.org_id,
         )
     )
 
@@ -2232,11 +2236,31 @@ def get_password_policy_config():
     return get_password_policy()
 
 
+def _admin_target_organization_id(
+    auth,
+    requested_organization_id: str | None = None,
+) -> str:
+    return (
+        organization_admin_service.tenant_access_service
+        .resolve_admin_target_organization(
+            profile_id=auth.user_id,
+            role=auth.role,
+            session_org_id=auth.org_id,
+            requested_organization_id=requested_organization_id,
+        )
+    )
+
+
 @app.get("/admin/users")
 def list_organization_users(
+    organization_id: str | None = None,
     auth=Depends(require_permission("users:read")),
 ):
-    return user_management_service.list_users(auth.org_id)
+    target_org_id = _admin_target_organization_id(
+        auth,
+        organization_id,
+    )
+    return user_management_service.list_users(target_org_id)
 
 
 @app.post("/admin/users")
@@ -2244,8 +2268,12 @@ def invite_organization_user(
     request: UserInviteRequest,
     auth=Depends(require_permission("users:write")),
 ):
+    target_org_id = _admin_target_organization_id(
+        auth,
+        request.organization_id,
+    )
     return user_management_service.invite_user(
-        organization_id=auth.org_id,
+        organization_id=target_org_id,
         email=str(request.email),
         full_name=request.full_name,
         role=request.role,
@@ -2257,10 +2285,15 @@ def invite_organization_user(
 @app.delete("/admin/users/{profile_id}")
 def delete_organization_user(
     profile_id: str,
+    organization_id: str | None = None,
     auth=Depends(require_permission("users:write")),
 ):
+    target_org_id = _admin_target_organization_id(
+        auth,
+        organization_id,
+    )
     return user_management_service.delete_user(
-        organization_id=auth.org_id,
+        organization_id=target_org_id,
         profile_id=profile_id,
         actor_user_id=auth.user_id,
         actor_role=auth.role,
@@ -2270,10 +2303,15 @@ def delete_organization_user(
 @app.post("/admin/users/{profile_id}/resend-invite")
 def resend_organization_user_invite(
     profile_id: str,
+    organization_id: str | None = None,
     auth=Depends(require_permission("users:write")),
 ):
+    target_org_id = _admin_target_organization_id(
+        auth,
+        organization_id,
+    )
     return user_management_service.resend_invite(
-        organization_id=auth.org_id,
+        organization_id=target_org_id,
         profile_id=profile_id,
         actor_user_id=auth.user_id,
     )
@@ -2282,10 +2320,15 @@ def resend_organization_user_invite(
 @app.post("/admin/users/{profile_id}/password-reset")
 def send_organization_user_password_reset(
     profile_id: str,
+    organization_id: str | None = None,
     auth=Depends(require_permission("users:write")),
 ):
+    target_org_id = _admin_target_organization_id(
+        auth,
+        organization_id,
+    )
     return user_management_service.send_password_reset(
-        organization_id=auth.org_id,
+        organization_id=target_org_id,
         profile_id=profile_id,
         actor_user_id=auth.user_id,
     )
@@ -2405,7 +2448,10 @@ def get_profile_notification_delivery_log(profile_id: str):
 
 
 @app.post("/projects")
-def create_project(request: CreateProjectRequest):
+def create_project(
+    request: CreateProjectRequest,
+    auth=Depends(require_permission("projects:write")),
+):
     return project_service.create_project(
         project_name=request.project_name,
         developer_name=request.developer_name,
@@ -2413,8 +2459,8 @@ def create_project(request: CreateProjectRequest):
         lawyer_name=request.lawyer_name,
         supervisor_name=request.supervisor_name,
         supervisor_email=request.supervisor_email,
-        organization_id=request.organization_id,
-        owner_id=request.owner_id,
+        organization_id=auth.org_id,
+        owner_id=request.owner_id or auth.user_id,
         tags=request.tags,
     )
 
@@ -2452,8 +2498,14 @@ def delete_project(project_id: str):
 
 
 @app.get("/projects/search")
-def search_projects(query: str):
-    return project_service.search_projects(query)
+def search_projects(
+    query: str,
+    auth=Depends(require_permission("projects:read")),
+):
+    return project_service.search_projects(
+        query,
+        organization_id=auth.org_id,
+    )
 
 
 @app.get("/projects")
@@ -2461,11 +2513,13 @@ def filter_projects(
     status: str | None = None,
     owner_id: str | None = None,
     tag: str | None = None,
+    auth=Depends(require_permission("projects:read")),
 ):
     return project_service.filter_projects(
         status=status,
         owner_id=owner_id,
         tag=tag,
+        organization_id=auth.org_id,
     )
 
 
@@ -3867,8 +3921,12 @@ def build_dynamic_workflow(request: DynamicWorkflowBuilderRequest):
 
 
 @app.get("/portfolio/summary")
-def get_portfolio_summary():
-    return portfolio_intelligence_dashboard_service.get_summary()
+def get_portfolio_summary(
+    auth=Depends(require_permission("projects:read")),
+):
+    return portfolio_intelligence_dashboard_service.get_summary(
+        organization_id=auth.org_id,
+    )
 
 
 @app.get("/portfolio/dashboard")

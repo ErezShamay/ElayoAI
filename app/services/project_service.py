@@ -102,10 +102,15 @@ class ProjectService:
     def search_projects(
         self,
         query: str,
+        *,
+        organization_id: str | None = None,
     ):
         if not query.strip():
             return []
-        return self.project_repository.search_projects(query=query.strip())
+        return self.project_repository.search_projects(
+            query=query.strip(),
+            organization_id=organization_id,
+        )
 
     def filter_projects(
         self,
@@ -113,6 +118,7 @@ class ProjectService:
         status: str | None = None,
         owner_id: str | None = None,
         tag: str | None = None,
+        organization_id: str | None = None,
     ):
         normalized_status = status.upper() if status else None
         normalized_tag = tag.strip().lower() if tag else None
@@ -120,6 +126,7 @@ class ProjectService:
             status=normalized_status,
             owner_id=owner_id,
             tag=normalized_tag,
+            organization_id=organization_id,
         )
 
     def update_project_tags(

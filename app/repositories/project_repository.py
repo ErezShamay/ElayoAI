@@ -358,8 +358,10 @@ class ProjectRepository:
     def search_projects(
         self,
         query: str,
+        *,
+        organization_id: str | None = None,
     ):
-        response = (
+        request = (
             self.client
             .table("projects")
             .select("*")
@@ -367,8 +369,15 @@ class ProjectRepository:
                 "project_name",
                 f"%{query}%"
             )
-            .execute()
         )
+
+        if organization_id:
+            request = request.eq(
+                "organization_id",
+                organization_id,
+            )
+
+        response = request.execute()
         return response.data
 
     def filter_projects(
@@ -376,10 +385,18 @@ class ProjectRepository:
         status: str | None = None,
         owner_id: str | None = None,
         tag: str | None = None,
+        *,
+        organization_id: str | None = None,
     ):
         query = (
             self.client.table("projects").select("*")
         )
+
+        if organization_id:
+            query = query.eq(
+                "organization_id",
+                organization_id,
+            )
 
         if status:
             query = query.eq("status", status)
@@ -403,6 +420,13 @@ class ProjectRepository:
                 raise
 
             projects = self.get_all_projects()
+
+            if organization_id:
+                projects = [
+                    project
+                    for project in projects
+                    if project.get("organization_id") == organization_id
+                ]
 
             if status:
                 projects = [

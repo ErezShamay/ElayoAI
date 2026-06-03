@@ -8,6 +8,7 @@ from app.exceptions.exceptions import (
 from app.repositories.organization_repository import (
     OrganizationRepository,
 )
+from app.auth.roles import is_platform_admin
 from app.repositories.profile_repository import (
     ProfileRepository,
 )
@@ -83,8 +84,10 @@ class OrganizationAdminService:
             owner_profile_id
         )
 
-        if profile and not ProfileRepository.extract_organization_id(
+        if (
             profile
+            and not is_platform_admin(profile.get("role"))
+            and not ProfileRepository.extract_organization_id(profile)
         ):
             try:
                 self.profile_repository.update_profile(

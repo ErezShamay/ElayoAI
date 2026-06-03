@@ -111,6 +111,38 @@ class TenantAccessService:
             organization_id=organization_id,
         )
 
+    def resolve_admin_target_organization(
+        self,
+        *,
+        profile_id: str,
+        role: str,
+        session_org_id: str,
+        requested_organization_id: str | None = None,
+    ) -> str:
+        if is_platform_admin(role):
+            if requested_organization_id:
+                return self.resolve_organization_access(
+                    profile_id=profile_id,
+                    requested_organization_id=(
+                        requested_organization_id
+                    ),
+                )
+            return session_org_id.strip()
+
+        if (
+            requested_organization_id
+            and requested_organization_id.strip()
+            != session_org_id.strip()
+        ):
+            raise ForbiddenError(
+                message=(
+                    "Organization admins can only manage "
+                    "their own customer"
+                )
+            )
+
+        return session_org_id.strip()
+
     def list_accessible_organizations(
         self,
         profile_id: str,

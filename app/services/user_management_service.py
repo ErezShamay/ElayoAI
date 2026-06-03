@@ -5,7 +5,10 @@ from typing import Any, Literal
 
 from app.config.settings import settings
 from app.db.supabase_client import supabase
+from supabase_auth.errors import AuthApiError
+
 from app.exceptions.exceptions import (
+    ConfigurationError,
     ConflictError,
     ForbiddenError,
     NotFoundError,
@@ -466,10 +469,8 @@ class UserManagementService:
 
     @staticmethod
     def _password_setup_redirect() -> str:
-        return (
-            f"{settings.FRONTEND_URL}/auth/callback"
-            f"?next=/auth/set-password"
-        )
+        base = str(settings.FRONTEND_URL).rstrip("/")
+        return f"{base}/auth/callback?next=/auth/set-password"
 
     def _create_auth_link(
         self,
@@ -490,7 +491,27 @@ class UserManagementService:
         if metadata:
             payload["options"]["data"] = metadata
 
-        return self.auth_client.auth.admin.generate_link(payload)
+        try:
+            return self.auth_client.auth.admin.generate_link(payload)
+        except AuthApiError as error:
+            raise self._auth_admin_error(error) from error
+
+    @staticmethod
+    def _auth_admin_error(error: AuthApiError) -> ConfigurationError:
+        message = str(error).strip() or "Supabase auth admin request failed"
+        if message.lower() == "user not allowed":
+            return ConfigurationError(
+                message=(
+                    "Supabase rejected the invite: SUPABASE_KEY must be the "
+                    "service_role secret (Project Settings → API), not the "
+                    "anon/public key."
+                ),
+                config_key="SUPABASE_KEY",
+            )
+        return ConfigurationError(
+            message=f"Supabase auth admin request failed: {message}",
+            config_key="SUPABASE_KEY",
+        )
 
     def _deliver_invite_email(
         self,

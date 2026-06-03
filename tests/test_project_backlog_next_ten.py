@@ -50,16 +50,38 @@ class FakeProjectService:
         del self.projects[project_id]
         return True
 
-    def search_projects(self, query: str):
+    def search_projects(
+        self,
+        query: str,
+        *,
+        organization_id=None,
+    ):
         lowered = query.lower()
         return [
             project
             for project in self.projects.values()
             if lowered in project["project_name"].lower()
+            and (
+                not organization_id
+                or project.get("organization_id") == organization_id
+            )
         ]
 
-    def filter_projects(self, *, status=None, owner_id=None, tag=None):
+    def filter_projects(
+        self,
+        *,
+        status=None,
+        owner_id=None,
+        tag=None,
+        organization_id=None,
+    ):
         results = list(self.projects.values())
+        if organization_id:
+            results = [
+                project
+                for project in results
+                if project.get("organization_id") == organization_id
+            ]
         if status:
             results = [project for project in results if project.get("status") == status.upper()]
         if owner_id:

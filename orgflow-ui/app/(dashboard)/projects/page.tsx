@@ -47,7 +47,7 @@ type ProjectSortKey = "project_name" | "created_at" | "status";
 export default function ProjectsPage() {
   const { t } = useI18n();
   const { isOnline } = useOffline();
-  const { profile } = useAuth();
+  const { profile, currentOrgId } = useAuth();
   const [creating, setCreating] = useState(false);
   const [newProject, setNewProject] = useState({
     project_name: "",
@@ -141,7 +141,7 @@ export default function ProjectsPage() {
           supervisor_name: newProject.supervisor_name.trim(),
           supervisor_email:
             newProject.supervisor_email.trim() || null,
-          organization_id: profile?.organization_id || null,
+          organization_id: currentOrgId || profile?.organization_id || null,
           owner_id: profile?.id || null,
         }),
       });

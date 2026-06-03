@@ -1,6 +1,9 @@
 from app.repositories.ai_interpretation_repository import (
     AIInterpretationRepository
 )
+from app.repositories.project_repository import (
+    ProjectRepository
+)
 from datetime import UTC, datetime
 
 from app.repositories.operational_action_repository import (
@@ -155,6 +158,31 @@ class AIReviewService:
                 project_id
             )
         )
+
+    def get_reviews_for_organization(
+        self,
+        organization_id: str,
+    ) -> list[dict]:
+        project_repository = ProjectRepository()
+        projects = (
+            project_repository
+            .get_projects_by_organization(
+                organization_id
+            )
+        )
+
+        reviews: list[dict] = []
+
+        for project in projects:
+            project_reviews = (
+                self.get_reviews_by_project(
+                    project["id"]
+                )
+                or []
+            )
+            reviews.extend(project_reviews)
+
+        return reviews
 
     def assign_reviewer(
         self,
@@ -384,25 +412,67 @@ class AIReviewService:
     def get_review_dashboard(
         self,
         recent_limit: int = 20,
+        *,
+        organization_id: str | None = None,
     ):
-        pending_reviews = (
-            self.repository
-            .get_pending_reviews()
-        )
-
-        approved_reviews = (
-            self.repository
-            .get_reviews_by_status(
-                "APPROVED"
+        if organization_id:
+            scoped_reviews = (
+                self.get_reviews_for_organization(
+                    organization_id
+                )
             )
-        )
-
-        rejected_reviews = (
-            self.repository
-            .get_reviews_by_status(
-                "REJECTED"
+            pending_reviews = [
+                review
+                for review in scoped_reviews
+                if review.get("review_status") == "PENDING"
+            ]
+            approved_reviews = [
+                review
+                for review in scoped_reviews
+                if review.get("review_status") == "APPROVED"
+            ]
+            rejected_reviews = [
+                review
+                for review in scoped_reviews
+                if review.get("review_status") == "REJECTED"
+            ]
+            recent_reviews = sorted(
+                scoped_reviews,
+                key=lambda review: review.get("created_at") or "",
+                reverse=True,
+            )[:recent_limit]
+            total_reviews = len(scoped_reviews)
+        else:
+            pending_reviews = (
+                self.repository
+                .get_pending_reviews()
             )
-        )
+
+            approved_reviews = (
+                self.repository
+                .get_reviews_by_status(
+                    "APPROVED"
+                )
+            )
+
+            rejected_reviews = (
+                self.repository
+                .get_reviews_by_status(
+                    "REJECTED"
+                )
+            )
+
+            recent_reviews = (
+                self.repository
+                .get_recent_reviews(
+                    recent_limit
+                )
+            )
+
+            total_reviews = (
+                self.repository
+                .count_reviews()
+            )
 
         overdue_pending_reviews = [
             review
@@ -412,17 +482,9 @@ class AIReviewService:
             )
         ]
 
-        recent_reviews = (
-            self.repository
-            .get_recent_reviews(
-                recent_limit
-            )
-        )
-
         return {
             "total_reviews":
-                self.repository
-                .count_reviews(),
+                total_reviews,
             "pending_reviews":
                 len(pending_reviews),
             "approved_reviews":

@@ -112,37 +112,7 @@ class ProfileService:
 
             return None
 
-        organization = (
-            self.organization_repository
-            .get_first_organization()
-        )
-
-        if not organization:
-            organization = (
-                self.organization_repository
-                .create_organization(
-                    name="Default Customer",
-                    contact_email=str(
-                        profile.get("email") or "demo@example.com"
-                    ),
-                    owner_profile_id=profile_id,
-                )
-            )
-
-        org_id = str(organization["id"]).strip()
-
-        try:
-            self.repository.update_profile(
-                profile_id,
-                {
-                    "organization_id": org_id,
-                },
-            )
-        except APIError as error:
-            if "organization_id" not in str(error):
-                raise
-
-        return org_id
+        return None
 
     def is_admin(
         self,

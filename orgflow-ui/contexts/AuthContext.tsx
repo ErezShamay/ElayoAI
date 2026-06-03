@@ -52,6 +52,7 @@ type AuthContextType = {
   currentOrgId: string | null;
   loading: boolean;
   switchOrganization: (organizationId: string) => Promise<void>;
+  refreshOrganizations: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -239,6 +240,7 @@ export function AuthProvider({
         currentOrgId,
         loading,
         switchOrganization,
+        refreshOrganizations: loadOrganizations,
         signOut,
       }}
     >

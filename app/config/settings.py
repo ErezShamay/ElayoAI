@@ -5,6 +5,8 @@ from pydantic import AnyHttpUrl, BaseModel, ValidationError, field_validator, mo
 import os
 from typing import Literal, Optional
 
+from app.config.supabase_key import supabase_key_jwt_role
+
 # Delay importing ConfigurationError to avoid circular import during package
 # initialization. We'll import it only if validation fails.
 
@@ -88,6 +90,13 @@ class Settings(BaseModel):
     AUTH_REFRESH_TOKEN_TTL_MINUTES: int = 1440
     FEATURE_FLAGS: FeatureFlags
 
+    @field_validator("FRONTEND_URL", mode="before")
+    @classmethod
+    def normalize_frontend_url(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.rstrip("/")
+        return value
+
     @field_validator("DEFAULT_AI_MODEL", "OPENAI_MODEL")
     def validate_non_empty_string(cls, value: str) -> str:
         if not value or not value.strip():
@@ -143,6 +152,13 @@ class Settings(BaseModel):
             raise ValueError(
                 "Both SUPABASE_URL and SUPABASE_KEY must be set together"
             )
+        if self.SUPABASE_KEY and self.ENVIRONMENT != "test":
+            key_role = supabase_key_jwt_role(self.SUPABASE_KEY)
+            if key_role == "anon":
+                raise ValueError(
+                    "SUPABASE_KEY must be the Supabase service_role secret "
+                    "(Project Settings → API), not the anon/public key"
+                )
         if self.OPENAI_ACTIVE_KEY_INDEX < 0:
             raise ValueError("OPENAI_ACTIVE_KEY_INDEX must be >= 0")
         self.get_ai_fallback_providers()

@@ -72,9 +72,49 @@ def test_ai_review_dashboard_service_aggregates_status_and_overdue():
     assert len(payload["recent_reviews"]) == 2
 
 
+def test_ai_review_dashboard_service_scopes_counts_to_organization(monkeypatch):
+    service = AIReviewService.__new__(AIReviewService)
+
+    class FakeRepository:
+        def get_reviews_by_project(self, project_id: str):
+            if project_id == "project-a":
+                return [
+                    {"id": "r-1", "review_status": "PENDING", "created_at": "2026-01-01"},
+                    {"id": "r-2", "review_status": "APPROVED", "created_at": "2026-01-02"},
+                ]
+            return []
+
+    class FakeProjectRepository:
+        def get_projects_by_organization(self, organization_id: str):
+            if organization_id == "org-client":
+                return [{"id": "project-a"}]
+            return []
+
+    service.repository = FakeRepository()
+    monkeypatch.setattr(
+        "app.services.ai_review_service.ProjectRepository",
+        FakeProjectRepository,
+    )
+
+    payload = service.get_review_dashboard(
+        recent_limit=5,
+        organization_id="org-client",
+    )
+
+    assert payload["total_reviews"] == 2
+    assert payload["pending_reviews"] == 1
+    assert payload["approved_reviews"] == 1
+    assert payload["rejected_reviews"] == 0
+
+
 def test_ai_review_dashboard_endpoint_returns_payload(monkeypatch):
     class FakeReviewService:
-        def get_review_dashboard(self, recent_limit: int = 20):
+        def get_review_dashboard(
+            self,
+            recent_limit: int = 20,
+            *,
+            organization_id: str | None = None,
+        ):
             return {
                 "total_reviews": 3,
                 "pending_reviews": 1,

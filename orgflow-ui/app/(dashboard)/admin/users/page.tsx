@@ -71,7 +71,13 @@ export default function AdminUsersPage() {
 }
 
 function AdminUsersContent() {
-  const { profile, currentOrgId, sessionRole } = useAuth();
+  const {
+    profile,
+    currentOrgId,
+    sessionRole,
+    refreshOrganizations,
+    switchOrganization,
+  } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const canManageOrganizations = useCanManageOrganizations();
   const effectiveRole = profile?.role || sessionRole;
@@ -129,6 +135,25 @@ function AdminUsersContent() {
   const [fullName, setFullName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [organizationEmail, setOrganizationEmail] = useState("");
+  const [inviteOrganizationId, setInviteOrganizationId] = useState("");
+
+  const activeInviteOrganizationId =
+    inviteOrganizationId || currentOrgId || "";
+
+  useEffect(() => {
+    if (!canManageOrganizations) {
+      return;
+    }
+
+    if (
+      currentOrgId
+      && customerOrganizations.some(
+        (organization) => organization.id === currentOrgId
+      )
+    ) {
+      setInviteOrganizationId(currentOrgId);
+    }
+  }, [canManageOrganizations, currentOrgId, customerOrganizations]);
 
   useEffect(() => {
     void loadUsers();
@@ -136,7 +161,11 @@ function AdminUsersContent() {
     if (canManageOrganizations) {
       void loadFieldReportModules();
     }
-  }, [currentOrgId, canManageOrganizations]);
+  }, [
+    currentOrgId,
+    canManageOrganizations,
+    activeInviteOrganizationId,
+  ]);
 
   async function loadOrganizations() {
     try {
@@ -309,7 +338,14 @@ function AdminUsersContent() {
       setLoading(true);
       setError("");
 
-      const response = await apiFetch("/admin/users");
+      const usersPath = canManageOrganizations
+        && activeInviteOrganizationId
+        ? `/admin/users?organization_id=${encodeURIComponent(
+            activeInviteOrganizationId
+          )}`
+        : "/admin/users";
+
+      const response = await apiFetch(usersPath);
 
       if (!response.ok) {
         throw new Error("טעינת המשתמשים נכשלה");
@@ -356,7 +392,23 @@ function AdminUsersContent() {
       toast.success("הלקוח נוצר בהצלחה");
       setOrganizationName("");
       setOrganizationEmail("");
-      await loadOrganizations();
+
+      const createdOrgId = String(
+        data?.organization?.id || ""
+      ).trim();
+
+      await Promise.all([
+        loadOrganizations(),
+        refreshOrganizations(),
+      ]);
+
+      if (createdOrgId) {
+        setInviteOrganizationId(createdOrgId);
+        await switchOrganization(createdOrgId);
+        toast.info(
+          "עברת ללקוח החדש — ההזמנות הבאות ישויכו אליו"
+        );
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -376,12 +428,25 @@ function AdminUsersContent() {
       setSubmitting(true);
       setError("");
 
+      if (
+        canManageOrganizations
+        && !activeInviteOrganizationId
+      ) {
+        throw new Error("בחר לקוח לפני שליחת ההזמנה");
+      }
+
       const response = await apiFetch("/admin/users", {
         method: "POST",
         body: JSON.stringify({
           email,
           full_name: fullName,
           role: selectedRole,
+          ...(canManageOrganizations
+            && activeInviteOrganizationId
+            ? {
+                organization_id: activeInviteOrganizationId,
+              }
+            : {}),
         }),
       });
 
@@ -857,12 +922,12 @@ function AdminUsersContent() {
       <section className="of-card of-card-p6">
         <h2 className="mb-4 text-xl font-semibold">
           {canManageOrganizations
-            ? "הזמנת משתמש ללקוח הפעיל"
+            ? "הזמנת משתמש ללקוח"
             : "הזמנת משתמש לחברה"}
         </h2>
         <p className="mb-4 text-sm text-zinc-500">
           {canManageOrganizations
-            ? "משתמשים חדשים ישויכו ללקוח שנבחר ב-switcher למעלה."
+            ? "בחרו במפורש לאיזה לקוח משויך המשתמש — לא מספיק ליצור לקוח חדש בלי לבחור אותו."
             : "משתמשים חדשים ישויכו לחברה שלך בלבד. מנהל לקוח יכול לנהל רק את הארגון שלו."}
           {" "}
           לכל לקוח מותר מנהל לקוח אחד בלבד.
@@ -875,6 +940,37 @@ function AdminUsersContent() {
           onSubmit={handleInvite}
           className="grid gap-4 md:grid-cols-2"
         >
+          {canManageOrganizations ? (
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-medium">
+                לקוח
+              </label>
+              <select
+                value={activeInviteOrganizationId}
+                onChange={(event) => {
+                  setInviteOrganizationId(event.target.value);
+                }}
+                required
+                className="of-input of-focus-ring w-full text-sm"
+              >
+                <option value="" disabled>
+                  בחר לקוח
+                </option>
+                {customerOrganizations.map((organization) => (
+                  <option
+                    key={organization.id}
+                    value={organization.id}
+                  >
+                    {organization.organization_name
+                      || organization.name
+                      || organization.contact_email
+                      || organization.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <div>
             <label className="mb-2 block text-sm font-medium">
               שם מלא

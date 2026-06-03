@@ -81,13 +81,22 @@ class PortfolioIntelligenceDashboardService:
         self.organization_repository = (
             organization_repository or OrganizationRepository()
         )
-        self._summary_cache: tuple[float, dict] | None = None
+        self._summary_cache: dict[
+            str,
+            tuple[float, dict],
+        ] = {}
 
-    def get_summary(self) -> dict:
+    def get_summary(
+        self,
+        *,
+        organization_id: str | None = None,
+    ) -> dict:
         now = time.time()
+        cache_key = organization_id or "__all__"
 
-        if self._summary_cache:
-            cached_at, payload = self._summary_cache
+        cached = self._summary_cache.get(cache_key)
+        if cached:
+            cached_at, payload = cached
             if (
                 now - cached_at
                 < _SUMMARY_CACHE_TTL_SECONDS
@@ -96,13 +105,17 @@ class PortfolioIntelligenceDashboardService:
 
         payload = (
             self.portfolio_insights_service
-            .generate_portfolio_summary()
+            .generate_portfolio_summary(
+                organization_id=organization_id,
+            )
         )
-        self._summary_cache = (now, payload)
+        self._summary_cache[cache_key] = (now, payload)
         return payload
 
     def _build_context(self, organization_id: str | None = None) -> dict:
-        portfolio_summary = self.get_summary()
+        portfolio_summary = self.get_summary(
+            organization_id=organization_id,
+        )
         if organization_id:
             portfolio_summary["organization_id"] = organization_id
 

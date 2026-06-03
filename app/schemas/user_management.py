@@ -13,6 +13,7 @@ class UserInviteRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
     full_name: str = Field(..., min_length=1, max_length=120)
     role: str = Field(default="VIEWER")
+    organization_id: str | None = None
 
 
 class ManagedUser(BaseModel):

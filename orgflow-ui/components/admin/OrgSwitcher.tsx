@@ -10,6 +10,7 @@ import {
 } from "@/contexts/AuthContext";
 import {
   useCanManageOrganizations,
+  useIsPlatformAdmin,
 } from "@/hooks/useEffectiveRole";
 import { apiFetch } from "@/lib/api/client";
 
@@ -28,12 +29,21 @@ export default function OrgSwitcher() {
     loading,
   } = useAuth();
 
+  const canManageOrganizations = useCanManageOrganizations();
+  const isPlatformAdmin = useIsPlatformAdmin();
   const [targetOrgId, setTargetOrgId] = useState<string | null>(null);
   const switching = targetOrgId !== null && targetOrgId !== currentOrgId;
+  const hasMultipleOrganizations = organizations.length > 1;
+  const shouldShow =
+    !loading
+    && organizations.length > 0
+    && (hasMultipleOrganizations || canManageOrganizations);
 
-  if (loading || organizations.length <= 1) {
+  if (!shouldShow) {
     return null;
   }
+
+  const canSwitch = hasMultipleOrganizations;
 
   const labelFor = (organization: Organization) =>
     organization.organization_name
@@ -48,11 +58,18 @@ export default function OrgSwitcher() {
       </span>
       <select
         value={currentOrgId || ""}
-        disabled={switching}
+        disabled={switching || !canSwitch}
+        title={
+          canSwitch
+            ? undefined
+            : isPlatformAdmin
+              ? "יש לקוח אחד במערכת — הוסף לקוח נוסף כדי לעבור ביניהם"
+              : "יש לך גישה ללקוח אחד בלבד"
+        }
         onChange={(event) => {
           const nextOrgId = event.target.value;
 
-          if (!nextOrgId || nextOrgId === currentOrgId) {
+          if (!canSwitch || !nextOrgId || nextOrgId === currentOrgId) {
             return;
           }
 

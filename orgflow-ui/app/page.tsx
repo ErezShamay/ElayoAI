@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import HomeNavBar from "@/components/layout/HomeNavBar";
@@ -10,6 +11,7 @@ import AppLoadingScreen from "@/components/ui/AppLoadingScreen";
 import Badge from "@/components/ui/Badge";
 import KpiCard from "@/components/ui/KpiCard";
 
+import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 function AuthenticatedHero() {
@@ -56,6 +58,61 @@ function AuthenticatedHero() {
 
 export default function HomePage() {
   const { user, loading: authLoading, organizations } = useAuth();
+  const [totalReviews, setTotalReviews] = useState<number | null>(null);
+
+  const totalProjects = organizations.reduce(
+    (acc, org) => acc + (org.projects?.length ?? 0),
+    0
+  );
+
+  useEffect(() => {
+    if (!user) {
+      setTotalReviews(null);
+      return;
+    }
+
+    if (totalProjects === 0) {
+      setTotalReviews(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadReviewCount() {
+      try {
+        const response = await apiFetch(
+          "/reviews/dashboard?limit=1"
+        );
+
+        if (!response.ok) {
+          if (!cancelled) {
+            setTotalReviews(0);
+          }
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!cancelled) {
+          setTotalReviews(
+            typeof data?.total_reviews === "number"
+              ? data.total_reviews
+              : 0
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setTotalReviews(0);
+        }
+      }
+    }
+
+    void loadReviewCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, totalProjects]);
 
   if (authLoading) {
     return <AppLoadingScreen />;
@@ -69,13 +126,6 @@ export default function HomePage() {
       </>
     );
   }
-
-  const totalProjects =
-    organizations.reduce(
-      (acc, org) =>
-        acc + (org.projects?.length ?? 0),
-      0
-    );
 
   return (
     <div className="of-app-bg min-h-screen">
@@ -98,7 +148,11 @@ export default function HomePage() {
             xl:grid-cols-4
           "
         >
-          <KpiCard label="ביקורות AI" value="148" variant="accent" />
+          <KpiCard
+            label="ביקורות AI"
+            value={totalReviews ?? "—"}
+            variant="accent"
+          />
           <KpiCard label="פרויקטים פעילים" value={totalProjects} />
           <KpiCard label="מנוע AI פעיל" value="Operational AI" />
           <KpiCard
