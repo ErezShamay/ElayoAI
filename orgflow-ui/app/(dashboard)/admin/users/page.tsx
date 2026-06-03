@@ -2,6 +2,7 @@
 
 import {
   FormEvent,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -137,34 +138,72 @@ function AdminUsersContent() {
   const [organizationEmail, setOrganizationEmail] = useState("");
   const [inviteOrganizationId, setInviteOrganizationId] = useState("");
 
+  const defaultInviteOrganizationId =
+    canManageOrganizations
+    && currentOrgId
+    && customerOrganizations.some(
+      (organization) => organization.id === currentOrgId
+    )
+      ? currentOrgId
+      : "";
+
   const activeInviteOrganizationId =
-    inviteOrganizationId || currentOrgId || "";
+    inviteOrganizationId || defaultInviteOrganizationId || "";
+
+  const loadUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const usersPath = canManageOrganizations
+        && activeInviteOrganizationId
+        ? `/admin/users?organization_id=${encodeURIComponent(
+            activeInviteOrganizationId
+          )}`
+        : "/admin/users";
+
+      const response = await apiFetch(usersPath);
+
+      if (!response.ok) {
+        throw new Error("טעינת המשתמשים נכשלה");
+      }
+
+      const data = await response.json();
+      setUsers(data.users || []);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "טעינת המשתמשים נכשלה"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [activeInviteOrganizationId, canManageOrganizations]);
 
   useEffect(() => {
-    if (!canManageOrganizations) {
-      return;
-    }
+    let cancelled = false;
 
-    if (
-      currentOrgId
-      && customerOrganizations.some(
-        (organization) => organization.id === currentOrgId
-      )
-    ) {
-      setInviteOrganizationId(currentOrgId);
-    }
-  }, [canManageOrganizations, currentOrgId, customerOrganizations]);
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
 
-  useEffect(() => {
-    void loadUsers();
-    void loadOrganizations();
-    if (canManageOrganizations) {
-      void loadFieldReportModules();
-    }
+      void loadUsers();
+      void loadOrganizations();
+      if (canManageOrganizations) {
+        void loadFieldReportModules();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     currentOrgId,
     canManageOrganizations,
     activeInviteOrganizationId,
+    loadUsers,
   ]);
 
   async function loadOrganizations() {
@@ -330,37 +369,6 @@ function AdminUsersContent() {
       toast.error(message);
     } finally {
       setSavingProfileOrgId(null);
-    }
-  }
-
-  async function loadUsers() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const usersPath = canManageOrganizations
-        && activeInviteOrganizationId
-        ? `/admin/users?organization_id=${encodeURIComponent(
-            activeInviteOrganizationId
-          )}`
-        : "/admin/users";
-
-      const response = await apiFetch(usersPath);
-
-      if (!response.ok) {
-        throw new Error("טעינת המשתמשים נכשלה");
-      }
-
-      const data = await response.json();
-      setUsers(data.users || []);
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "טעינת המשתמשים נכשלה"
-      );
-    } finally {
-      setLoading(false);
     }
   }
 

@@ -5,11 +5,29 @@ import {
   type ConstructionProgressRow,
 } from "../construction-progress";
 import { DEFAULT_WINTER_RECOMMENDATIONS_HE } from "../pdf-block-defaults";
+import {
+  collectInlineRenderedPhotoLineIds,
+  hasExplicitBlocksInHeader,
+  renderExplicitBlocksFromHeader,
+} from "./render-blocks";
+import {
+  renderFixedTextBlocksFromHeader,
+  shouldRenderLegacyContractorNotes,
+  shouldRenderLegacyWinterSection,
+} from "./render-fixed-text";
+import {
+  formatHeaderContact,
+  formatOrgAddress,
+  PDF_HEADER_STYLES,
+  renderVisitReportHeader,
+  resolveStringList,
+} from "./render-header";
 import type {
-  OrganizationProfileSnapshot,
   PdfReportLine,
   VisitReportPdfInput,
 } from "./types";
+
+export { formatHeaderContact, formatOrgAddress, resolveStringList };
 
 const FONT = "NotoSansHebrew";
 const PAGE_MARGIN: [number, number, number, number] = [
@@ -21,28 +39,6 @@ const LINE_STATUS_LABELS: Record<string, string> = {
   DONE: "בוצע",
   NEEDS_ACTION: "יש להשלים",
 };
-
-export function formatOrgAddress(
-  profile: OrganizationProfileSnapshot | null | undefined
-): string {
-  const parts = [
-    profile?.report_address_line,
-    profile?.report_city,
-  ].filter(Boolean);
-  return parts.join(", ");
-}
-
-export function formatHeaderContact(
-  profile: OrganizationProfileSnapshot | null | undefined
-): string {
-  return [
-    profile?.report_phone,
-    formatOrgAddress(profile),
-    profile?.report_tagline,
-  ]
-    .filter(Boolean)
-    .join("  |  ");
-}
 
 export function buildFindingsTableColumns(
   lines: PdfReportLine[]
@@ -100,15 +96,6 @@ export function resolveWinterRecommendationsText(
   return DEFAULT_WINTER_RECOMMENDATIONS_HE;
 }
 
-export function resolveStringList(
-  value: unknown
-): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.map((item) => String(item).trim()).filter(Boolean);
-}
-
 export function resolveConstructionProgressRows(
   headerFields: Record<string, unknown>
 ): ConstructionProgressRow[] {
@@ -154,17 +141,29 @@ export function buildVisitReportDocDefinition(
   const profile = report.organization_profile_snapshot;
   const headerFields = report.header_fields || {};
   const orgName = profile?.organization_name || "ארגון";
-  const tableColumns = buildFindingsTableColumns(report.lines);
-  const tableBody = buildFindingsTableBody(report.lines, tableColumns);
+  const useExplicitBlocks = hasExplicitBlocksInHeader(headerFields);
+  const inlinePhotoLineIds = useExplicitBlocks
+    ? collectInlineRenderedPhotoLineIds(
+        headerFields,
+        report.visit_type,
+        report.lines,
+        linePhotos
+      )
+    : new Set<string>();
+  const appendixLinePhotos = linePhotos.filter(
+    (photo) => !inlinePhotoLineIds.has(photo.lineId)
+  );
+  const tableColumns = useExplicitBlocks
+    ? []
+    : buildFindingsTableColumns(report.lines);
+  const tableBody = useExplicitBlocks
+    ? []
+    : buildFindingsTableBody(report.lines, tableColumns);
   const generatedLabel = generatedAt.toLocaleDateString("he-IL");
-  const projectUpdates = resolveStringList(headerFields.project_updates);
   const contractorNotes = resolveStringList(headerFields.contractor_notes);
   const winterRecommendations = resolveWinterRecommendationsText(
     headerFields
   );
-  const developerPmName =
-    stringField(headerFields.developer_pm_name)
-    || stringField(headerFields.contractor_name);
   const inspectorTitle =
     stringField(headerFields.inspector_title)
     || inspector?.professional_title
@@ -174,141 +173,52 @@ export function buildVisitReportDocDefinition(
     || inspector?.license_number
     || "";
 
-  const content: Content[] = [];
+  const content: Content[] = [
+    ...renderVisitReportHeader({
+      report,
+      profile,
+      logoDataUrl,
+    }),
+  ];
 
-  if (logoDataUrl) {
-    content.push({
-      image: logoDataUrl,
-      width: 80,
-      alignment: "right",
-      margin: [0, 0, 0, 8],
+  if (hasExplicitBlocksInHeader(headerFields)) {
+    content.push(
+      ...renderExplicitBlocksFromHeader(headerFields, {
+        visitType: report.visit_type,
+        reportLines: report.lines,
+        linePhotos,
+      })
+    );
+  } else {
+    appendLegacyReportBody(content, {
+      headerFields,
+      visitType: report.visit_type,
+      tableColumns,
+      tableBody,
     });
   }
 
   content.push(
-    {
-      text: formatHeaderContact(profile),
-      style: "headerBar",
-      alignment: "right",
-    },
-    {
-      text: "דוח מפקח הנדסי לדיירים",
-      style: "reportTitle",
-      alignment: "center",
-      margin: [0, 12, 0, 4],
-    },
-    {
-      text: report.visit_type_label_he,
-      style: "subTitle",
-      alignment: "center",
-      margin: [0, 0, 0, 12],
-    },
-    {
-      columns: [
-        {
-          width: "*",
-          stack: [
-            {
-              text: `תאריך ביקור: ${report.visit_date}`,
-              alignment: "right",
-            },
-            {
-              text: `פרויקט: ${report.project_name || ""}`,
-              alignment: "right",
-            },
-          ],
-        },
-      ],
-    },
-    {
-      text: "פרטים כלליים",
-      style: "sectionTitle",
-      margin: [0, 16, 0, 6],
-    },
-    {
-      ul: [
-        `יזם: ${stringField(headerFields.developer_name)}`,
-        `מנהל פרויקט מטעם יזם: ${developerPmName}`,
-        `עו״ד ב״כ דיירים: ${stringField(headerFields.lawyer_name)}`,
-        `עו״ד מלווה: ${stringField(headerFields.accompanying_lawyer)}`,
-        `כתובת אתר: ${stringField(headerFields.site_address)}`,
-      ],
-      alignment: "right",
-      margin: [0, 0, 0, 8],
-    }
+    ...renderFixedTextBlocksFromHeader(headerFields, report.visit_date)
   );
 
-  if (projectUpdates.length) {
+  if (shouldRenderLegacyWinterSection(headerFields)) {
     content.push({
-      text: "עדכונים לפרויקט",
-      style: "sectionTitle",
-      margin: [0, 8, 0, 4],
-    });
-    content.push({
-      ol: projectUpdates.map((item) => String(item)),
-      alignment: "right",
-      margin: [0, 0, 0, 8],
-    });
-  }
-
-  const progressRows = resolveConstructionProgressRows(headerFields);
-  if (progressRows.length) {
-    const progressTitle = constructionProgressTitleHe(report.visit_type);
-    content.push({
-      text: progressTitle,
+      text: "המלצות חורף / עונת גשמים",
       style: "sectionTitle",
       margin: [0, 12, 0, 6],
     });
     content.push({
-      table: {
-        headerRows: 1,
-        widths: ["*", "auto", "auto"],
-        body: [
-          ["תיאור עבודה", "סטטוס", "תאריך ביצוע / סיום"],
-          ...buildConstructionProgressTableBody(progressRows),
-        ],
-      },
-      layout: "lightHorizontalLines",
-      margin: [0, 0, 0, 12],
-    });
-  }
-
-  content.push({
-    text: "ממצאים / עבודות",
-    style: "sectionTitle",
-    margin: [0, 12, 0, 6],
-  });
-
-  if (tableBody.length) {
-    content.push({
-      table: {
-        headerRows: 1,
-        widths: tableColumns.map(() => "*"),
-        body: [tableColumns, ...tableBody],
-      },
-      layout: "lightHorizontalLines",
-      margin: [0, 0, 0, 12],
-    });
-  } else {
-    content.push({
-      text: "אין שורות ממצאים בדוח.",
+      text: winterRecommendations,
       alignment: "right",
       margin: [0, 0, 0, 12],
     });
   }
 
-  content.push({
-    text: "המלצות חורף / עונת גשמים",
-    style: "sectionTitle",
-    margin: [0, 12, 0, 6],
-  });
-  content.push({
-    text: winterRecommendations,
-    alignment: "right",
-    margin: [0, 0, 0, 12],
-  });
-
-  if (contractorNotes.length) {
+  if (
+    contractorNotes.length
+    && shouldRenderLegacyContractorNotes(headerFields)
+  ) {
     content.push({
       text: "הערות נוספות לקבלן",
       style: "sectionTitle",
@@ -321,7 +231,7 @@ export function buildVisitReportDocDefinition(
     });
   }
 
-  for (const photo of linePhotos) {
+  for (const photo of appendixLinePhotos) {
     content.push({
       text: `תמונה — שורה ${photo.lineId.slice(0, 8)}`,
       style: "photoCaption",
@@ -369,21 +279,7 @@ export function buildVisitReportDocDefinition(
       alignment: "right",
     },
     styles: {
-      headerBar: {
-        fontSize: 8,
-        color: "#444444",
-      },
-      reportTitle: {
-        fontSize: 16,
-        bold: true,
-      },
-      subTitle: {
-        fontSize: 12,
-      },
-      sectionTitle: {
-        fontSize: 12,
-        bold: true,
-      },
+      ...PDF_HEADER_STYLES,
       photoCaption: {
         fontSize: 9,
         color: "#555555",
@@ -448,4 +344,63 @@ function progressField(value: unknown): string {
 
 function sanitizeFilename(value: string): string {
   return value.replace(/[^\w\u0590-\u05FF.-]+/g, "-").replace(/-+/g, "-");
+}
+
+/** גוף דוח legacy — ללא header_fields.blocks מפורש (FR-2.3 backward compat). */
+function appendLegacyReportBody(
+  content: Content[],
+  input: {
+    headerFields: Record<string, unknown>;
+    visitType: string;
+    tableColumns: string[];
+    tableBody: string[][];
+  }
+): void {
+  const { headerFields, visitType, tableColumns, tableBody } = input;
+
+  const progressRows = resolveConstructionProgressRows(headerFields);
+  if (progressRows.length) {
+    const progressTitle = constructionProgressTitleHe(visitType);
+    content.push({
+      text: progressTitle,
+      style: "sectionTitle",
+      margin: [0, 12, 0, 6],
+    });
+    content.push({
+      table: {
+        headerRows: 1,
+        widths: ["*", "auto", "auto"],
+        body: [
+          ["תיאור עבודה", "סטטוס", "תאריך ביצוע / סיום"],
+          ...buildConstructionProgressTableBody(progressRows),
+        ],
+      },
+      layout: "lightHorizontalLines",
+      margin: [0, 0, 0, 12],
+    });
+  }
+
+  content.push({
+    text: "ממצאים / עבודות",
+    style: "sectionTitle",
+    margin: [0, 12, 0, 6],
+  });
+
+  if (tableBody.length) {
+    content.push({
+      table: {
+        headerRows: 1,
+        widths: tableColumns.map(() => "*"),
+        body: [tableColumns, ...tableBody],
+      },
+      layout: "lightHorizontalLines",
+      margin: [0, 0, 0, 12],
+    });
+  } else {
+    content.push({
+      text: "אין שורות ממצאים בדוח.",
+      alignment: "right",
+      margin: [0, 0, 0, 12],
+    });
+  }
 }

@@ -7,9 +7,12 @@ import CatalogIssuePicker, {
   type CatalogFamily,
   type CatalogIssue,
 } from "@/components/field-reports/CatalogIssuePicker";
-import ReportConstructionProgressSection from "@/components/field-reports/ReportConstructionProgressSection";
+import ReportBlocksManager from "@/components/field-reports/ReportBlocksManager";
 import ReportFixedBlocksSection from "@/components/field-reports/ReportFixedBlocksSection";
+import ReportProjectMetadataSection from "@/components/field-reports/ReportProjectMetadataSection";
+import ReportStakeholdersSection from "@/components/field-reports/ReportStakeholdersSection";
 import ReportLineEditor from "@/components/field-reports/ReportLineEditor";
+import LineGroupSelector from "@/components/field-reports/LineGroupSelector";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -18,9 +21,16 @@ import { apiFetch } from "@/lib/api/client";
 import { loadOfflineCatalogForVisitType } from "@/lib/field-reports/catalog-offline";
 import {
   normalizeHeaderFields,
+  patchHeaderFieldsBlocks,
+  patchHeaderFieldsStakeholders,
   serializeHeaderFieldsForApi,
 } from "@/lib/field-reports/header-fields";
 import { saveReportMetadataDraft } from "@/lib/field-reports/report-metadata-draft";
+import {
+  defaultLineGroupSelection,
+  lineGroupFieldsFromSelection,
+  type LineGroupSelection,
+} from "@/lib/field-reports/line-grouping";
 import {
   FR_TOUCH_BUTTON,
   FR_TOUCH_INPUT,
@@ -43,11 +53,17 @@ type ReportLine = {
   has_catalog_issue?: boolean;
   has_photo?: boolean;
   photo_url?: string | null;
+  photo_ids?: string[];
+  photos?: Array<{ id: string; url: string }>;
   catalog_warning?: string | null;
+  group_key?: string | null;
+  group_label_he?: string | null;
+  block_id?: string | null;
 };
 
 type VisitReport = {
   id: string;
+  project_id?: string;
   project_name?: string;
   visit_type: string;
   visit_type_label_he: string;
@@ -92,7 +108,10 @@ export default function VisitReportEditor({
   const [lineSaving, setLineSaving] = useState(false);
   const [error, setError] = useState("");
   const [headerFields, setHeaderFields] = useState(() =>
-    normalizeHeaderFields(report.header_fields, report.visit_type)
+    normalizeHeaderFields(report.header_fields, report.visit_type, {
+      lines: report.lines,
+      visitDate: report.visit_date,
+    })
   );
   const headerInitialized = useRef(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -112,6 +131,9 @@ export default function VisitReportEditor({
     description: "",
     notes: "",
   });
+  const [pendingLineGroup, setPendingLineGroup] = useState<LineGroupSelection>(
+    defaultLineGroupSelection()
+  );
 
   async function saveHeaderFields() {
     if (!report.is_editable) {
@@ -190,17 +212,25 @@ export default function VisitReportEditor({
     debouncedSaveHeader();
   }, [headerFields, report.is_editable, debouncedSaveHeader, isOnline]);
 
-  function updateLinePhotoState(lineId: string, hasPhoto: boolean) {
+  function updateLinePhotosState(
+    lineId: string,
+    payload: {
+      has_photo: boolean;
+      photo_ids: string[];
+      photos: Array<{ id: string; url: string }>;
+      photo_url: string | null;
+    }
+  ) {
     onReportChange({
       ...report,
       lines: report.lines.map((line) =>
         line.id === lineId
           ? {
               ...line,
-              has_photo: hasPhoto,
-              photo_url: hasPhoto
-                ? `/field-reports/visits/${report.id}/lines/${lineId}/photo`
-                : null,
+              has_photo: payload.has_photo,
+              photo_ids: payload.photo_ids,
+              photos: payload.photos,
+              photo_url: payload.photo_url,
             }
           : line
       ),
@@ -261,6 +291,11 @@ export default function VisitReportEditor({
     [report.lines]
   );
 
+  const hasExplicitBlocks = useMemo(() => {
+    const raw = report.header_fields?.blocks;
+    return Array.isArray(raw) && raw.length > 0;
+  }, [report.header_fields]);
+
   async function addFreeLine(event: FormEvent) {
     event.preventDefault();
 
@@ -288,6 +323,7 @@ export default function VisitReportEditor({
             status: newLine.status || null,
             description: newLine.description,
             notes: newLine.notes || null,
+            ...lineGroupFieldsFromSelection(pendingLineGroup),
           }),
         }
       );
@@ -314,6 +350,7 @@ export default function VisitReportEditor({
         description: "",
         notes: "",
       });
+      setPendingLineGroup(defaultLineGroupSelection());
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "הוספת שורה נכשלה"
@@ -337,7 +374,10 @@ export default function VisitReportEditor({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ issue_id: issue.issue_id }),
+          body: JSON.stringify({
+            issue_id: issue.issue_id,
+            ...lineGroupFieldsFromSelection(pendingLineGroup),
+          }),
         }
       );
 
@@ -487,6 +527,33 @@ export default function VisitReportEditor({
         </p>
       ) : null}
 
+      <ReportProjectMetadataSection
+        metadata={headerFields.project_metadata}
+        disabled={!report.is_editable}
+        onChange={(project_metadata) =>
+          setHeaderFields((current) => ({
+            ...current,
+            project_metadata,
+          }))
+        }
+      />
+
+      <ReportStakeholdersSection
+        stakeholders={headerFields.stakeholders}
+        mainSuppliers={headerFields.main_suppliers}
+        disabled={!report.is_editable}
+        projectId={report.project_id}
+        onChange={({ stakeholders, main_suppliers }) =>
+          setHeaderFields((current) =>
+            patchHeaderFieldsStakeholders(
+              current,
+              { stakeholders, main_suppliers },
+              report.visit_type
+            )
+          )
+        }
+      />
+
       <section className="space-y-4 rounded-xl border border-zinc-200 p-4 md:p-5">
         <h2 className="text-lg font-semibold">פרטי כותרת הדוח</h2>
         <div className="grid gap-3 md:grid-cols-2">
@@ -498,50 +565,6 @@ export default function VisitReportEditor({
               setHeaderFields((current) => ({
                 ...current,
                 site_address: value,
-              }))
-            }
-          />
-          <HeaderField
-            label="יזם"
-            value={headerFields.developer_name}
-            disabled={!report.is_editable}
-            onChange={(value) =>
-              setHeaderFields((current) => ({
-                ...current,
-                developer_name: value,
-              }))
-            }
-          />
-          <HeaderField
-            label="מנהל פרויקט מטעם יזם"
-            value={headerFields.developer_pm_name}
-            disabled={!report.is_editable}
-            onChange={(value) =>
-              setHeaderFields((current) => ({
-                ...current,
-                developer_pm_name: value,
-              }))
-            }
-          />
-          <HeaderField
-            label="עו״ד ב״כ דיירים"
-            value={headerFields.lawyer_name}
-            disabled={!report.is_editable}
-            onChange={(value) =>
-              setHeaderFields((current) => ({
-                ...current,
-                lawyer_name: value,
-              }))
-            }
-          />
-          <HeaderField
-            label="עו״ד מלווה"
-            value={headerFields.accompanying_lawyer}
-            disabled={!report.is_editable}
-            onChange={(value) =>
-              setHeaderFields((current) => ({
-                ...current,
-                accompanying_lawyer: value,
               }))
             }
           />
@@ -559,20 +582,22 @@ export default function VisitReportEditor({
         ) : null}
       </section>
 
-      <ReportConstructionProgressSection
+      <ReportBlocksManager
+        blocks={headerFields.blocks}
         visitType={report.visit_type}
-        rows={headerFields.construction_progress}
         disabled={!report.is_editable}
-        onChange={(construction_progress) =>
-          setHeaderFields((current) => ({
-            ...current,
-            construction_progress,
-          }))
+        hasExplicitBlocks={hasExplicitBlocks}
+        onChange={(blocks) =>
+          setHeaderFields((current) =>
+            patchHeaderFieldsBlocks(current, blocks, report.visit_type)
+          )
         }
       />
 
       <ReportFixedBlocksSection
         fields={headerFields}
+        visitType={report.visit_type}
+        visitDate={report.visit_date}
         disabled={!report.is_editable}
         onChange={setHeaderFields}
       />
@@ -596,6 +621,19 @@ export default function VisitReportEditor({
             </div>
           ) : null}
         </div>
+
+        {report.is_editable ? (
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+            <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              קיבוץ לשורות חדשות
+            </p>
+            <LineGroupSelector
+              value={pendingLineGroup}
+              disabled={lineSaving}
+              onChange={setPendingLineGroup}
+            />
+          </div>
+        ) : null}
 
         {catalogOpen ? (
           <CatalogIssuePicker
@@ -622,7 +660,7 @@ export default function VisitReportEditor({
                 onSave={saveLine}
                 onConvertToFreeText={convertLineToFreeText}
                 onDelete={deleteLine}
-                onPhotoChange={updateLinePhotoState}
+                onPhotosChange={updateLinePhotosState}
               />
             ))}
           </ul>

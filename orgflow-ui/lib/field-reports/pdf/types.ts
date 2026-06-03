@@ -23,6 +23,8 @@ export type PdfReportLine = {
   issue_id?: string | null;
   has_photo?: boolean;
   photo_url?: string | null;
+  photo_ids?: string[];
+  photos?: Array<{ id: string; url: string }>;
 };
 
 export type PdfVisitReport = {
@@ -44,6 +46,7 @@ export type PdfInspectorProfile = {
 
 export type LinePhotoData = {
   lineId: string;
+  photoId?: string;
   dataUrl: string;
 };
 

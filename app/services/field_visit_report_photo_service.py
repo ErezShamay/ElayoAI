@@ -25,13 +25,16 @@ class FieldVisitReportPhotoService:
         report_id: str,
         line_id: str,
         extension: str,
+        photo_id: str | None = None,
     ) -> str:
         safe_ext = extension.lower().lstrip(".")
         if safe_ext == "jpg":
             safe_ext = "jpeg"
-        return (
-            f"{organization_id}/{report_id}/{line_id}.{safe_ext}"
-        )
+        if photo_id:
+            return (
+                f"{organization_id}/{report_id}/{line_id}/{photo_id}.{safe_ext}"
+            )
+        return f"{organization_id}/{report_id}/{line_id}.{safe_ext}"
 
     def resolve_absolute_path(self, storage_path: str) -> Path:
         return self.photos_root / storage_path
@@ -45,6 +48,7 @@ class FieldVisitReportPhotoService:
         content: bytes,
         content_type: str | None,
         filename: str | None = None,
+        photo_id: str | None = None,
     ) -> str:
         self._validate_upload(
             content=content,
@@ -61,6 +65,7 @@ class FieldVisitReportPhotoService:
             report_id=report_id,
             line_id=line_id,
             extension=extension,
+            photo_id=photo_id,
         )
         target = self.resolve_absolute_path(storage_path)
         target.parent.mkdir(parents=True, exist_ok=True)

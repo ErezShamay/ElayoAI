@@ -18,6 +18,11 @@ OPTIONAL_PROJECT_WRITE_COLUMNS = (
     "owner_id",
     "tags",
     "lifecycle_phase",
+    "scheme",
+    "developer_pm_name",
+    "accompanying_lawyer",
+    "architect_name",
+    "site_manager_name",
 )
 
 
@@ -70,6 +75,7 @@ class ProjectRepository:
         owner_id: str | None = None,
         tags: list[str] | None = None,
         lifecycle_phase: str | None = None,
+        scheme: str | None = None,
         status: str = "ACTIVE",
     ):
 
@@ -142,6 +148,13 @@ class ProjectRepository:
                     project.lifecycle_phase
                     if project and hasattr(project, "lifecycle_phase")
                     else lifecycle_phase
+                ),
+
+            "scheme":
+                (
+                    project.scheme
+                    if project and hasattr(project, "scheme")
+                    else scheme
                 ),
 
             "status":

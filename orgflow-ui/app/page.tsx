@@ -66,13 +66,7 @@ export default function HomePage() {
   );
 
   useEffect(() => {
-    if (!user) {
-      setTotalReviews(null);
-      return;
-    }
-
     if (totalProjects === 0) {
-      setTotalReviews(0);
       return;
     }
 
@@ -112,7 +106,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [user, totalProjects]);
+  }, [totalProjects]);
 
   if (authLoading) {
     return <AppLoadingScreen />;
@@ -150,7 +144,11 @@ export default function HomePage() {
         >
           <KpiCard
             label="ביקורות AI"
-            value={totalReviews ?? "—"}
+            value={
+              totalProjects === 0
+                ? 0
+                : (totalReviews ?? "—")
+            }
             variant="accent"
           />
           <KpiCard label="פרויקטים פעילים" value={totalProjects} />

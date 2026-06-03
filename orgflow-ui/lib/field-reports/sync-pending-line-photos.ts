@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api/client";
 import {
   listPendingLinePhotos,
   parseLineIdFromPhotoKey,
+  parsePhotoIdFromPhotoKey,
   saveLinePhotoLocally,
   type StoredLinePhoto,
 } from "@/lib/field-reports/line-photo-store";
@@ -26,7 +27,7 @@ async function uploadLinePhoto(
   );
 
   const response = await apiFetch(
-    `/field-reports/visits/${reportId}/lines/${lineId}/photo`,
+    `/field-reports/visits/${reportId}/lines/${lineId}/photos`,
     {
       method: "POST",
       body: formData,
@@ -44,6 +45,7 @@ async function uploadLinePhoto(
 
   await saveLinePhotoLocally(reportId, lineId, photo.blob, {
     pendingUpload: false,
+    photoId: photo.photoId || parsePhotoIdFromPhotoKey(photo.lineId, reportId),
   });
 }
 
@@ -54,7 +56,7 @@ export async function syncPendingLinePhotosForReport(
   const result: LinePhotoSyncResult = { uploaded: 0, failed: [] };
 
   for (const photo of pending) {
-    const lineId = parseLineIdFromPhotoKey(photo.lineId, reportId);
+    const lineId = photo.lineRowId || parseLineIdFromPhotoKey(photo.lineId, reportId);
 
     try {
       await uploadLinePhoto(reportId, lineId, photo);

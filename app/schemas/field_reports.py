@@ -1,6 +1,12 @@
 from datetime import date, datetime
+from typing import Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.schemas.field_report_document import (
+    HEADER_FIELDS_DOC,
+    warn_unknown_header_field_keys,
+)
 
 
 class FieldReportModuleStatus(BaseModel):
@@ -45,17 +51,35 @@ class FieldReportOrganizationProfileUpdateRequest(BaseModel):
 class FieldVisitReportCreateRequest(BaseModel):
     project_id: str
     visit_type: str = Field(
-        description="STRUCTURE_SITE or FINISHING_APARTMENTS"
+        description=(
+            "STRUCTURE_SITE, FINISHING_APARTMENTS, or MIXED (סיור משולב)"
+        )
     )
     visit_date: date
-    header_fields: dict = Field(default_factory=dict)
+    header_fields: dict = Field(
+        default_factory=dict,
+        description=HEADER_FIELDS_DOC.strip(),
+    )
     catalog_version: str | None = None
+
+    @model_validator(mode="after")
+    def _warn_unknown_header_keys(self) -> Self:
+        warn_unknown_header_field_keys(self.header_fields)
+        return self
 
 
 class FieldVisitReportUpdateRequest(BaseModel):
     visit_date: date | None = None
-    header_fields: dict | None = None
+    header_fields: dict | None = Field(
+        default=None,
+        description=HEADER_FIELDS_DOC.strip(),
+    )
     catalog_version: str | None = None
+
+    @model_validator(mode="after")
+    def _warn_unknown_header_keys(self) -> Self:
+        warn_unknown_header_field_keys(self.header_fields)
+        return self
 
 
 class FieldVisitReportLineCreateRequest(BaseModel):
@@ -74,6 +98,21 @@ class FieldVisitReportLineCreateRequest(BaseModel):
     category_name_he: str | None = None
     target_elements: str | None = None
     sort_order: int | None = None
+    group_key: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Stable row group key, e.g. apartment:3",
+    )
+    group_label_he: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Hebrew group label for PDF sub-headers",
+    )
+    block_id: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Optional link to header_fields.blocks[].id",
+    )
 
 
 class FieldVisitReportLineUpdateRequest(BaseModel):
@@ -91,6 +130,9 @@ class FieldVisitReportLineUpdateRequest(BaseModel):
     category_id: str | None = None
     category_name_he: str | None = None
     sort_order: int | None = None
+    group_key: str | None = Field(default=None, max_length=120)
+    group_label_he: str | None = Field(default=None, max_length=120)
+    block_id: str | None = Field(default=None, max_length=120)
 
 
 class FieldVisitReportSummary(BaseModel):
@@ -147,6 +189,14 @@ class FieldVisitReportLineSummary(BaseModel):
     photo_storage_path: str | None = None
     has_photo: bool = False
     photo_url: str | None = None
+    photo_ids: list[str] = Field(default_factory=list)
+    photos: list[dict] = Field(
+        default_factory=list,
+        description="Per-photo metadata with id and url",
+    )
     has_catalog_issue: bool = False
+    group_key: str | None = None
+    group_label_he: str | None = None
+    block_id: str | None = None
     created_at: datetime | str | None = None
     updated_at: datetime | str | None = None

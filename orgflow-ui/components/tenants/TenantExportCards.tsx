@@ -28,11 +28,13 @@ const cards = [
     title: "אנשי קשר למייל",
     desc: "שם דייר + מס׳ דירה + כתובת מייל",
     file: "contacts-email.csv",
-    run: (tenants: Tenant[], projectAddress: string) =>
+    run: (tenants: Tenant[], projectAddress: string) => {
+      void projectAddress;
       downloadOutlookCsv(
-        buildEmailContactsCsv(tenants, projectAddress),
+        buildEmailContactsCsv(tenants),
         "contacts-email.csv",
-      ),
+      );
+    },
   },
   {
     key: "zoho-apt",

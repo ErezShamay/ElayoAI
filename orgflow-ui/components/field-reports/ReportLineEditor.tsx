@@ -4,8 +4,14 @@ import { FormEvent, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@/components/ui/Button";
-import LinePhotoCapture from "@/components/field-reports/LinePhotoCapture";
+import LinePhotoCapture, {
+  type LinePhotosChangePayload,
+} from "@/components/field-reports/LinePhotoCapture";
+import LineGroupSelector from "@/components/field-reports/LineGroupSelector";
 import { useLockBodyScroll } from "@/hooks/useLockBodyScroll";
+import {
+  selectionFromLineGroupFields,
+} from "@/lib/field-reports/line-grouping";
 import {
   FR_TOUCH_BUTTON,
   FR_TOUCH_INPUT,
@@ -26,7 +32,12 @@ export type EditableReportLine = {
   has_catalog_issue?: boolean;
   has_photo?: boolean;
   photo_url?: string | null;
+  photo_ids?: string[];
+  photos?: Array<{ id: string; url: string }>;
   catalog_warning?: string | null;
+  group_key?: string | null;
+  group_label_he?: string | null;
+  block_id?: string | null;
 };
 
 const LINE_STATUS_OPTIONS = [
@@ -44,7 +55,7 @@ type ReportLineEditorProps = {
   onSave: (lineId: string, payload: Record<string, unknown>) => Promise<void>;
   onConvertToFreeText: (lineId: string) => Promise<void>;
   onDelete: (lineId: string) => Promise<void>;
-  onPhotoChange: (lineId: string, hasPhoto: boolean) => void;
+  onPhotosChange: (lineId: string, payload: LinePhotosChangePayload) => void;
 };
 
 export default function ReportLineEditor({
@@ -55,7 +66,7 @@ export default function ReportLineEditor({
   onSave,
   onConvertToFreeText,
   onDelete,
-  onPhotoChange,
+  onPhotosChange,
 }: ReportLineEditorProps) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(() => lineToDraft(line));
@@ -85,6 +96,7 @@ export default function ReportLineEditor({
       description: draft.description,
       notes: draft.notes || null,
       severity: line.has_catalog_issue ? undefined : draft.severity || null,
+      ...lineGroupFieldsFromSelection(draft.group),
     });
     setExpanded(false);
   }
@@ -93,10 +105,11 @@ export default function ReportLineEditor({
     <LinePhotoCapture
       reportId={reportId}
       lineId={line.id}
+      photos={line.photos}
       hasServerPhoto={Boolean(line.has_photo)}
       photoUrl={line.photo_url}
       disabled={!editable}
-      onPhotoChange={(hasPhoto) => onPhotoChange(line.id, hasPhoto)}
+      onPhotosChange={(payload) => onPhotosChange(line.id, payload)}
     />
   );
 
@@ -105,6 +118,11 @@ export default function ReportLineEditor({
       onSubmit={(event) => void handleSubmit(event)}
       className="space-y-3 md:space-y-4"
     >
+      <LineGroupSelector
+        value={draft.group}
+        disabled={saving}
+        onChange={(group) => setDraft((current) => ({ ...current, group }))}
+      />
       <div className="grid gap-3 lg:grid-cols-2">
         <Field
           label="מיקום"
@@ -253,6 +271,9 @@ export default function ReportLineEditor({
           }}
         >
           <p className="font-medium">
+            {line.group_label_he ? (
+              <span className="text-zinc-600">{line.group_label_he} · </span>
+            ) : null}
             {line.trade || "ללא מלאכה"}
             {line.location ? ` · ${line.location}` : ""}
           </p>
@@ -354,5 +375,6 @@ function lineToDraft(line: EditableReportLine) {
     description: line.description || "",
     notes: line.notes || "",
     severity: line.severity || "",
+    group: selectionFromLineGroupFields(line),
   };
 }

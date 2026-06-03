@@ -1,5 +1,8 @@
 import { apiFetch } from "@/lib/api/client";
-import { loadLinePhotoLocally } from "@/lib/field-reports/line-photo-store";
+import {
+  listLinePhotosForLine,
+  loadLinePhotoLocally,
+} from "@/lib/field-reports/line-photo-store";
 
 import type { LinePhotoData, PdfReportLine } from "./types";
 
@@ -36,25 +39,36 @@ export async function resolveLinePhotos(
   const photos: LinePhotoData[] = [];
 
   for (const line of lines) {
-    if (!line.has_photo) {
-      continue;
-    }
+    const remotePhotos =
+      line.photos?.length
+        ? line.photos
+        : line.photo_url
+          ? [{ id: line.photo_ids?.[0] ?? "legacy", url: line.photo_url }]
+          : [];
 
-    const localPhoto = await loadLinePhotoLocally(reportId, line.id);
-    if (localPhoto?.blob) {
+    const localPhotos = await listLinePhotosForLine(reportId, line.id);
+
+    for (const local of localPhotos) {
       photos.push({
         lineId: line.id,
-        dataUrl: await blobToDataUrl(localPhoto.blob),
+        photoId: local.photoId,
+        dataUrl: await blobToDataUrl(local.blob),
       });
-      continue;
     }
 
-    if (line.photo_url) {
-      const remote = await fetchRemoteImageDataUrl(line.photo_url);
-      if (remote) {
+    for (const remote of remotePhotos) {
+      if (
+        localPhotos.some((local) => local.photoId === remote.id)
+      ) {
+        continue;
+      }
+
+      const dataUrl = await fetchRemoteImageDataUrl(remote.url);
+      if (dataUrl) {
         photos.push({
           lineId: line.id,
-          dataUrl: remote,
+          photoId: remote.id,
+          dataUrl,
         });
       }
     }

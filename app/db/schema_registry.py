@@ -284,6 +284,40 @@ TABLES: dict[str, TableSchema] = {
             ),
         ),
     ),
+    "field_visit_report_line_photos": TableSchema(
+        name="field_visit_report_line_photos",
+        tenant_column="organization_id",
+        foreign_keys=(
+            ForeignKeyDef("organization_id", "organizations"),
+            ForeignKeyDef("report_id", "field_visit_reports"),
+            ForeignKeyDef("line_id", "field_visit_report_lines"),
+        ),
+        indexes=(
+            IndexDef(
+                "field_visit_report_line_photos_pkey",
+                ("id",),
+                unique=True,
+            ),
+            IndexDef(
+                "field_visit_report_line_photos_line_idx",
+                ("line_id", "sort_order"),
+            ),
+            IndexDef(
+                "field_visit_report_line_photos_org_idx",
+                ("organization_id",),
+            ),
+        ),
+        rls_policies=(
+            RlsPolicyDef(
+                name="field_visit_report_line_photos_tenant_isolation",
+                command="ALL",
+                using_expression=(
+                    "organization_id = "
+                    "current_setting('app.organization_id')::uuid"
+                ),
+            ),
+        ),
+    ),
 }
 
 
@@ -351,6 +385,30 @@ MIGRATION_SCRIPTS: list[dict] = [
         "name": "field_visit_report_lines",
         "description": "Finding rows on field visit reports",
         "tables": ["field_visit_report_lines"],
+    },
+    {
+        "version": "2026060301",
+        "name": "field_visit_report_line_grouping",
+        "description": (
+            "Row grouping columns on field visit report lines (FR-3.1)"
+        ),
+        "tables": ["field_visit_report_lines"],
+    },
+    {
+        "version": "2026060302",
+        "name": "field_visit_report_line_photos",
+        "description": (
+            "Multiple photos per field visit report line (FR-3.3)"
+        ),
+        "tables": ["field_visit_report_line_photos"],
+    },
+    {
+        "version": "2026060303",
+        "name": "project_field_report_scheme",
+        "description": (
+            "TAMA38 scheme on projects for field report metadata prefill (FR-4.3)"
+        ),
+        "tables": ["projects"],
     },
 ]
 

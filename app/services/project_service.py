@@ -4,6 +4,16 @@ from app.repositories.project_repository import (
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from app.config.field_report_project_scheme import (
+    is_valid_project_scheme,
+)
+
+
+def _normalized_project_scheme(scheme: str | None) -> str | None:
+    if scheme and is_valid_project_scheme(scheme):
+        return scheme
+    return None
+
 
 class ProjectService:
 
@@ -26,6 +36,7 @@ class ProjectService:
         organization_id: str | None = None,
         owner_id: str | None = None,
         tags: list[str] | None = None,
+        scheme: str | None = None,
     ):
         normalized_tags = self._normalize_tags(tags)
         return (
@@ -58,6 +69,9 @@ class ProjectService:
                 tags=
                     normalized_tags,
 
+                scheme=
+                    _normalized_project_scheme(scheme),
+
                 status=
                     "ACTIVE",
             )
@@ -73,6 +87,7 @@ class ProjectService:
         lawyer_name: str | None = None,
         supervisor_name: str | None = None,
         supervisor_email: str | None = None,
+        scheme: str | None = None,
     ):
         updates = {
             "project_name": project_name,
@@ -81,6 +96,7 @@ class ProjectService:
             "lawyer_name": lawyer_name,
             "supervisor_name": supervisor_name,
             "supervisor_email": supervisor_email,
+            "scheme": _normalized_project_scheme(scheme),
         }
         return self.project_repository.update_project(project_id, updates)
 

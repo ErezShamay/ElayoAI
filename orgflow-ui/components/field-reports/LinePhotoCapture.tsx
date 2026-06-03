@@ -4,97 +4,174 @@ import { useEffect, useRef, useState } from "react";
 
 import Button from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api/client";
+import { MAX_LINE_PHOTOS } from "@/lib/field-reports/line-photo-constants";
 import {
+  canAddLinePhoto,
+  countLinePhotosLocally,
   createLinePhotoObjectUrl,
   deleteLinePhotoLocally,
-  loadLinePhotoLocally,
+  listLinePhotosForLine,
   saveLinePhotoLocally,
 } from "@/lib/field-reports/line-photo-store";
 import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
 import { useOffline } from "@/providers/OfflineProvider";
 
+export type LinePhotoSummary = {
+  id: string;
+  url: string;
+};
+
+export type LinePhotosChangePayload = {
+  has_photo: boolean;
+  photo_ids: string[];
+  photos: LinePhotoSummary[];
+  photo_url: string | null;
+};
+
 type LinePhotoCaptureProps = {
   reportId: string;
   lineId: string;
-  hasServerPhoto: boolean;
+  photos?: LinePhotoSummary[];
+  hasServerPhoto?: boolean;
   photoUrl?: string | null;
   disabled?: boolean;
-  onPhotoChange?: (hasPhoto: boolean) => void;
+  onPhotosChange?: (payload: LinePhotosChangePayload) => void;
+};
+
+type PreviewItem = {
+  id: string;
+  url: string;
+  pendingLocal: boolean;
 };
 
 export default function LinePhotoCapture({
   reportId,
   lineId,
-  hasServerPhoto,
+  photos = [],
+  hasServerPhoto = false,
   photoUrl,
   disabled = false,
-  onPhotoChange,
+  onPhotosChange,
 }: LinePhotoCaptureProps) {
   const { isOnline } = useOffline();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [pendingLocal, setPendingLocal] = useState(false);
+  const [previews, setPreviews] = useState<PreviewItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [cameraBlocked, setCameraBlocked] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let objectUrl: string | null = null;
     let cancelled = false;
+    const objectUrls: string[] = [];
 
-    async function loadPreview() {
+    async function loadPreviews() {
       setError("");
+      const remotePhotos =
+        photos.length > 0
+          ? photos
+          : hasServerPhoto && photoUrl
+            ? [{ id: "legacy", url: photoUrl }]
+            : [];
+      const items: PreviewItem[] = [];
+      const localPhotos = await listLinePhotosForLine(reportId, lineId);
 
-      if (hasServerPhoto && photoUrl && isOnline) {
-        const response = await apiFetch(photoUrl);
+      for (const local of localPhotos) {
+        const url = createLinePhotoObjectUrl(local.blob);
+        objectUrls.push(url);
+        items.push({
+          id: local.photoId,
+          url,
+          pendingLocal: local.pendingUpload,
+        });
+      }
+
+      for (const remote of remotePhotos) {
+        if (items.some((item) => item.id === remote.id)) {
+          continue;
+        }
+
+        if (!isOnline) {
+          continue;
+        }
+
+        const response = await apiFetch(remote.url);
         if (!response.ok) {
-          return;
+          continue;
         }
         const blob = await response.blob();
         if (cancelled) {
-          return;
+          continue;
         }
-        objectUrl = createLinePhotoObjectUrl(blob);
-        setPreviewUrl(objectUrl);
-        setPendingLocal(false);
-        return;
+        const url = createLinePhotoObjectUrl(blob);
+        objectUrls.push(url);
+        items.push({
+          id: remote.id,
+          url,
+          pendingLocal: false,
+        });
       }
 
-      const local = await loadLinePhotoLocally(reportId, lineId);
-      if (cancelled || !local) {
-        if (!cancelled && !hasServerPhoto) {
-          setPreviewUrl(null);
-          setPendingLocal(false);
-        }
-        return;
+      if (!cancelled) {
+        setPreviews(items);
       }
-
-      objectUrl = createLinePhotoObjectUrl(local.blob);
-      setPreviewUrl(objectUrl);
-      setPendingLocal(local.pendingUpload);
     }
 
-    void loadPreview();
+    void loadPreviews();
 
     return () => {
       cancelled = true;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
+      for (const url of objectUrls) {
+        URL.revokeObjectURL(url);
       }
     };
-  }, [hasServerPhoto, photoUrl, isOnline, lineId, reportId]);
+  }, [hasServerPhoto, isOnline, lineId, photoUrl, photos, reportId]);
 
   useEffect(() => {
     return () => {
-      if (previewUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(previewUrl);
+      for (const preview of previews) {
+        if (preview.url.startsWith("blob:")) {
+          URL.revokeObjectURL(preview.url);
+        }
       }
     };
-  }, [previewUrl]);
+  }, [previews]);
+
+  function emitFromLine(line: Record<string, unknown>) {
+    const photoIds = Array.isArray(line.photo_ids)
+      ? line.photo_ids.map(String)
+      : [];
+    const photoList = Array.isArray(line.photos)
+      ? line.photos.map((photo) => ({
+          id: String((photo as { id: string }).id),
+          url: String((photo as { url: string }).url),
+        }))
+      : [];
+
+    onPhotosChange?.({
+      has_photo: Boolean(line.has_photo),
+      photo_ids: photoIds,
+      photos: photoList,
+      photo_url:
+        typeof line.photo_url === "string" ? line.photo_url : null,
+    });
+  }
 
   async function handleFileSelected(file: File | null) {
     if (!file || disabled) {
+      return;
+    }
+
+    const remoteCount =
+      photos.length > 0
+        ? photos.length
+        : hasServerPhoto
+          ? 1
+          : 0;
+    const localCount = await countLinePhotosLocally(reportId, lineId);
+    const totalCount = Math.max(localCount, remoteCount);
+    if (!canAddLinePhoto(totalCount)) {
+      setError(`ניתן לצרף עד ${MAX_LINE_PHOTOS} תמונות לשורה`);
       return;
     }
 
@@ -103,29 +180,24 @@ export default function LinePhotoCapture({
     setUploading(true);
 
     try {
-      await saveLinePhotoLocally(reportId, lineId, file, {
+      const localPhotoId = await saveLinePhotoLocally(reportId, lineId, file, {
         pendingUpload: !isOnline,
       });
-
-      if (previewUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setPreviewUrl(createLinePhotoObjectUrl(file));
-      setPendingLocal(!isOnline);
-      onPhotoChange?.(true);
 
       if (isOnline) {
         try {
           const formData = new FormData();
           formData.append("file", file, file.name || "line-photo.jpg");
 
-          const response = await apiFetch(
-            `/field-reports/visits/${reportId}/lines/${lineId}/photo`,
-            {
-              method: "POST",
-              body: formData,
-            }
-          );
+          const endpoint =
+            remoteCount === 0
+              ? `/field-reports/visits/${reportId}/lines/${lineId}/photo`
+              : `/field-reports/visits/${reportId}/lines/${lineId}/photos`;
+
+          const response = await apiFetch(endpoint, {
+            method: "POST",
+            body: formData,
+          });
 
           if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
@@ -136,18 +208,23 @@ export default function LinePhotoCapture({
             );
           }
 
-          await saveLinePhotoLocally(reportId, lineId, file, {
-            pendingUpload: false,
-          });
-          setPendingLocal(false);
+          const line = await response.json();
+          await deleteLinePhotoLocally(reportId, lineId, localPhotoId);
+          emitFromLine(line);
         } catch (uploadError: unknown) {
-          // Keep the local photo as pending so background sync can retry.
           await saveLinePhotoLocally(reportId, lineId, file, {
             pendingUpload: true,
+            photoId: localPhotoId,
           });
-          setPendingLocal(true);
           setError(getPhotoActionErrorMessage(uploadError, "save"));
         }
+      } else {
+        onPhotosChange?.({
+          has_photo: true,
+          photo_ids: [...photos.map((photo) => photo.id), localPhotoId],
+          photos,
+          photo_url: photoUrl ?? null,
+        });
       }
     } catch (err: unknown) {
       setError(getPhotoActionErrorMessage(err, "save"));
@@ -156,7 +233,7 @@ export default function LinePhotoCapture({
     }
   }
 
-  async function removePhoto() {
+  async function removePhoto(photoId: string) {
     if (disabled) {
       return;
     }
@@ -165,11 +242,13 @@ export default function LinePhotoCapture({
     setUploading(true);
 
     try {
-      if (isOnline && hasServerPhoto) {
-        const response = await apiFetch(
-          `/field-reports/visits/${reportId}/lines/${lineId}/photo`,
-          { method: "DELETE" }
-        );
+      if (isOnline) {
+        const endpoint =
+          photoId === "legacy"
+            ? `/field-reports/visits/${reportId}/lines/${lineId}/photo`
+            : `/field-reports/visits/${reportId}/lines/${lineId}/photos/${photoId}`;
+
+        const response = await apiFetch(endpoint, { method: "DELETE" });
 
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
@@ -179,16 +258,23 @@ export default function LinePhotoCapture({
               || "מחיקת התמונה נכשלה"
           );
         }
+
+        const line = await response.json();
+        emitFromLine(line);
       }
 
-      await deleteLinePhotoLocally(reportId, lineId);
+      await deleteLinePhotoLocally(reportId, lineId, photoId);
+      setPreviews((current) => current.filter((item) => item.id !== photoId));
 
-      if (previewUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(previewUrl);
+      if (!isOnline) {
+        const remaining = photos.filter((photo) => photo.id !== photoId);
+        onPhotosChange?.({
+          has_photo: remaining.length > 0,
+          photo_ids: remaining.map((photo) => photo.id),
+          photos: remaining,
+          photo_url: remaining[0]?.url ?? null,
+        });
       }
-      setPreviewUrl(null);
-      setPendingLocal(false);
-      onPhotoChange?.(false);
     } catch (err: unknown) {
       setError(getPhotoActionErrorMessage(err, "delete"));
     } finally {
@@ -216,6 +302,13 @@ export default function LinePhotoCapture({
     cameraInputRef.current?.click();
   }
 
+  const canAddMore = canAddLinePhoto(
+    Math.max(
+      previews.length,
+      photos.length > 0 ? photos.length : hasServerPhoto ? 1 : 0
+    )
+  );
+
   return (
     <div className="mt-3 space-y-2">
       <input
@@ -224,7 +317,7 @@ export default function LinePhotoCapture({
         accept="image/*"
         capture="environment"
         className="hidden"
-        disabled={disabled || uploading}
+        disabled={disabled || uploading || !canAddMore}
         onChange={(event) => {
           const file = event.target.files?.[0] ?? null;
           void handleFileSelected(file);
@@ -236,7 +329,7 @@ export default function LinePhotoCapture({
         type="file"
         accept="image/*"
         className="hidden"
-        disabled={disabled || uploading}
+        disabled={disabled || uploading || !canAddMore}
         onChange={(event) => {
           const file = event.target.files?.[0] ?? null;
           void handleFileSelected(file);
@@ -244,20 +337,37 @@ export default function LinePhotoCapture({
         }}
       />
 
-      {previewUrl ? (
+      {previews.length > 0 ? (
         <div className="space-y-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={previewUrl}
-            alt="תמונת ממצא"
-            className="max-h-56 w-full rounded-lg border border-zinc-200 object-cover lg:max-h-48"
-          />
-          {pendingLocal ? (
-            <p className="text-xs text-amber-700">
-              נשמר במכשיר — יועלה לשרת כשתחזור רשת
-            </p>
-          ) : null}
-          {!disabled ? (
+          <div className="flex flex-wrap gap-2">
+            {previews.map((preview) => (
+              <div
+                key={preview.id}
+                className="relative w-24 shrink-0 space-y-1"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={preview.url}
+                  alt="תמונת ממצא"
+                  className="h-24 w-24 rounded-lg border border-zinc-200 object-cover"
+                />
+                {preview.pendingLocal ? (
+                  <p className="text-[10px] text-amber-700">ממתין לרשת</p>
+                ) : null}
+                {!disabled ? (
+                  <button
+                    type="button"
+                    className="w-full rounded border border-zinc-200 px-1 py-1 text-[11px] text-zinc-600"
+                    disabled={uploading}
+                    onClick={() => void removePhoto(preview.id)}
+                  >
+                    הסר
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {!disabled && canAddMore ? (
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="secondary"
@@ -267,7 +377,7 @@ export default function LinePhotoCapture({
                 disabled={uploading}
                 onClick={() => void openCameraPicker()}
               >
-                החלף תמונה
+                {uploading ? "שומר..." : "צלם תמונה"}
               </Button>
               <Button
                 variant="secondary"
@@ -277,19 +387,14 @@ export default function LinePhotoCapture({
                 disabled={uploading}
                 onClick={() => galleryInputRef.current?.click()}
               >
-                בחר מהגלריה
-              </Button>
-              <Button
-                variant="secondary"
-                size="lg"
-                className={`flex-1 sm:flex-none ${FR_TOUCH_BUTTON}`}
-                type="button"
-                disabled={uploading}
-                onClick={() => void removePhoto()}
-              >
-                הסר תמונה
+                הוסף מהגלריה
               </Button>
             </div>
+          ) : null}
+          {!canAddMore ? (
+            <p className="text-xs text-zinc-500">
+              {`הגעת למקסימום ${MAX_LINE_PHOTOS} תמונות לשורה`}
+            </p>
           ) : null}
         </div>
       ) : !disabled ? (

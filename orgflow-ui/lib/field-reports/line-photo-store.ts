@@ -1,10 +1,17 @@
+import { MAX_LINE_PHOTOS } from "@/lib/field-reports/line-photo-constants";
+
 const DB_NAME = "orgflow-field-report-line-photos";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "photos";
+
+/** מזהה תמונה מקומית ראשית — תאימות לגרסה 1. */
+export const PRIMARY_LINE_PHOTO_ID = "primary";
 
 export type StoredLinePhoto = {
   lineId: string;
   reportId: string;
+  lineRowId: string;
+  photoId: string;
   blob: Blob;
   mimeType: string;
   updatedAt: string;
@@ -24,10 +31,39 @@ function openDatabase(): Promise<IDBDatabase> {
       reject(request.error ?? new Error("Failed to open photo store"));
     };
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result;
+      const upgrade = event.target as IDBOpenDBRequest;
+      const transaction = upgrade.transaction;
+
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         database.createObjectStore(STORE_NAME, { keyPath: "lineId" });
+        return;
+      }
+
+      if (event.oldVersion < 2 && transaction) {
+        const store = transaction.objectStore(STORE_NAME);
+        const getAll = store.getAll();
+        getAll.onsuccess = () => {
+          const records = (getAll.result as StoredLinePhoto[]) ?? [];
+          for (const record of records) {
+            if (!record.photoId) {
+              const lineRowId = parseLineIdFromPhotoKey(record.lineId, record.reportId);
+              const migrated: StoredLinePhoto = {
+                ...record,
+                lineRowId,
+                photoId: PRIMARY_LINE_PHOTO_ID,
+                lineId: photoStorageKey(
+                  record.reportId,
+                  lineRowId,
+                  PRIMARY_LINE_PHOTO_ID
+                ),
+              };
+              store.delete(record.lineId);
+              store.put(migrated);
+            }
+          }
+        };
       }
     };
 
@@ -37,24 +73,31 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-function photoKey(reportId: string, lineId: string) {
-  return `${reportId}:${lineId}`;
+export function photoStorageKey(
+  reportId: string,
+  lineId: string,
+  photoId: string
+) {
+  return `${reportId}:${lineId}:${photoId}`;
 }
 
 export async function saveLinePhotoLocally(
   reportId: string,
   lineId: string,
   file: Blob,
-  options: { pendingUpload: boolean }
-): Promise<void> {
+  options: { pendingUpload: boolean; photoId?: string }
+): Promise<string> {
+  const photoId = options.photoId ?? crypto.randomUUID();
   const database = await openDatabase();
 
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
     const record: StoredLinePhoto = {
-      lineId: photoKey(reportId, lineId),
+      lineId: photoStorageKey(reportId, lineId, photoId),
       reportId,
+      lineRowId: lineId,
+      photoId,
       blob: file,
       mimeType: file.type || "image/jpeg",
       updatedAt: new Date().toISOString(),
@@ -71,11 +114,13 @@ export async function saveLinePhotoLocally(
   });
 
   database.close();
+  return photoId;
 }
 
 export async function loadLinePhotoLocally(
   reportId: string,
-  lineId: string
+  lineId: string,
+  photoId: string = PRIMARY_LINE_PHOTO_ID
 ): Promise<StoredLinePhoto | null> {
   const database = await openDatabase();
 
@@ -83,7 +128,7 @@ export async function loadLinePhotoLocally(
     (resolve, reject) => {
       const transaction = database.transaction(STORE_NAME, "readonly");
       const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(photoKey(reportId, lineId));
+      const request = store.get(photoStorageKey(reportId, lineId, photoId));
 
       request.onerror = () => {
         reject(request.error ?? new Error("Failed to load line photo"));
@@ -96,6 +141,16 @@ export async function loadLinePhotoLocally(
 
   database.close();
   return record;
+}
+
+export async function listLinePhotosForLine(
+  reportId: string,
+  lineId: string
+): Promise<StoredLinePhoto[]> {
+  const all = await listLinePhotosForReport(reportId);
+  return all
+    .filter((record) => record.lineRowId === lineId)
+    .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
 }
 
 export async function listLinePhotosForReport(
@@ -153,19 +208,35 @@ export async function listPendingLinePhotos(
 
 export function parseLineIdFromPhotoKey(lineKey: string, reportId: string) {
   const prefix = `${reportId}:`;
-  return lineKey.startsWith(prefix) ? lineKey.slice(prefix.length) : lineKey;
+  if (!lineKey.startsWith(prefix)) {
+    return lineKey;
+  }
+  const remainder = lineKey.slice(prefix.length);
+  const parts = remainder.split(":");
+  return parts[0] ?? remainder;
+}
+
+export function parsePhotoIdFromPhotoKey(lineKey: string, reportId: string) {
+  const prefix = `${reportId}:`;
+  if (!lineKey.startsWith(prefix)) {
+    return PRIMARY_LINE_PHOTO_ID;
+  }
+  const remainder = lineKey.slice(prefix.length);
+  const parts = remainder.split(":");
+  return parts[1] ?? PRIMARY_LINE_PHOTO_ID;
 }
 
 export async function deleteLinePhotoLocally(
   reportId: string,
-  lineId: string
+  lineId: string,
+  photoId: string = PRIMARY_LINE_PHOTO_ID
 ): Promise<void> {
   const database = await openDatabase();
 
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(photoKey(reportId, lineId));
+    const request = store.delete(photoStorageKey(reportId, lineId, photoId));
 
     request.onerror = () => {
       reject(request.error ?? new Error("Failed to delete line photo"));
@@ -176,6 +247,18 @@ export async function deleteLinePhotoLocally(
   });
 
   database.close();
+}
+
+export async function countLinePhotosLocally(
+  reportId: string,
+  lineId: string
+): Promise<number> {
+  const photos = await listLinePhotosForLine(reportId, lineId);
+  return photos.length;
+}
+
+export function canAddLinePhoto(count: number): boolean {
+  return count < MAX_LINE_PHOTOS;
 }
 
 export function createLinePhotoObjectUrl(blob: Blob) {

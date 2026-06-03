@@ -7,6 +7,7 @@ from typing import Any
 
 from app.config.field_report_visit_types import (
     VISIT_TYPE_FINISHING_APARTMENTS,
+    VISIT_TYPE_MIXED,
     VISIT_TYPE_STRUCTURE_SITE,
 )
 
@@ -78,6 +79,10 @@ VISIT_TYPE_PROGRESS_CONFIG: dict[str, dict[str, Any]] = {
         "default_rows": DEFAULT_STRUCTURE_SITE_PROGRESS_ROWS,
     },
     VISIT_TYPE_FINISHING_APARTMENTS: {
+        "title_he": FINISHING_APARTMENTS_PROGRESS_TITLE_HE,
+        "default_rows": DEFAULT_FINISHING_APARTMENTS_PROGRESS_ROWS,
+    },
+    VISIT_TYPE_MIXED: {
         "title_he": FINISHING_APARTMENTS_PROGRESS_TITLE_HE,
         "default_rows": DEFAULT_FINISHING_APARTMENTS_PROGRESS_ROWS,
     },

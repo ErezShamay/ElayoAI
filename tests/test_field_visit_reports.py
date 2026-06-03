@@ -42,6 +42,57 @@ def _headers(token: str, org_id: str = "org-1") -> dict[str, str]:
     }
 
 
+class FakeVisitReportLinePhotoRepository:
+    def __init__(self) -> None:
+        self.records: dict[str, dict] = {}
+        self._counter = 0
+
+    def is_storage_available(self) -> bool:
+        return True
+
+    def list_by_line(self, line_id: str) -> list[dict]:
+        photos = [
+            record
+            for record in self.records.values()
+            if record["line_id"] == line_id
+        ]
+        return sorted(photos, key=lambda photo: photo["sort_order"])
+
+    def get_by_id(self, photo_id: str) -> dict | None:
+        return self.records.get(photo_id)
+
+    def count_by_line(self, line_id: str) -> int:
+        return len(self.list_by_line(line_id))
+
+    def next_sort_order(self, line_id: str) -> int:
+        photos = self.list_by_line(line_id)
+        if not photos:
+            return 0
+        return max(int(photo["sort_order"]) for photo in photos) + 1
+
+    def create(self, payload: dict) -> dict:
+        photo_id = payload.get("id")
+        if not photo_id:
+            self._counter += 1
+            photo_id = f"photo-{self._counter}"
+            payload = {**payload, "id": photo_id}
+        self.records[str(photo_id)] = payload
+        return payload
+
+    def delete(self, photo_id: str) -> bool:
+        return self.records.pop(photo_id, None) is not None
+
+    def delete_by_line(self, line_id: str) -> int:
+        to_delete = [
+            photo_id
+            for photo_id, record in self.records.items()
+            if record["line_id"] == line_id
+        ]
+        for photo_id in to_delete:
+            self.records.pop(photo_id, None)
+        return len(to_delete)
+
+
 class FakeVisitReportLineRepository:
     def __init__(self) -> None:
         self.records: dict[str, dict] = {}
@@ -163,6 +214,11 @@ class FakeProjectRepository:
             "id": project_id,
             "organization_id": "org-1",
             "project_name": "פרויקט בדיקה",
+            "scheme": "TAMA38_STRENGTHENING",
+            "developer_name": "יזם בדיקה",
+            "developer_pm_name": "מנהל בדיקה",
+            "lawyer_name": "עו״ד בדיקה",
+            "city": "תל אביב",
         }
 
     def get_projects_by_organization(
@@ -294,9 +350,13 @@ def test_visit_types_and_create_list(monkeypatch):
     )
     assert types_response.status_code == 200
     types = types_response.json()["visit_types"]
-    assert len(types) == 2
+    assert len(types) == 3
     codes = {item["code"] for item in types}
-    assert codes == {"STRUCTURE_SITE", "FINISHING_APARTMENTS"}
+    assert codes == {
+        "STRUCTURE_SITE",
+        "FINISHING_APARTMENTS",
+        "MIXED",
+    }
 
     create_response = client.post(
         "/field-reports/visits",
@@ -314,12 +374,29 @@ def test_visit_types_and_create_list(monkeypatch):
     header_fields = created["header_fields"]
     assert header_fields["project_updates"] == []
     assert header_fields["contractor_notes"] == []
-    assert header_fields["winter_recommendations"] == (
-        DEFAULT_WINTER_RECOMMENDATIONS_HE
+    assert header_fields["winter_recommendations"] == ""
+    assert header_fields["include_fixed_text_blocks"] is True
+    fixed_blocks = header_fields["fixed_text_blocks"]
+    assert len(fixed_blocks) == 3
+    assert fixed_blocks[0]["kind"] == "non_conformance_disclaimer"
+    winter_block = next(
+        block
+        for block in fixed_blocks
+        if block["kind"] == "winter_recommendations"
     )
+    assert winter_block["enabled"] is False
     assert header_fields["construction_progress"] == (
         DEFAULT_STRUCTURE_SITE_PROGRESS_ROWS
     )
+    assert header_fields["project_metadata"]["scheme"] == (
+        "TAMA38_STRENGTHENING"
+    )
+    assert header_fields["developer_name"] == "יזם בדיקה"
+    stakeholder_roles = {
+        item["role"] for item in header_fields.get("stakeholders", [])
+    }
+    assert "developer" in stakeholder_roles
+    assert "lawyer_tenants" in stakeholder_roles
 
     duplicate_response = client.post(
         "/field-reports/visits",
@@ -338,6 +415,38 @@ def test_visit_types_and_create_list(monkeypatch):
     )
     assert list_response.status_code == 200
     assert list_response.json()["total"] == 1
+
+
+def test_create_mixed_visit_report(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-2",
+            "visit_type": "MIXED",
+            "visit_date": "2026-06-03",
+        },
+    )
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["visit_type"] == "MIXED"
+    assert created["visit_type_label_he"] == "סיור משולב"
+
+    catalog_response = client.get(
+        "/field-reports/catalog?visit_type=MIXED",
+        headers=_headers(token),
+    )
+    assert catalog_response.status_code == 200
+    catalog = catalog_response.json()
+    assert "STRUCTURAL_WORKS" in {
+        issue["top_family"] for issue in catalog["issues"]
+    }
+    assert "FINISHING_WORKS" in {
+        issue["top_family"] for issue in catalog["issues"]
+    }
 
 
 def test_viewer_cannot_create_visit_report(monkeypatch):
@@ -429,6 +538,63 @@ def test_create_line_from_catalog_and_free_text(monkeypatch):
     assert cleared["has_catalog_issue"] is False
 
 
+def test_create_and_update_line_with_group_key(monkeypatch):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "FINISHING_APARTMENTS",
+            "visit_date": "2026-06-01",
+        },
+    )
+    report_id = create_response.json()["id"]
+
+    create_line = client.post(
+        f"/field-reports/visits/{report_id}/lines",
+        headers=_headers(token),
+        json={
+            "description": "בדיקת איטום",
+            "group_key": "apartment:3",
+            "group_label_he": "דירה 3",
+        },
+    )
+    assert create_line.status_code == 200
+    payload = create_line.json()
+    assert payload["group_key"] == "apartment:3"
+    assert payload["group_label_he"] == "דירה 3"
+
+    line_id = payload["id"]
+    update_line = client.patch(
+        f"/field-reports/visits/{report_id}/lines/{line_id}",
+        headers=_headers(token),
+        json={
+            "group_key": "floor:2",
+            "group_label_he": "קומה 2",
+        },
+    )
+    assert update_line.status_code == 200
+    updated = update_line.json()
+    assert updated["group_key"] == "floor:2"
+    assert updated["group_label_he"] == "קומה 2"
+
+    clear_group = client.patch(
+        f"/field-reports/visits/{report_id}/lines/{line_id}",
+        headers=_headers(token),
+        json={
+            "group_key": None,
+            "group_label_he": None,
+        },
+    )
+    assert clear_group.status_code == 200
+    cleared = clear_group.json()
+    assert cleared["group_key"] is None
+    assert cleared["group_label_he"] is None
+
+
 def test_catalog_endpoint_includes_family_labels(monkeypatch):
     client = _setup_client(monkeypatch)
     token = _token()
@@ -473,6 +639,7 @@ def test_upload_and_delete_line_photo(monkeypatch, tmp_path):
     visit_service = FieldVisitReportService(
         report_repository=FakeVisitReportRepository(),
         line_repository=FakeVisitReportLineRepository(),
+        line_photo_repository=FakeVisitReportLinePhotoRepository(),
         project_repository=FakeProjectRepository(),
         organization_profile_service=FieldReportOrganizationProfileService(
             organization_repository=FakeOrganizationRepository(),
@@ -533,6 +700,101 @@ def test_upload_and_delete_line_photo(monkeypatch, tmp_path):
     )
     assert delete_response.status_code == 200
     assert delete_response.json()["has_photo"] is False
+
+
+def test_add_multiple_line_photos(monkeypatch, tmp_path):
+    client = _setup_client(monkeypatch)
+    token = _token()
+
+    from app.services.field_visit_report_photo_service import (
+        FieldVisitReportPhotoService,
+    )
+
+    visit_service = FieldVisitReportService(
+        report_repository=FakeVisitReportRepository(),
+        line_repository=FakeVisitReportLineRepository(),
+        line_photo_repository=FakeVisitReportLinePhotoRepository(),
+        project_repository=FakeProjectRepository(),
+        organization_profile_service=FieldReportOrganizationProfileService(
+            organization_repository=FakeOrganizationRepository(),
+            module_service=FieldReportModuleService(
+                module_repository=FakeModuleRepository(),
+                organization_repository=FakeOrganizationRepository(),
+            ),
+        ),
+        photo_service=FieldVisitReportPhotoService(
+            photos_root=tmp_path
+        ),
+    )
+    monkeypatch.setattr(
+        "app.main.field_visit_report_service",
+        visit_service,
+    )
+
+    create_response = client.post(
+        "/field-reports/visits",
+        headers=_headers(token),
+        json={
+            "project_id": "project-1",
+            "visit_type": "STRUCTURE_SITE",
+            "visit_date": "2026-06-01",
+        },
+    )
+    report_id = create_response.json()["id"]
+
+    line_response = client.post(
+        f"/field-reports/visits/{report_id}/lines",
+        headers=_headers(token),
+        json={"description": "שורה עם שתי תמונות"},
+    )
+    line_id = line_response.json()["id"]
+
+    first_upload = client.post(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photo",
+        headers=_headers(token),
+        files={
+            "file": ("first.jpg", b"first-image", "image/jpeg"),
+        },
+    )
+    assert first_upload.status_code == 200
+    first_payload = first_upload.json()
+    assert first_payload["has_photo"] is True
+    assert len(first_payload["photo_ids"]) == 1
+
+    second_upload = client.post(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photos",
+        headers=_headers(token),
+        files={
+            "file": ("second.jpg", b"second-image", "image/jpeg"),
+        },
+    )
+    assert second_upload.status_code == 200
+    second_payload = second_upload.json()
+    assert len(second_payload["photo_ids"]) == 2
+    assert len(second_payload["photos"]) == 2
+
+    list_response = client.get(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photos",
+        headers=_headers(token),
+    )
+    assert list_response.status_code == 200
+    assert len(list_response.json()["photo_ids"]) == 2
+
+    photo_id = second_payload["photo_ids"][1]
+    photo_response = client.get(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photos/{photo_id}",
+        headers=_headers(token),
+    )
+    assert photo_response.status_code == 200
+    assert photo_response.content == b"second-image"
+
+    delete_one = client.delete(
+        f"/field-reports/visits/{report_id}/lines/{line_id}/photos/{photo_id}",
+        headers=_headers(token),
+    )
+    assert delete_one.status_code == 200
+    assert len(delete_one.json()["photo_ids"]) == 1
+    assert delete_one.json()["has_photo"] is True
 
 
 def test_close_preview_and_close_report(monkeypatch):

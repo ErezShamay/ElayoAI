@@ -21,6 +21,8 @@ def test_catalog_filters_by_visit_type():
     finishing = service.get_catalog_for_visit_type(
         "FINISHING_APARTMENTS"
     )
+    mixed = service.get_catalog_for_visit_type("MIXED")
+    full = service.get_full_catalog()
 
     structure_families = {
         item["top_family"] for item in structure["issues"]
@@ -33,6 +35,7 @@ def test_catalog_filters_by_visit_type():
     assert "STRUCTURAL_WORKS" not in finishing_families
     assert "FINISHING_WORKS" in finishing_families
     assert "FINISHING_WORKS" not in structure_families
+    assert mixed["issue_count"] == full["issue_count"]
 
 
 def test_find_issue_str_02_001():

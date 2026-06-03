@@ -829,6 +829,7 @@ class CreateProjectRequest(
     organization_id: str | None = None
     owner_id: str | None = None
     tags: list[str] = Field(default_factory=list)
+    scheme: str | None = None
 
 
 class EditProjectRequest(
@@ -840,6 +841,7 @@ class EditProjectRequest(
     lawyer_name: str | None = None
     supervisor_name: str | None = None
     supervisor_email: str | None = None
+    scheme: str | None = None
 
 
 class ProjectTagsRequest(
@@ -1775,6 +1777,88 @@ def delete_field_visit_report_line_photo(
     )
 
 
+@app.get(
+    "/field-reports/visits/{report_id}/lines/{line_id}/photos"
+)
+def list_field_visit_report_line_photos(
+    report_id: str,
+    line_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.list_line_photos(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+    )
+
+
+@app.post(
+    "/field-reports/visits/{report_id}/lines/{line_id}/photos"
+)
+async def add_field_visit_report_line_photo(
+    report_id: str,
+    line_id: str,
+    file: UploadFile = File(...),
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    content = await file.read()
+    return field_visit_report_service.add_line_photo(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+        content=content,
+        content_type=file.content_type,
+        filename=file.filename,
+    )
+
+
+@app.get(
+    "/field-reports/visits/{report_id}/lines/{line_id}/photos/{photo_id}"
+)
+def get_field_visit_report_line_photo_by_id(
+    report_id: str,
+    line_id: str,
+    photo_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    content, content_type = field_visit_report_service.get_line_photo_by_id(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+        photo_id=photo_id,
+    )
+    return Response(content=content, media_type=content_type)
+
+
+@app.delete(
+    "/field-reports/visits/{report_id}/lines/{line_id}/photos/{photo_id}"
+)
+def delete_field_visit_report_line_photo_by_id(
+    report_id: str,
+    line_id: str,
+    photo_id: str,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.delete_line_photo_by_id(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        line_id=line_id,
+        photo_id=photo_id,
+    )
+
+
 @app.get("/admin/tenant-migration/status")
 def get_tenant_migration_status(
     _: object = Depends(require_permission("organizations:write")),
@@ -2462,6 +2546,7 @@ def create_project(
         organization_id=auth.org_id,
         owner_id=request.owner_id or auth.user_id,
         tags=request.tags,
+        scheme=request.scheme,
     )
 
 
@@ -2475,6 +2560,7 @@ def edit_project(project_id: str, request: EditProjectRequest):
         lawyer_name=request.lawyer_name,
         supervisor_name=request.supervisor_name,
         supervisor_email=request.supervisor_email,
+        scheme=request.scheme,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")

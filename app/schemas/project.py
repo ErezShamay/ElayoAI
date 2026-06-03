@@ -1,6 +1,13 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+ProjectScheme = Literal[
+    "TAMA38_STRENGTHENING",
+    "TAMA38_DEMOLITION_REBUILD",
+    "TAMA38_RELOCATED_BUILD",
+]
 
 
 class Project(BaseModel):
@@ -12,6 +19,8 @@ class Project(BaseModel):
     project_type: str | None = None
 
     developer_name: str | None = None
+
+    scheme: ProjectScheme | None = None
 
     status: str = "active"
 

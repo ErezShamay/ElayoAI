@@ -55,6 +55,7 @@ type VisitReportLine = {
 
 type VisitReport = {
   id: string;
+  project_id?: string;
   project_name?: string;
   visit_type: string;
   visit_type_label_he: string;
@@ -118,8 +119,9 @@ export default function FieldVisitReportPage() {
   const showPendingSendState =
     isServerPendingSend || (localPendingSend && !hasPendingSendFailure);
 
-  const isReopenedForEdit =
-    report?.is_editable && Boolean(report?.was_closed);
+  const isReopenedForEdit = Boolean(
+    report?.is_editable && report?.was_closed
+  );
 
   const loadReport = useCallback(async () => {
     if (!reportId) {

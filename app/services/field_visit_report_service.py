@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from app.config.field_report_visit_types import (
     allowed_top_families,
@@ -11,6 +12,9 @@ from app.exceptions.exceptions import (
     ConflictError,
     NotFoundError,
     ValidationError,
+)
+from app.repositories.field_visit_report_line_photo_repository import (
+    FieldVisitReportLinePhotoRepository,
 )
 from app.repositories.field_visit_report_line_repository import (
     FieldVisitReportLineRepository,
@@ -55,6 +59,9 @@ REQUEST_SEND_ERROR_CODE_CORE_FAILED = (
     "FIELD_VISIT_REPORT_CORE_SEND_FAILED"
 )
 
+MAX_LINE_PHOTOS = 5
+LEGACY_LINE_PHOTO_ID = "legacy"
+
 
 class FieldVisitReportService:
     def __init__(
@@ -63,6 +70,8 @@ class FieldVisitReportService:
             FieldVisitReportRepository | None = None,
         line_repository:
             FieldVisitReportLineRepository | None = None,
+        line_photo_repository:
+            FieldVisitReportLinePhotoRepository | None = None,
         project_repository:
             ProjectRepository | None = None,
         organization_profile_service:
@@ -81,6 +90,9 @@ class FieldVisitReportService:
         )
         self.line_repository = (
             line_repository or FieldVisitReportLineRepository()
+        )
+        self.line_photo_repository = (
+            line_photo_repository or FieldVisitReportLinePhotoRepository()
         )
         self.project_repository = (
             project_repository or ProjectRepository()
@@ -105,6 +117,9 @@ class FieldVisitReportService:
 
     def are_lines_available(self) -> bool:
         return self.line_repository.is_storage_available()
+
+    def are_line_photos_available(self) -> bool:
+        return self.line_photo_repository.is_storage_available()
 
     def get_visit_types(self) -> dict:
         catalog = self.catalog_service.get_catalog_summary()
@@ -319,6 +334,7 @@ class FieldVisitReportService:
             project,
             header_fields,
             visit_type=visit_type,
+            visit_date=visit_date,
         )
         resolved_catalog_version = (
             catalog_version
@@ -748,12 +764,41 @@ class FieldVisitReportService:
             line_id=line_id,
         )
 
-        existing_photo = existing.get("photo_storage_path")
-        if existing_photo:
-            self.photo_service.delete_photo(str(existing_photo))
+        self._delete_all_line_photos(existing)
 
         self.line_repository.delete(line_id)
         return {"deleted": True, "id": line_id}
+
+    def list_line_photos(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        line_id: str,
+    ) -> dict:
+        if not self.are_lines_available():
+            raise ValidationError(
+                message=(
+                    "טבלת שורות דוח אינה מוגדרת במסד הנתונים. "
+                    "יש להריץ את המיגרציה "
+                    "db/migrations/2026060103_field_visit_report_lines.sql"
+                ),
+            )
+
+        self._get_org_report(
+            organization_id=organization_id,
+            report_id=report_id,
+        )
+        existing = self._get_org_line(
+            organization_id=organization_id,
+            report_id=report_id,
+            line_id=line_id,
+        )
+        return self._serialize_line_photos_payload(
+            report_id=report_id,
+            line_id=line_id,
+            photos=self._photos_for_line(existing),
+        )
 
     def upload_line_photo(
         self,
@@ -786,31 +831,66 @@ class FieldVisitReportService:
             line_id=line_id,
         )
 
-        previous_path = existing.get("photo_storage_path")
-        storage_path = self.photo_service.save_photo(
+        self._delete_all_line_photos(existing)
+        updated = self._store_line_photo(
             organization_id=organization_id,
             report_id=report_id,
-            line_id=line_id,
+            line=existing,
             content=content,
             content_type=content_type,
             filename=filename,
         )
+        return self._serialize_line(updated)
 
-        updated = self.line_repository.update(
-            line_id,
-            {"photo_storage_path": storage_path},
-        )
-        if not updated:
-            self.photo_service.delete_photo(storage_path)
-            raise NotFoundError(
-                message="Field visit report line not found",
-                resource_type="field_visit_report_line",
-                resource_id=line_id,
+    def add_line_photo(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        line_id: str,
+        content: bytes,
+        content_type: str | None,
+        filename: str | None = None,
+    ) -> dict:
+        if not self.are_lines_available():
+            raise ValidationError(
+                message=(
+                    "טבלת שורות דוח אינה מוגדרת במסד הנתונים. "
+                    "יש להריץ את המיגרציה "
+                    "db/migrations/2026060103_field_visit_report_lines.sql"
+                ),
             )
 
-        if previous_path and previous_path != storage_path:
-            self.photo_service.delete_photo(str(previous_path))
+        record = self._get_org_report(
+            organization_id=organization_id,
+            report_id=report_id,
+        )
+        self._ensure_editable(record)
 
+        existing = self._get_org_line(
+            organization_id=organization_id,
+            report_id=report_id,
+            line_id=line_id,
+        )
+        existing = self._migrate_legacy_line_photo(
+            organization_id=organization_id,
+            report_id=report_id,
+            line=existing,
+        )
+        photos = self._photos_for_line(existing)
+        if len(photos) >= MAX_LINE_PHOTOS:
+            raise ValidationError(
+                message=f"ניתן לצרף עד {MAX_LINE_PHOTOS} תמונות לשורה",
+            )
+
+        updated = self._store_line_photo(
+            organization_id=organization_id,
+            report_id=report_id,
+            line=existing,
+            content=content,
+            content_type=content_type,
+            filename=filename,
+        )
         return self._serialize_line(updated)
 
     def get_line_photo(
@@ -839,22 +919,51 @@ class FieldVisitReportService:
             line_id=line_id,
         )
 
-        storage_path = existing.get("photo_storage_path")
-        if not storage_path:
+        photos = self._photos_for_line(existing)
+        if not photos:
             raise NotFoundError(
                 message="Line photo not found",
                 resource_type="field_visit_report_line_photo",
                 resource_id=line_id,
             )
 
-        try:
-            return self.photo_service.read_photo(str(storage_path))
-        except FileNotFoundError as error:
+        return self._read_photo_record(photos[0])
+
+    def get_line_photo_by_id(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        line_id: str,
+        photo_id: str,
+    ) -> tuple[bytes, str]:
+        if not self.are_lines_available():
+            raise ValidationError(
+                message=(
+                    "טבלת שורות דוח אינה מוגדרת במסד הנתונים. "
+                    "יש להריץ את המיגרציה "
+                    "db/migrations/2026060103_field_visit_report_lines.sql"
+                ),
+            )
+
+        self._get_org_report(
+            organization_id=organization_id,
+            report_id=report_id,
+        )
+        existing = self._get_org_line(
+            organization_id=organization_id,
+            report_id=report_id,
+            line_id=line_id,
+        )
+        photo = self._find_line_photo(existing, photo_id)
+        if not photo:
             raise NotFoundError(
-                message="Line photo file not found",
+                message="Line photo not found",
                 resource_type="field_visit_report_line_photo",
-                resource_id=line_id,
-            ) from error
+                resource_id=photo_id,
+            )
+
+        return self._read_photo_record(photo)
 
     def delete_line_photo(
         self,
@@ -884,11 +993,7 @@ class FieldVisitReportService:
             line_id=line_id,
         )
 
-        previous_path = existing.get("photo_storage_path")
-        if not previous_path:
-            return self._serialize_line(existing)
-
-        self.photo_service.delete_photo(str(previous_path))
+        self._delete_all_line_photos(existing)
         updated = self.line_repository.update(
             line_id,
             {"photo_storage_path": None},
@@ -900,6 +1005,47 @@ class FieldVisitReportService:
                 resource_id=line_id,
             )
 
+        return self._serialize_line(updated)
+
+    def delete_line_photo_by_id(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        line_id: str,
+        photo_id: str,
+    ) -> dict:
+        if not self.are_lines_available():
+            raise ValidationError(
+                message=(
+                    "טבלת שורות דוח אינה מוגדרת במסד הנתונים. "
+                    "יש להריץ את המיגרציה "
+                    "db/migrations/2026060103_field_visit_report_lines.sql"
+                ),
+            )
+
+        record = self._get_org_report(
+            organization_id=organization_id,
+            report_id=report_id,
+        )
+        self._ensure_editable(record)
+
+        existing = self._get_org_line(
+            organization_id=organization_id,
+            report_id=report_id,
+            line_id=line_id,
+        )
+        photo = self._find_line_photo(existing, photo_id)
+        if not photo:
+            raise NotFoundError(
+                message="Line photo not found",
+                resource_type="field_visit_report_line_photo",
+                resource_id=photo_id,
+            )
+
+        self._delete_photo_record(existing, photo)
+        refreshed = self.line_repository.get_by_id(line_id) or existing
+        updated = self._sync_line_primary_storage_path(refreshed)
         return self._serialize_line(updated)
 
     def _get_org_line(
@@ -992,6 +1138,9 @@ class FieldVisitReportService:
             "top_family": normalized.get("top_family"),
             "category_id": normalized.get("category_id"),
             "category_name_he": normalized.get("category_name_he"),
+            "group_key": normalized.get("group_key"),
+            "group_label_he": normalized.get("group_label_he"),
+            "block_id": normalized.get("block_id"),
         }
 
     def _build_line_update_payload(
@@ -1021,6 +1170,9 @@ class FieldVisitReportService:
                 "severity",
                 "engineering_impact",
                 "sort_order",
+                "group_key",
+                "group_label_he",
+                "block_id",
             )
             payload = {
                 key: merged.get(key)
@@ -1059,6 +1211,9 @@ class FieldVisitReportService:
             "severity",
             "engineering_impact",
             "sort_order",
+            "group_key",
+            "group_label_he",
+            "block_id",
         ):
             if key in incoming:
                 update_payload[key] = incoming[key]
@@ -1187,6 +1342,227 @@ class FieldVisitReportService:
             ),
         }
 
+    def _line_photo_url(
+        self,
+        *,
+        report_id: str,
+        line_id: str,
+        photo_id: str,
+    ) -> str:
+        if photo_id == LEGACY_LINE_PHOTO_ID:
+            return (
+                f"/field-reports/visits/{report_id}/lines/{line_id}/photo"
+            )
+        return (
+            f"/field-reports/visits/{report_id}/lines/{line_id}"
+            f"/photos/{photo_id}"
+        )
+
+    def _photos_for_line(self, line: dict) -> list[dict]:
+        line_id = str(line["id"])
+        if self.are_line_photos_available():
+            photos = self.line_photo_repository.list_by_line(line_id)
+            if photos:
+                return photos
+
+        legacy_path = line.get("photo_storage_path")
+        if legacy_path:
+            return [
+                {
+                    "id": LEGACY_LINE_PHOTO_ID,
+                    "line_id": line_id,
+                    "storage_path": legacy_path,
+                    "sort_order": 0,
+                }
+            ]
+
+        return []
+
+    def _find_line_photo(
+        self,
+        line: dict,
+        photo_id: str,
+    ) -> dict | None:
+        for photo in self._photos_for_line(line):
+            if str(photo.get("id")) == photo_id:
+                return photo
+        return None
+
+    def _read_photo_record(self, photo: dict) -> tuple[bytes, str]:
+        storage_path = photo.get("storage_path")
+        if not storage_path:
+            raise NotFoundError(
+                message="Line photo file not found",
+                resource_type="field_visit_report_line_photo",
+                resource_id=str(photo.get("id")),
+            )
+
+        try:
+            return self.photo_service.read_photo(str(storage_path))
+        except FileNotFoundError as error:
+            raise NotFoundError(
+                message="Line photo file not found",
+                resource_type="field_visit_report_line_photo",
+                resource_id=str(photo.get("id")),
+            ) from error
+
+    def _serialize_line_photos_payload(
+        self,
+        *,
+        report_id: str,
+        line_id: str,
+        photos: list[dict],
+    ) -> dict:
+        serialized = [
+            {
+                "id": str(photo["id"]),
+                "url": self._line_photo_url(
+                    report_id=report_id,
+                    line_id=line_id,
+                    photo_id=str(photo["id"]),
+                ),
+                "sort_order": int(photo.get("sort_order") or 0),
+            }
+            for photo in photos
+        ]
+        return {
+            "line_id": line_id,
+            "photo_ids": [item["id"] for item in serialized],
+            "photos": serialized,
+        }
+
+    def _migrate_legacy_line_photo(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        line: dict,
+    ) -> dict:
+        if not self.are_line_photos_available():
+            return line
+
+        line_id = str(line["id"])
+        if self.line_photo_repository.list_by_line(line_id):
+            return line
+
+        legacy_path = line.get("photo_storage_path")
+        if not legacy_path:
+            return line
+
+        photo_id = str(uuid4())
+        self.line_photo_repository.create(
+            {
+                "id": photo_id,
+                "organization_id": organization_id,
+                "report_id": report_id,
+                "line_id": line_id,
+                "storage_path": legacy_path,
+                "sort_order": 0,
+            }
+        )
+        return self.line_repository.get_by_id(line_id) or line
+
+    def _store_line_photo(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        line: dict,
+        content: bytes,
+        content_type: str | None,
+        filename: str | None,
+    ) -> dict:
+        line_id = str(line["id"])
+        line = self._migrate_legacy_line_photo(
+            organization_id=organization_id,
+            report_id=report_id,
+            line=line,
+        )
+        photo_id = str(uuid4())
+        storage_path = self.photo_service.save_photo(
+            organization_id=organization_id,
+            report_id=report_id,
+            line_id=line_id,
+            content=content,
+            content_type=content_type,
+            filename=filename,
+            photo_id=photo_id if self.are_line_photos_available() else None,
+        )
+
+        if self.are_line_photos_available():
+            self.line_photo_repository.create(
+                {
+                    "id": photo_id,
+                    "organization_id": organization_id,
+                    "report_id": report_id,
+                    "line_id": line_id,
+                    "storage_path": storage_path,
+                    "sort_order": self.line_photo_repository.next_sort_order(
+                        line_id
+                    ),
+                }
+            )
+            refreshed = self.line_repository.get_by_id(line_id) or line
+            return self._sync_line_primary_storage_path(refreshed)
+
+        updated = self.line_repository.update(
+            line_id,
+            {"photo_storage_path": storage_path},
+        )
+        if not updated:
+            self.photo_service.delete_photo(storage_path)
+            raise NotFoundError(
+                message="Field visit report line not found",
+                resource_type="field_visit_report_line",
+                resource_id=line_id,
+            )
+
+        return updated
+
+    def _sync_line_primary_storage_path(self, line: dict) -> dict:
+        line_id = str(line["id"])
+        photos = self._photos_for_line(line)
+        primary_path = (
+            str(photos[0]["storage_path"]) if photos else None
+        )
+        updated = self.line_repository.update(
+            line_id,
+            {"photo_storage_path": primary_path},
+        )
+        return updated or line
+
+    def _delete_photo_record(self, line: dict, photo: dict) -> None:
+        storage_path = photo.get("storage_path")
+        if storage_path:
+            self.photo_service.delete_photo(str(storage_path))
+
+        photo_id = str(photo.get("id"))
+        if (
+            self.are_line_photos_available()
+            and photo_id != LEGACY_LINE_PHOTO_ID
+        ):
+            self.line_photo_repository.delete(photo_id)
+        elif photo_id == LEGACY_LINE_PHOTO_ID:
+            self.line_repository.update(
+                str(line["id"]),
+                {"photo_storage_path": None},
+            )
+
+    def _delete_all_line_photos(self, line: dict) -> None:
+        line_id = str(line["id"])
+        for photo in self._photos_for_line(line):
+            storage_path = photo.get("storage_path")
+            if storage_path:
+                self.photo_service.delete_photo(str(storage_path))
+
+        if self.are_line_photos_available():
+            self.line_photo_repository.delete_by_line(line_id)
+
+        self.line_repository.update(
+            line_id,
+            {"photo_storage_path": None},
+        )
+
     def _serialize_line(
         self,
         record: dict,
@@ -1196,8 +1572,17 @@ class FieldVisitReportService:
         issue_id = record.get("issue_id")
         line_id = str(record["id"])
         report_id = str(record["report_id"])
-        photo_storage_path = record.get("photo_storage_path")
-        has_photo = bool(photo_storage_path)
+        photos = self._photos_for_line(record)
+        photo_storage_path = (
+            photos[0].get("storage_path") if photos else None
+        )
+        has_photo = bool(photos)
+        photo_ids = [str(photo["id"]) for photo in photos]
+        serialized_photos = self._serialize_line_photos_payload(
+            report_id=report_id,
+            line_id=line_id,
+            photos=photos,
+        )["photos"]
         catalog_warning = _line_catalog_warning(
             issue_id=issue_id,
             line_catalog_version=record.get("catalog_version"),
@@ -1227,13 +1612,22 @@ class FieldVisitReportService:
             "category_name_he": record.get("category_name_he"),
             "photo_storage_path": photo_storage_path,
             "has_photo": has_photo,
+            "photo_ids": photo_ids,
+            "photos": serialized_photos,
             "photo_url": (
-                f"/field-reports/visits/{report_id}/lines/{line_id}/photo"
+                self._line_photo_url(
+                    report_id=report_id,
+                    line_id=line_id,
+                    photo_id=photo_ids[0],
+                )
                 if has_photo
                 else None
             ),
             "has_catalog_issue": bool(issue_id),
             "catalog_warning": catalog_warning,
+            "group_key": record.get("group_key"),
+            "group_label_he": record.get("group_label_he"),
+            "block_id": record.get("block_id"),
             "created_at": record.get("created_at"),
             "updated_at": record.get("updated_at"),
         }
@@ -1368,7 +1762,11 @@ def _merge_header_fields(
     header_fields: dict | None,
     *,
     visit_type: str,
+    visit_date: str | None = None,
 ) -> dict:
+    from app.config.field_report_block_defaults import (
+        default_fixed_text_blocks_for_new_report,
+    )
     from app.config.field_report_construction_progress import (
         default_construction_progress_rows,
     )
@@ -1378,28 +1776,56 @@ def _merge_header_fields(
         DEFAULT_WINTER_RECOMMENDATIONS_HE,
     )
 
+    fixed_text_blocks = default_fixed_text_blocks_for_new_report(visit_date)
+    winter_block = next(
+        (
+            block
+            for block in fixed_text_blocks
+            if block.get("kind") == "winter_recommendations"
+        ),
+        None,
+    )
+    winter_text = (
+        winter_block.get("body_he", DEFAULT_WINTER_RECOMMENDATIONS_HE)
+        if winter_block and winter_block.get("enabled")
+        else ""
+    )
+
     defaults = {
         "developer_name": project.get("developer_name"),
         "developer_pm_name": project.get("developer_pm_name")
         or project.get("contractor_name"),
         "contractor_name": project.get("contractor_name"),
         "lawyer_name": project.get("lawyer_name"),
+        "accompanying_lawyer": project.get("accompanying_lawyer"),
+        "architect_name": project.get("architect_name"),
         "site_address": project.get("city"),
         "project_updates": list(DEFAULT_PROJECT_UPDATES_HE),
-        "winter_recommendations": DEFAULT_WINTER_RECOMMENDATIONS_HE,
+        "winter_recommendations": winter_text,
         "contractor_notes": list(DEFAULT_CONTRACTOR_NOTES_HE),
         "inspector_title": "",
         "inspector_license": "",
         "construction_progress": default_construction_progress_rows(
             visit_type
         ),
+        "fixed_text_blocks": fixed_text_blocks,
+        "include_fixed_text_blocks": True,
     }
     merged = {**defaults, **(header_fields or {})}
+    if not merged.get("fixed_text_blocks"):
+        merged["fixed_text_blocks"] = fixed_text_blocks
+    if merged.get("include_fixed_text_blocks") is None:
+        merged["include_fixed_text_blocks"] = True
     if not merged.get("construction_progress"):
         merged["construction_progress"] = default_construction_progress_rows(
             visit_type
         )
-    return merged
+
+    from app.services.field_report_project_prefill import (
+        merge_project_prefill_into_header_fields,
+    )
+
+    return merge_project_prefill_into_header_fields(project, merged)
 
 
 def _apply_catalog_issue_defaults(
