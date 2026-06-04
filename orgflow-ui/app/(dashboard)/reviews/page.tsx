@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, startTransition } from "react";
+import { useState } from "react";
 
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import LoadingState from "@/components/ui/LoadingState";
+import PageLoadingOverlay from "@/components/ui/PageLoadingOverlay";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { apiFetch } from "@/lib/api/client";
 import { showToast } from "@/lib/ui/toast";
 
@@ -43,52 +46,27 @@ function reviewNeedsAttention(review: Review): boolean {
 }
 
 export default function ReviewsPage() {
-  const { profile, currentOrgId } = useAuth();
+  const { profile } = useAuth();
 
-  const [reviews, setReviews] =
-    useState<Review[]>([]);
+  const {
+    data,
+    loading,
+    isValidating,
+    reload: loadReviews,
+  } = useOrgQuery("reviews/pending", async () => {
+    const response = await apiFetch("/reviews/pending");
 
-  const [loading, setLoading] =
-    useState(true);
+    if (!response.ok) {
+      return [] as Review[];
+    }
+
+    return (await response.json()) as Review[];
+  });
+
+  const reviews = data ?? [];
 
   const [processingId, setProcessingId] =
     useState<string | null>(null);
-
-  const loadReviews = useCallback(async () => {
-    if (!currentOrgId) {
-      setReviews([]);
-      setLoading(false);
-      return;
-    }
-
-    setReviews([]);
-    setLoading(true);
-
-    try {
-      const response = await apiFetch("/reviews/pending");
-
-      if (!response.ok) {
-        setReviews([]);
-        return;
-      }
-
-      const data =
-        await response.json();
-
-      setReviews(data);
-    } catch (error) {
-      console.error(error);
-      setReviews([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentOrgId]);
-
-  useEffect(() => {
-    startTransition(() => {
-      void loadReviews();
-    });
-  }, [loadReviews]);
 
   const needsAttentionCount = reviews.filter(
     reviewNeedsAttention
@@ -117,9 +95,7 @@ export default function ReviewsPage() {
         throw new Error("Approve failed");
       }
 
-      setReviews((current) =>
-        current.filter((review) => review.id !== reviewId)
-      );
+      await loadReviews();
       showToast("הביקורת אושרה בהצלחה", "success");
     } catch (error) {
       console.error(error);
@@ -152,9 +128,7 @@ export default function ReviewsPage() {
         throw new Error("Reject failed");
       }
 
-      setReviews((current) =>
-        current.filter((review) => review.id !== reviewId)
-      );
+      await loadReviews();
       showToast("הביקורת נדחתה", "success");
     } catch (error) {
       console.error(error);
@@ -262,15 +236,11 @@ export default function ReviewsPage() {
 
       </div>
 
-      {/* LOADING */}
+      {isValidating ? <PageLoadingOverlay /> : null}
 
-      {loading && (
-
-        <div>
-          טוען ביקורות...
-        </div>
-
-      )}
+      {loading && reviews.length === 0 ? (
+        <LoadingState message="טוען ביקורות..." />
+      ) : null}
 
       {/* EMPTY */}
 

@@ -1,19 +1,21 @@
 "use client";
 
 import { useAlerts } from "@/hooks/useAlerts";
+import LoadingState from "@/components/ui/LoadingState";
+import PageLoadingOverlay from "@/components/ui/PageLoadingOverlay";
 
 export default function AlertsPage() {
 
   const {
     alerts,
     loading,
+    isValidating,
   } = useAlerts();
 
-  if (loading) {
-
+  if (loading && alerts.length === 0) {
     return (
       <main className="of-dashboard-page">
-        טוען התראות...
+        <LoadingState message="טוען התראות..." />
       </main>
     );
   }
@@ -21,6 +23,7 @@ export default function AlertsPage() {
   return (
 
     <main className="of-dashboard-page">
+      {isValidating ? <PageLoadingOverlay /> : null}
 
       <div className="mb-10">
 

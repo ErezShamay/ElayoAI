@@ -126,13 +126,11 @@ export default function ProjectActionsPage({
 
         {/* LOADING */}
 
-        {loading && (
-
-          <div>
+        {loading && actions.length === 0 ? (
+          <div className="text-sm text-zinc-500">
             טוען פעולות...
           </div>
-
-        )}
+        ) : null}
 
         {/* EMPTY */}
 

@@ -38,14 +38,28 @@ export function useFieldReportModule() {
   const { currentOrgId, profile } = useAuth();
   const organizationIdHint =
     currentOrgId ?? profile?.organization_id ?? "";
-  const [status, setStatus] = useState<ModuleStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cachedStatus = organizationIdHint
+    ? moduleStatusFromCache(organizationIdHint)
+    : null;
+
+  const [status, setStatus] = useState<ModuleStatus | null>(cachedStatus);
+  const [loading, setLoading] = useState(!cachedStatus);
   const [error, setError] = useState("");
-  const [usingCachedStatus, setUsingCachedStatus] = useState(false);
+  const [usingCachedStatus, setUsingCachedStatus] = useState(
+    Boolean(cachedStatus?.is_enabled)
+  );
 
   const load = useCallback(async () => {
+    const hasCachedStatus = Boolean(
+      organizationIdHint
+      && moduleStatusFromCache(organizationIdHint)
+    );
+
     try {
-      setLoading(true);
+      if (!hasCachedStatus) {
+        setLoading(true);
+      }
+
       setError("");
       setUsingCachedStatus(false);
 

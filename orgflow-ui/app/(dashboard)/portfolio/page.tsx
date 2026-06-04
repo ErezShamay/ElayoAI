@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, startTransition } from "react";
+import { useCallback, useEffect } from "react";
 
+import LoadingState from "@/components/ui/LoadingState";
+import PageLoadingOverlay from "@/components/ui/PageLoadingOverlay";
+import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { apiFetch } from "@/lib/api/client";
+import { DEFAULT_QUERY_TTL_MS } from "@/lib/ui/query-cache";
 
 type Prediction = {
   prediction: string;
@@ -44,73 +48,48 @@ type PortfolioResponse = {
 };
 
 export default function PortfolioPage() {
-
-  const [
-    portfolio,
-    setPortfolio
-  ] = useState<
-    PortfolioResponse | null
-  >(null);
-
-  const [
-    loading,
-    setLoading
-  ] = useState(true);
-
   const loadPortfolio = useCallback(async () => {
-    try {
-      const response =
-        await apiFetch("/portfolio/summary");
+    const response = await apiFetch("/portfolio/summary");
 
-      if (!response.ok) {
-        throw new Error(
-          "Failed loading portfolio"
-        );
-      }
-
-      const data =
-        await response.json();
-
-      setPortfolio(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error("Failed loading portfolio");
     }
+
+    return (await response.json()) as PortfolioResponse;
   }, []);
 
+  const {
+    data: portfolio,
+    loading,
+    isValidating,
+    reload,
+  } = useOrgQuery("portfolio/summary", loadPortfolio, {
+    ttlMs: DEFAULT_QUERY_TTL_MS,
+  });
+
   useEffect(() => {
-    startTransition(() => {
-      void loadPortfolio();
-    });
-
     const pollingInterval =
-      Number(
-        process.env
-          .NEXT_PUBLIC_POLLING_INTERVAL
-      ) || 30000;
+      Number(process.env.NEXT_PUBLIC_POLLING_INTERVAL)
+      || 30000;
 
-    const interval =
-      setInterval(() => {
-        void loadPortfolio();
-      }, pollingInterval);
+    const interval = setInterval(() => {
+      void reload();
+    }, pollingInterval);
 
     return () => {
       clearInterval(interval);
     };
-  }, [loadPortfolio]);
+  }, [reload]);
 
-  if (loading) {
-
+  if (loading && !portfolio) {
     return (
       <main className="of-dashboard-page">
-        טוען תיק הפרויקטים...
+        <LoadingState message="טוען תיק הפרויקטים..." />
       </main>
     );
   }
 
   if (!portfolio) {
-
     return (
       <main className="of-dashboard-page">
         תיק הפרויקטים לא זמין
@@ -121,6 +100,7 @@ export default function PortfolioPage() {
   return (
 
     <main className="of-dashboard-page">
+      {isValidating ? <PageLoadingOverlay /> : null}
 
       {/* HEADER */}
 

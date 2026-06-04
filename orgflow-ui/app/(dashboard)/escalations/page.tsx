@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, startTransition } from "react";
-
 import Badge from "@/components/ui/Badge";
-import { useAuth } from "@/contexts/AuthContext";
+import LoadingState from "@/components/ui/LoadingState";
+import PageLoadingOverlay from "@/components/ui/PageLoadingOverlay";
+import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { apiFetch } from "@/lib/api/client";
 
 type Escalation = {
@@ -15,48 +15,21 @@ type Escalation = {
 };
 
 export default function EscalationsPage() {
-  const { currentOrgId } = useAuth();
+  const {
+    data,
+    loading,
+    isValidating,
+  } = useOrgQuery("actions/escalations", async () => {
+    const response = await apiFetch("/actions/escalations");
 
-  const [escalations, setEscalations] =
-    useState<Escalation[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const loadEscalations = useCallback(async () => {
-    if (!currentOrgId) {
-      setEscalations([]);
-      setLoading(false);
-      return;
+    if (!response.ok) {
+      return [] as Escalation[];
     }
 
-    setEscalations([]);
-    setLoading(true);
+    return (await response.json()) as Escalation[];
+  });
 
-    try {
-      const response = await apiFetch("/actions/escalations");
-
-      if (!response.ok) {
-        setEscalations([]);
-        return;
-      }
-
-      const data = await response.json();
-
-      setEscalations(data);
-    } catch (error) {
-      console.error(error);
-      setEscalations([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentOrgId]);
-
-  useEffect(() => {
-    startTransition(() => {
-      void loadEscalations();
-    });
-  }, [loadEscalations]);
+  const escalations = data ?? [];
 
   return (
     <main className="of-dashboard-page">
@@ -72,11 +45,11 @@ export default function EscalationsPage() {
 
       </div>
 
-      {loading && (
-        <div>
-          טוען נקודות סיכון...
-        </div>
-      )}
+      {isValidating ? <PageLoadingOverlay /> : null}
+
+      {loading && escalations.length === 0 ? (
+        <LoadingState message="טוען נקודות סיכון..." />
+      ) : null}
 
       {!loading &&
         escalations.length === 0 && (

@@ -30,7 +30,7 @@ from app.services.predictive_alerts_service import PredictiveAlertsService
 from app.services.predictive_risk_service import PredictiveRiskService
 
 
-_SUMMARY_CACHE_TTL_SECONDS = 60
+_SUMMARY_CACHE_TTL_SECONDS = 120
 
 
 class PortfolioIntelligenceDashboardService:

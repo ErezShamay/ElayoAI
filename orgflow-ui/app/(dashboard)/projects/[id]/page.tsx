@@ -6,6 +6,8 @@ import { useEffect } from "react";
 import { useProjectWorkspace } from "@/hooks/useProjectWorkspace";
 
 import Badge from "@/components/ui/Badge";
+import LoadingState from "@/components/ui/LoadingState";
+import PageLoadingOverlay from "@/components/ui/PageLoadingOverlay";
 import ProjectFieldReportLink from "@/components/field-reports/ProjectFieldReportLink";
 import ProjectActivityTimeline from "@/components/projects/ProjectActivityTimeline";
 
@@ -31,6 +33,7 @@ export default function ProjectDetailsPage() {
     operationalSummaryLoading,
 
     loading,
+    isValidating,
 
     startAction,
     blockAction,
@@ -104,17 +107,15 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  if (loading) {
-
+  if (loading && !project) {
     return (
       <main className="of-dashboard-page">
-        טוען פרויקט...
+        <LoadingState message="טוען פרויקט..." />
       </main>
     );
   }
 
   if (!project) {
-
     return (
       <main className="of-dashboard-page">
         פרויקט לא נמצא
@@ -125,6 +126,7 @@ export default function ProjectDetailsPage() {
   return (
 
     <main className="of-dashboard-page">
+      {isValidating ? <PageLoadingOverlay /> : null}
 
       {/* PROJECT HEADER */}
 

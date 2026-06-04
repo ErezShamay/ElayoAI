@@ -8,11 +8,18 @@ import {
   useState,
 } from "react";
 
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  queryCacheKey,
+  readQueryCache,
+  writeQueryCache,
+} from "@/lib/ui/query-cache";
 import { showToast } from "@/lib/ui/toast";
 
 export type AsyncDataState<T> = {
   data: T | null;
   loading: boolean;
+  isValidating: boolean;
   error: Error | null;
   retryCount: number;
 };
@@ -23,20 +30,30 @@ export function useAsyncData<T>(
     enabled?: boolean;
     showErrorToast?: boolean;
     errorMessage?: string;
+    cacheKey?: string;
+    ttlMs?: number;
   }
 ) {
+  const { currentOrgId, loading: authLoading } = useAuth();
   const enabled = options?.enabled ?? true;
   const errorMessage = options?.errorMessage;
   const showErrorToast = options?.showErrorToast;
   const loaderRef = useRef(loader);
+  const storageKey = options?.cacheKey
+    ? queryCacheKey(currentOrgId, options.cacheKey)
+    : null;
+  const cachedInitial = storageKey
+    ? readQueryCache<T>(storageKey, options?.ttlMs)
+    : null;
 
   useEffect(() => {
     loaderRef.current = loader;
   }, [loader]);
 
   const [state, setState] = useState<AsyncDataState<T>>({
-    data: null,
-    loading: enabled,
+    data: cachedInitial,
+    loading: enabled && !cachedInitial,
+    isValidating: false,
     error: null,
     retryCount: 0,
   });
@@ -44,17 +61,23 @@ export function useAsyncData<T>(
   const execute = useCallback(async () => {
     setState((current) => ({
       ...current,
-      loading: true,
+      loading: current.data === null,
+      isValidating: current.data !== null,
       error: null,
     }));
 
     try {
       const data = await loaderRef.current();
 
+      if (storageKey) {
+        writeQueryCache(storageKey, currentOrgId, data);
+      }
+
       setState((current) => ({
         ...current,
         data,
         loading: false,
+        isValidating: false,
         error: null,
       }));
 
@@ -68,6 +91,7 @@ export function useAsyncData<T>(
       setState((current) => ({
         ...current,
         loading: false,
+        isValidating: false,
         error: normalized,
       }));
 
@@ -80,7 +104,7 @@ export function useAsyncData<T>(
 
       throw normalized;
     }
-  }, [errorMessage, showErrorToast]);
+  }, [currentOrgId, errorMessage, showErrorToast, storageKey]);
 
   const retry = useCallback(async () => {
     setState((current) => ({
@@ -92,14 +116,33 @@ export function useAsyncData<T>(
   }, [execute]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || authLoading) {
       return;
+    }
+
+    if (storageKey) {
+      const cached = readQueryCache<T>(storageKey, options?.ttlMs);
+
+      if (cached) {
+        setState((current) => ({
+          ...current,
+          data: cached,
+          loading: false,
+        }));
+      }
     }
 
     startTransition(() => {
       void execute().catch(() => undefined);
     });
-  }, [enabled, execute, state.retryCount]);
+  }, [
+    authLoading,
+    enabled,
+    execute,
+    options?.ttlMs,
+    state.retryCount,
+    storageKey,
+  ]);
 
   return {
     ...state,

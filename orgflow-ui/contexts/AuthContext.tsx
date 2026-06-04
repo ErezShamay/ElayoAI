@@ -33,6 +33,8 @@ import {
   type FieldReportLogoutBlock,
 } from "@/lib/field-reports/field-report-logout-block";
 import { useIdleSessionTimeout } from "@/hooks/useIdleSessionTimeout";
+import { clearQueryCache, invalidateOrgQueries } from "@/lib/ui/query-cache";
+import { invalidateWorkspaceCache } from "@/lib/ui/workspace-cache";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -192,6 +194,8 @@ export function AuthProvider({
         apiBaseUrl: getApiBaseUrl(),
       });
 
+      suppressAuthListenerRef.current = true;
+
       const exchangeData = await exchangeBackendToken(
         nextSession.user.id,
         organizationId,
@@ -222,6 +226,7 @@ export function AuthProvider({
       setAuthBootstrapError(null);
       setSession(nextSession);
       setUser(nextSession.user);
+      lastBootstrappedUserIdRef.current = nextSession.user.id;
       logAuthInfo("bootstrap:ok", {
         userId: nextSession.user.id,
         orgId: exchangeData.org_id,
@@ -230,6 +235,23 @@ export function AuthProvider({
       return true;
     },
     [loadOrganizations, loadProfile]
+  );
+
+  const establishBackendSessionWrapped = useCallback(
+    async (
+      nextSession: Session,
+      organizationId?: string | null,
+    ) => {
+      try {
+        return await establishBackendSession(
+          nextSession,
+          organizationId
+        );
+      } finally {
+        suppressAuthListenerRef.current = false;
+      }
+    },
+    [establishBackendSession]
   );
 
   const handleSession = useCallback(
@@ -258,11 +280,12 @@ export function AuthProvider({
         setSessionRole(null);
         setOrganizations([]);
         setCurrentOrgId(null);
+        lastBootstrappedUserIdRef.current = null;
         return;
       }
 
       try {
-        await establishBackendSession(nextSession);
+        await establishBackendSessionWrapped(nextSession);
       } catch (error) {
         const signOut = shouldSignOutAfterBootstrapError(error);
 
@@ -280,6 +303,7 @@ export function AuthProvider({
         setSessionRole(null);
         setOrganizations([]);
         setCurrentOrgId(null);
+        lastBootstrappedUserIdRef.current = null;
         setAuthBootstrapError(bootstrapErrorMessage(error));
 
         if (signOut) {
@@ -287,13 +311,37 @@ export function AuthProvider({
         }
       }
     },
-    [FORCE_LOGIN, establishBackendSession]
+    [FORCE_LOGIN, establishBackendSessionWrapped]
   );
 
   const bootstrapInflightRef = useRef<{
     userId: string;
     promise: Promise<void>;
   } | null>(null);
+
+  const suppressAuthListenerRef = useRef(false);
+  const hasResolvedInitialAuthRef = useRef(false);
+  const lastBootstrappedUserIdRef = useRef<string | null>(null);
+
+  function shouldBlockUiForAuthEvent(
+    event: string,
+    nextUserId: string | null
+  ) {
+    if (!hasResolvedInitialAuthRef.current) {
+      return true;
+    }
+
+    if (
+      event === "SIGNED_OUT"
+      || event === "INITIAL_SESSION"
+      || event === "SIGNED_IN"
+      || event === "USER_UPDATED"
+    ) {
+      return nextUserId !== lastBootstrappedUserIdRef.current;
+    }
+
+    return false;
+  }
 
   const runBootstrap = useCallback(
     async (nextSession: Session | null) => {
@@ -326,7 +374,7 @@ export function AuthProvider({
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, nextSession) => {
-        if (!active) {
+        if (!active || suppressAuthListenerRef.current) {
           return;
         }
 
@@ -335,12 +383,30 @@ export function AuthProvider({
           userId: nextSession?.user?.id ?? null,
         });
 
-        setLoading(true);
+        if (event === "TOKEN_REFRESHED" && nextSession?.user) {
+          setSession(nextSession);
+          setUser(nextSession.user);
+          hasResolvedInitialAuthRef.current = true;
+          setLoading(false);
+          return;
+        }
+
+        const blockUi = shouldBlockUiForAuthEvent(
+          event,
+          nextSession?.user?.id ?? null
+        );
+
+        if (blockUi) {
+          setLoading(true);
+        }
 
         void runBootstrap(nextSession).finally(() => {
-          if (active) {
-            setLoading(false);
+          if (!active) {
+            return;
           }
+
+          hasResolvedInitialAuthRef.current = true;
+          setLoading(false);
         });
       }
     );
@@ -356,7 +422,10 @@ export function AuthProvider({
       return;
     }
 
-    await establishBackendSession(session, organizationId);
+    clearQueryCache();
+    invalidateWorkspaceCache();
+    await establishBackendSessionWrapped(session, organizationId);
+    invalidateOrgQueries(organizationId);
   }
 
   const signOut = useCallback(async () => {
@@ -374,12 +443,15 @@ export function AuthProvider({
     }
 
     await clearSupabaseSession();
+    clearQueryCache();
+    invalidateWorkspaceCache();
     setSession(null);
     setUser(null);
     setProfile(null);
     setSessionRole(null);
     setOrganizations([]);
     setCurrentOrgId(null);
+    lastBootstrappedUserIdRef.current = null;
     return { ok: true as const };
   }, [currentOrgId, profile?.id, profile?.organization_id, user?.id]);
 

@@ -200,7 +200,7 @@ export default function FieldReportsPage() {
     };
   }, [isEnabled, statusFilter, loadReports, loadInProgressCount]);
 
-  if (loading) {
+  if (loading && !isEnabled && !status) {
     return (
       <div className="of-container mx-auto max-w-3xl p-8 text-sm text-zinc-500">
         טוען מודול הפקת דוחות...

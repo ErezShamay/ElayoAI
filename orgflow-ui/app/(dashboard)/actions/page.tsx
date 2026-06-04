@@ -3,17 +3,17 @@
 import Link from "next/link";
 
 import {
-  useCallback,
-  useEffect,
   useState,
-  startTransition,
 } from "react";
 
 import Badge from "@/components/ui/Badge";
+import LoadingState from "@/components/ui/LoadingState";
+import PageLoadingOverlay from "@/components/ui/PageLoadingOverlay";
 
 import {
   useAuth,
 } from "@/contexts/AuthContext";
+import { useOrgQuery } from "@/hooks/useOrgQuery";
 
 import { apiFetch } from "@/lib/api/client";
 import {
@@ -43,20 +43,24 @@ type Action = {
 
 export default function ActionsPage() {
 
+  const { profile } = useAuth();
+
   const {
-    profile,
-    currentOrgId,
-  } = useAuth();
-
-  const [
-    actions,
-    setActions
-  ] = useState<Action[]>([]);
-
-  const [
+    data,
     loading,
-    setLoading
-  ] = useState(true);
+    isValidating,
+    reload: loadActions,
+  } = useOrgQuery("actions/open", async () => {
+    const response = await apiFetch("/actions/open");
+
+    if (!response.ok) {
+      return [] as Action[];
+    }
+
+    return (await response.json()) as Action[];
+  });
+
+  const actions = data ?? [];
 
   const [
     assigningActionId,
@@ -64,43 +68,6 @@ export default function ActionsPage() {
   ] = useState<
     string | null
   >(null);
-
-  const loadActions = useCallback(async () => {
-    if (!currentOrgId) {
-      setActions([]);
-      setLoading(false);
-      return;
-    }
-
-    setActions([]);
-    setLoading(true);
-
-    try {
-      const response =
-        await apiFetch("/actions/open");
-
-      if (!response.ok) {
-        setActions([]);
-        return;
-      }
-
-      const data =
-        await response.json();
-
-      setActions(data);
-    } catch (error) {
-      console.error(error);
-      setActions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentOrgId]);
-
-  useEffect(() => {
-    startTransition(() => {
-      void loadActions();
-    });
-  }, [loadActions]);
 
   function getActionTypeLabel(
     type: string
@@ -238,15 +205,11 @@ export default function ActionsPage() {
 
         </div>
 
-        {/* LOADING */}
+        {isValidating ? <PageLoadingOverlay /> : null}
 
-        {loading && (
-
-          <div>
-            טוען פעולות...
-          </div>
-
-        )}
+        {loading && actions.length === 0 ? (
+          <LoadingState message="טוען פעולות..." />
+        ) : null}
 
         {/* EMPTY */}
 

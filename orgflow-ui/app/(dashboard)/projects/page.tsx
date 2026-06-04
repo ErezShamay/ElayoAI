@@ -9,6 +9,7 @@ import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import FilterBar from "@/components/ui/FilterBar";
 import LoadingState from "@/components/ui/LoadingState";
+import PageLoadingOverlay from "@/components/ui/PageLoadingOverlay";
 import PageShell from "@/components/ui/PageShell";
 import PaginationControls from "@/components/ui/Pagination";
 import RetryPanel from "@/components/ui/RetryPanel";
@@ -75,9 +76,11 @@ export default function ProjectsPage() {
   const {
     data: projects,
     loading,
+    isValidating,
     error,
     retry,
   } = useAsyncData(loadProjects, {
+    cacheKey: "projects",
     showErrorToast: true,
     errorMessage: t("common.error"),
   });
@@ -291,7 +294,9 @@ export default function ProjectsPage() {
         />
       </div>
 
-      {loading ? (
+      {isValidating ? <PageLoadingOverlay /> : null}
+
+      {loading && projectList.length === 0 ? (
         <LoadingState message={t("common.loading")} />
       ) : null}
 

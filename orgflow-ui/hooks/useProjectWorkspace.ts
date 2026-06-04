@@ -11,6 +11,11 @@ import { toast } from "sonner";
 
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  readWorkspaceCache,
+  writeWorkspaceCache,
+  type WorkspaceCacheSnapshot,
+} from "@/lib/ui/workspace-cache";
 
 type Project = {
   id: string;
@@ -84,6 +89,52 @@ type LoadWorkspaceOptions = {
   silent?: boolean;
 };
 
+function applyWorkspaceSnapshot(
+  workspace: WorkspaceResponse,
+  setters: {
+    setProject: (value: Project | null) => void;
+    setReviews: (value: Review[]) => void;
+    setActions: (value: Action[]) => void;
+    setExceptions: (value: Action[]) => void;
+    setActivities: (value: Activity[]) => void;
+    setInsights: (value: Insight[]) => void;
+    setSummary: (value: Summary) => void;
+    setHealth: (value: Health) => void;
+  }
+) {
+  setters.setProject(workspace.project);
+  setters.setReviews(workspace.reviews);
+  setters.setActions(workspace.actions);
+  setters.setExceptions(workspace.exceptions);
+  setters.setActivities(workspace.activities);
+  setters.setInsights(workspace.insights);
+  setters.setSummary(workspace.summary);
+  setters.setHealth(workspace.health);
+}
+
+function hydrateWorkspaceState(
+  cached: WorkspaceCacheSnapshot,
+  setters: {
+    setProject: (value: Project | null) => void;
+    setReviews: (value: Review[]) => void;
+    setActions: (value: Action[]) => void;
+    setExceptions: (value: Action[]) => void;
+    setActivities: (value: Activity[]) => void;
+    setInsights: (value: Insight[]) => void;
+    setSummary: (value: Summary) => void;
+    setHealth: (value: Health) => void;
+  }
+) {
+  setters.setProject(cached.project as Project | null);
+  setters.setReviews(cached.reviews as Review[]);
+  setters.setActions(cached.actions as Action[]);
+  setters.setExceptions(cached.exceptions as Action[]);
+  setters.setActivities(cached.activities as Activity[]);
+  setters.setInsights(cached.insights as Insight[]);
+  setters.setSummary(cached.summary);
+  setters.setHealth(cached.health);
+}
+
 const WORKSPACE_POLLING_MS =
   10 * 60 * 1000;
 
@@ -111,23 +162,31 @@ export function useProjectWorkspace(
   // STATE
   // =========================
 
-  const [project, setProject] =
-    useState<Project | null>(null);
+  const cachedWorkspace = readWorkspaceCache(projectId);
 
-  const [reviews, setReviews] =
-    useState<Review[]>([]);
+  const [project, setProject] = useState<Project | null>(
+    (cachedWorkspace?.project as Project | null) ?? null
+  );
 
-  const [actions, setActions] =
-    useState<Action[]>([]);
+  const [reviews, setReviews] = useState<Review[]>(
+    (cachedWorkspace?.reviews as Review[]) ?? []
+  );
 
-  const [exceptions, setExceptions] =
-    useState<Action[]>([]);
+  const [actions, setActions] = useState<Action[]>(
+    (cachedWorkspace?.actions as Action[]) ?? []
+  );
 
-  const [activities, setActivities] =
-    useState<Activity[]>([]);
+  const [exceptions, setExceptions] = useState<Action[]>(
+    (cachedWorkspace?.exceptions as Action[]) ?? []
+  );
 
-  const [insights, setInsights] =
-    useState<Insight[]>([]);
+  const [activities, setActivities] = useState<Activity[]>(
+    (cachedWorkspace?.activities as Activity[]) ?? []
+  );
+
+  const [insights, setInsights] = useState<Insight[]>(
+    (cachedWorkspace?.insights as Insight[]) ?? []
+  );
 
   const [
     operationalSummary,
@@ -136,27 +195,69 @@ export function useProjectWorkspace(
     OperationalSummary | null
   >(null);
 
-  const [summary, setSummary] =
-    useState<Summary>({
+  const [summary, setSummary] = useState<Summary>(
+    cachedWorkspace?.summary ?? {
       reviews_count: 0,
       actions_count: 0,
       escalations_count: 0,
       reports_count: 0,
-    });
+    }
+  );
 
-  const [health, setHealth] =
-    useState<Health>({
+  const [health, setHealth] = useState<Health>(
+    cachedWorkspace?.health ?? {
       score: 100,
       status: "HEALTHY",
-    });
+    }
+  );
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(!cachedWorkspace);
+
+  const [isValidating, setIsValidating] = useState(false);
 
   const [
     operationalSummaryLoading,
     setOperationalSummaryLoading,
   ] = useState(false);
+
+  const stateSetters = {
+    setProject,
+    setReviews,
+    setActions,
+    setExceptions,
+    setActivities,
+    setInsights,
+    setSummary,
+    setHealth,
+  };
+
+  useEffect(() => {
+    const cached = readWorkspaceCache(projectId);
+
+    if (cached) {
+      hydrateWorkspaceState(cached, stateSetters);
+      setLoading(false);
+      return;
+    }
+
+    setProject(null);
+    setReviews([]);
+    setActions([]);
+    setExceptions([]);
+    setActivities([]);
+    setInsights([]);
+    setSummary({
+      reviews_count: 0,
+      actions_count: 0,
+      escalations_count: 0,
+      reports_count: 0,
+    });
+    setHealth({
+      score: 100,
+      status: "HEALTHY",
+    });
+    setLoading(true);
+  }, [projectId]);
 
   const loadOperationalSummary =
     useCallback(async () => {
@@ -217,11 +318,14 @@ export function useProjectWorkspace(
         return;
       }
 
+      const cached = readWorkspaceCache(projectId);
+
       try {
 
-        if (!silent) {
+        if (!silent && !cached) {
           setLoading(true);
-          setOperationalSummary(null);
+        } else if (!silent) {
+          setIsValidating(true);
         }
 
         const workspaceResponse =
@@ -253,37 +357,18 @@ export function useProjectWorkspace(
           WorkspaceResponse =
             await workspaceResponse.json();
 
-        setProject(
-          workspace.project
-        );
+        applyWorkspaceSnapshot(workspace, stateSetters);
 
-        setReviews(
-          workspace.reviews
-        );
-
-        setActions(
-          workspace.actions
-        );
-
-        setExceptions(
-          workspace.exceptions
-        );
-
-        setActivities(
-          workspace.activities
-        );
-
-        setInsights(
-          workspace.insights
-        );
-
-        setSummary(
-          workspace.summary
-        );
-
-        setHealth(
-          workspace.health
-        );
+        writeWorkspaceCache(projectId, {
+          project: workspace.project,
+          reviews: workspace.reviews,
+          actions: workspace.actions,
+          exceptions: workspace.exceptions,
+          activities: workspace.activities,
+          insights: workspace.insights,
+          summary: workspace.summary,
+          health: workspace.health,
+        });
 
       } catch (error) {
 
@@ -299,11 +384,8 @@ export function useProjectWorkspace(
         }
 
       } finally {
-
-        if (!silent) {
-          setLoading(false);
-        }
-
+        setLoading(false);
+        setIsValidating(false);
       }
 
     }, [authLoading, projectId, user]);
@@ -434,7 +516,7 @@ export function useProjectWorkspace(
         );
       }
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
 
       toast.success(
         "הביקורת אושרה בהצלחה"
@@ -451,7 +533,7 @@ export function useProjectWorkspace(
         "שגיאה באישור הביקורת"
       );
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
     }
   }
 
@@ -496,7 +578,7 @@ export function useProjectWorkspace(
         );
       }
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
 
       toast.success(
         "הפעולה נסגרה בהצלחה"
@@ -513,7 +595,7 @@ export function useProjectWorkspace(
         "שגיאה בסגירת הפעולה"
       );
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
     }
   }
 
@@ -542,7 +624,7 @@ export function useProjectWorkspace(
         );
       }
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
 
       toast.success(
         "הפעולה התחילה"
@@ -586,7 +668,7 @@ export function useProjectWorkspace(
         );
       }
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
 
       toast.success(
         "הפעולה סומנה כחסומה"
@@ -630,7 +712,7 @@ export function useProjectWorkspace(
         );
       }
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
 
       toast.success(
         "הפעולה הושלמה"
@@ -674,7 +756,7 @@ export function useProjectWorkspace(
         );
       }
 
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
 
       toast.success(
         "הפעולה הוסלמה"
@@ -707,6 +789,7 @@ export function useProjectWorkspace(
     operationalSummaryLoading,
 
     loading,
+    isValidating,
 
     reloadWorkspace:
       loadWorkspace,

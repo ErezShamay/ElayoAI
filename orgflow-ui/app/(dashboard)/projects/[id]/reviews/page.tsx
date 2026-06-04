@@ -45,13 +45,11 @@ export default function ReviewsPage({
 
       {/* LOADING */}
 
-      {loading && (
-
-        <div>
+      {loading && reviews.length === 0 ? (
+        <div className="text-sm text-zinc-500">
           טוען ביקורות...
         </div>
-
-      )}
+      ) : null}
 
       {/* EMPTY */}
 

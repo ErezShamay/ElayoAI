@@ -3,6 +3,7 @@
 #
 # פריסה: Dashboard → New → Blueprint → בחר repo זה.
 # אחרי ה-URL של Vercel: עדכן FRONTEND_URL + CORS_EXTRA_ORIGINS (אופציונלי).
+# OPENAI_API_KEY — Render יבקש בפריסה הראשונה (sync: false, לא נשמר ב-git).
 
 services:
   - type: web
@@ -25,14 +26,17 @@ services:
         sync: false
       - key: AUTH_JWT_SECRET
         generateValue: true
+      # הזן את המפתח ב-Render Dashboard → Environment (לא ב-git)
+      - key: OPENAI_API_KEY
+        sync: false
       - key: ORG_FLOW_LLM_MODE
-        value: mock
+        value: openai
       - key: AI_PROVIDER
         value: openai
       - key: DEFAULT_AI_MODEL
-        value: gpt-4o-mini
+        value: gpt-4o
       - key: OPENAI_MODEL
-        value: gpt-4o-mini
+        value: gpt-4o
       - key: AI_MAX_RETRIES
         value: "2"
       - key: LOG_LEVEL
