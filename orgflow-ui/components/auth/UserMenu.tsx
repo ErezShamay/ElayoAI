@@ -46,6 +46,7 @@ export default function UserMenu() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [logoutBlockMessage, setLogoutBlockMessage] = useState("");
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -132,8 +133,15 @@ export default function UserMenu() {
   }
 
   async function handleLogout() {
+    setLogoutBlockMessage("");
+    const result = await signOut();
+
+    if (!result.ok) {
+      setLogoutBlockMessage(result.block.message);
+      return;
+    }
+
     setShowUserMenu(false);
-    await signOut();
     router.push("/");
   }
 
@@ -388,6 +396,15 @@ export default function UserMenu() {
                 <p className="mt-1 text-sm text-zinc-500">{profile.email}</p>
               ) : null}
             </div>
+
+            {logoutBlockMessage ? (
+              <p
+                className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/40 dark:text-amber-100"
+                role="alert"
+              >
+                {logoutBlockMessage}
+              </p>
+            ) : null}
 
             <button
               type="button"

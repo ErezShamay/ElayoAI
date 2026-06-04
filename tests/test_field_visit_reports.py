@@ -112,6 +112,15 @@ class FakeVisitReportLineRepository:
     def get_by_id(self, line_id: str) -> dict | None:
         return self.records.get(line_id)
 
+    def get_by_client_line_uuid(
+        self,
+        client_line_uuid: str,
+    ) -> dict | None:
+        for record in self.records.values():
+            if record.get("client_line_uuid") == client_line_uuid:
+                return record
+        return None
+
     def next_sort_order(self, report_id: str) -> int:
         lines = self.list_by_report(report_id)
         if not lines:
@@ -169,6 +178,15 @@ class FakeVisitReportRepository:
 
     def get_by_id(self, report_id: str) -> dict | None:
         return self.records.get(report_id)
+
+    def get_by_client_report_uuid(
+        self,
+        client_report_uuid: str,
+    ) -> dict | None:
+        for record in self.records.values():
+            if record.get("client_report_uuid") == client_report_uuid:
+                return record
+        return None
 
     def get_open_for_project(
         self,

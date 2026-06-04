@@ -1,13 +1,43 @@
-const STORAGE_PREFIX = "orgflow-field-reports-send-queue";
+import type { SyncQueueRecord } from "@/lib/field-reports/db/schema";
+import {
+  clearSyncQueueForOrganization,
+  enqueueSyncQueueRecord,
+  listActiveSyncQueueForOrganization,
+  removeSyncQueueRecord,
+  updateSyncQueueRecord,
+  type UpdateSyncQueueRecordInput,
+} from "@/lib/field-reports/repositories/sync-queue-repository";
+import { resolveReportQueueIdentity } from "@/lib/field-reports/send-queue-resolve";
+
+import {
+  ELAYOAI_FIELD_REPORTS_SEND_QUEUE_MIGRATED_PREFIX,
+  LEGACY_ORGFLOW_FIELD_REPORTS_SEND_QUEUE_MIGRATED_PREFIX,
+  LEGACY_ORGFLOW_FIELD_REPORTS_SEND_QUEUE_PREFIX,
+} from "@/lib/elayoai/keys";
+
+const LEGACY_STORAGE_PREFIX = LEGACY_ORGFLOW_FIELD_REPORTS_SEND_QUEUE_PREFIX;
 
 export type PendingSendSyncPhase =
   | "queued"
+  | "upsert"
   | "metadata"
   | "photos"
+  | "close"
   | "pdf"
   | "request_send";
 
 export type PendingSendRequest = {
+  /** מזהה ל-API — `server_report_id` אם קיים, אחרת `client_report_uuid`. */
+  reportId: string;
+  clientReportUuid: string;
+  organizationId: string;
+  requestedAt: string;
+  idempotencyKey: string;
+  syncPhase?: PendingSendSyncPhase;
+  lastError?: string;
+};
+
+type LegacyPendingSendRequest = {
   reportId: string;
   organizationId: string;
   requestedAt: string;
@@ -16,128 +46,216 @@ export type PendingSendRequest = {
   lastError?: string;
 };
 
-function createIdempotencyKey(reportId: string): string {
-  if (
-    typeof globalThis.crypto !== "undefined"
-    && typeof globalThis.crypto.randomUUID === "function"
-  ) {
-    return `field-report-send:${reportId}:${globalThis.crypto.randomUUID()}`;
-  }
-  return `field-report-send:${reportId}:${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
+function legacyStorageKey(organizationId: string) {
+  return `${LEGACY_STORAGE_PREFIX}:${organizationId}`;
 }
 
-function storageKey(organizationId: string) {
-  return `${STORAGE_PREFIX}:${organizationId}`;
+function migrationMarkerKey(organizationId: string) {
+  return `${ELAYOAI_FIELD_REPORTS_SEND_QUEUE_MIGRATED_PREFIX}${organizationId}`;
 }
 
-export function loadPendingSendRequests(
+function legacyMigrationMarkerKey(organizationId: string) {
+  return `${LEGACY_ORGFLOW_FIELD_REPORTS_SEND_QUEUE_MIGRATED_PREFIX}${organizationId}`;
+}
+
+function readLegacyPendingSendRequests(
   organizationId: string
-): PendingSendRequest[] {
+): LegacyPendingSendRequest[] {
   if (typeof window === "undefined" || !organizationId) {
     return [];
   }
 
-  const raw = localStorage.getItem(storageKey(organizationId));
+  const raw = localStorage.getItem(legacyStorageKey(organizationId));
   if (!raw) {
     return [];
   }
 
   try {
-    const parsed = JSON.parse(raw) as PendingSendRequest[];
+    const parsed = JSON.parse(raw) as LegacyPendingSendRequest[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-export function isReportPendingSendLocally(
-  organizationId: string,
-  reportId: string
-): boolean {
-  return loadPendingSendRequests(organizationId).some(
-    (entry) => entry.reportId === reportId
-  );
-}
-
-export function enqueuePendingSendRequest(
-  organizationId: string,
-  reportId: string
+export function syncQueueRecordToPendingSendRequest(
+  record: SyncQueueRecord
 ): PendingSendRequest {
-  const existingEntries = loadPendingSendRequests(organizationId);
-  const existingForReport = existingEntries.find(
-    (entry) => entry.reportId === reportId
-  );
-  const existing = existingEntries.filter(
-    (entry) => entry.reportId !== reportId
-  );
-  const request: PendingSendRequest = {
-    reportId,
-    organizationId,
-    requestedAt: new Date().toISOString(),
-    idempotencyKey:
-      existingForReport?.idempotencyKey || createIdempotencyKey(reportId),
-    syncPhase: "queued",
+  return {
+    reportId: record.server_report_id ?? record.client_report_uuid,
+    clientReportUuid: record.client_report_uuid,
+    organizationId: record.organization_id,
+    requestedAt: record.requested_at,
+    idempotencyKey: record.idempotency_key,
+    syncPhase: record.sync_phase,
+    lastError: record.last_error ?? undefined,
   };
-
-  localStorage.setItem(
-    storageKey(organizationId),
-    JSON.stringify([...existing, request])
-  );
-
-  return request;
 }
 
-export function updatePendingSendRequest(
-  organizationId: string,
-  reportId: string,
-  patch: Partial<
-    Pick<PendingSendRequest, "syncPhase" | "lastError" | "idempotencyKey">
-  >
-) {
-  const requests = loadPendingSendRequests(organizationId);
-  const index = requests.findIndex((entry) => entry.reportId === reportId);
-
-  if (index === -1) {
-    return null;
+export function pendingSendMatchesReportKey(
+  entry: PendingSendRequest,
+  reportKey: string
+): boolean {
+  if (!reportKey) {
+    return false;
   }
 
-  const updated = { ...requests[index], ...patch };
-  requests[index] = updated;
-  localStorage.setItem(storageKey(organizationId), JSON.stringify(requests));
-  return updated;
-}
-
-export function removePendingSendRequest(
-  organizationId: string,
-  reportId: string
-) {
-  const remaining = loadPendingSendRequests(organizationId).filter(
-    (entry) => entry.reportId !== reportId
+  return (
+    entry.reportId === reportKey
+    || entry.clientReportUuid === reportKey
   );
-
-  if (remaining.length) {
-    localStorage.setItem(
-      storageKey(organizationId),
-      JSON.stringify(remaining)
-    );
-  } else {
-    localStorage.removeItem(storageKey(organizationId));
-  }
 }
 
-export function clearAllPendingSendRequests(organizationId: string) {
+async function migrateLegacySendQueueFromLocalStorage(
+  organizationId: string
+): Promise<void> {
   if (typeof window === "undefined" || !organizationId) {
     return;
   }
-  localStorage.removeItem(storageKey(organizationId));
+
+  if (
+    localStorage.getItem(migrationMarkerKey(organizationId))
+    || localStorage.getItem(legacyMigrationMarkerKey(organizationId))
+  ) {
+    return;
+  }
+
+  const legacyEntries = readLegacyPendingSendRequests(organizationId);
+  for (const entry of legacyEntries) {
+    const identity = await resolveReportQueueIdentity(entry.reportId);
+    await enqueueSyncQueueRecord({
+      client_report_uuid: identity.clientReportUuid,
+      organization_id: organizationId,
+      server_report_id: identity.serverReportId,
+      idempotency_key: entry.idempotencyKey,
+      sync_phase: entry.syncPhase ?? "queued",
+      sync_status: "pending",
+      last_error: entry.lastError ?? null,
+    });
+  }
+
+  localStorage.removeItem(legacyStorageKey(organizationId));
+  localStorage.setItem(migrationMarkerKey(organizationId), "1");
+}
+
+export async function loadPendingSendRequests(
+  organizationId: string
+): Promise<PendingSendRequest[]> {
+  if (!organizationId) {
+    return [];
+  }
+
+  await migrateLegacySendQueueFromLocalStorage(organizationId);
+  const records = await listActiveSyncQueueForOrganization(
+    organizationId
+  );
+  return records.map(syncQueueRecordToPendingSendRequest);
+}
+
+export async function isReportPendingSendLocally(
+  organizationId: string,
+  reportKey: string
+): Promise<boolean> {
+  const pending = await loadPendingSendRequests(organizationId);
+  return pending.some((entry) =>
+    pendingSendMatchesReportKey(entry, reportKey)
+  );
+}
+
+export async function enqueuePendingSendRequest(
+  organizationId: string,
+  reportKey: string
+): Promise<PendingSendRequest> {
+  const identity = await resolveReportQueueIdentity(reportKey);
+  const record = await enqueueSyncQueueRecord({
+    client_report_uuid: identity.clientReportUuid,
+    organization_id: organizationId,
+    server_report_id: identity.serverReportId,
+    sync_phase: "queued",
+    sync_status: "pending",
+    last_error: null,
+  });
+
+  return syncQueueRecordToPendingSendRequest(record);
+}
+
+export async function updatePendingSendRequest(
+  organizationId: string,
+  reportKey: string,
+  patch: Partial<
+    Pick<PendingSendRequest, "syncPhase" | "lastError" | "idempotencyKey">
+  >
+): Promise<PendingSendRequest | null> {
+  const identity = await resolveReportQueueIdentity(reportKey);
+  const queuePatch: UpdateSyncQueueRecordInput = {
+    server_report_id: identity.serverReportId,
+  };
+  if (patch.syncPhase !== undefined) {
+    queuePatch.sync_phase = patch.syncPhase;
+  }
+  if (patch.lastError !== undefined) {
+    queuePatch.last_error = patch.lastError;
+  }
+  if (patch.idempotencyKey !== undefined) {
+    queuePatch.idempotency_key = patch.idempotencyKey;
+  }
+
+  const updated = await updateSyncQueueRecord(
+    identity.clientReportUuid,
+    queuePatch
+  );
+
+  if (!updated) {
+    return null;
+  }
+
+  if (updated.organization_id !== organizationId) {
+    return null;
+  }
+
+  return syncQueueRecordToPendingSendRequest(updated);
+}
+
+export async function removePendingSendRequest(
+  organizationId: string,
+  reportKey: string
+): Promise<void> {
+  const identity = await resolveReportQueueIdentity(reportKey);
+  const existing = await listActiveSyncQueueForOrganization(
+    organizationId
+  );
+  const record = existing.find(
+    (entry) =>
+      entry.client_report_uuid === identity.clientReportUuid
+  );
+
+  if (!record) {
+    return;
+  }
+
+  await removeSyncQueueRecord(record.client_report_uuid);
+}
+
+export async function clearAllPendingSendRequests(
+  organizationId: string
+): Promise<void> {
+  if (typeof window === "undefined" || !organizationId) {
+    return;
+  }
+
+  await clearSyncQueueForOrganization(organizationId);
+  localStorage.removeItem(legacyStorageKey(organizationId));
+  localStorage.setItem(migrationMarkerKey(organizationId), "1");
 }
 
 export function pendingSendPhaseLabelHe(
   phase?: PendingSendSyncPhase
 ): string {
   switch (phase) {
+    case "upsert":
+      return "מסנכרן דוח לשרת...";
+    case "close":
+      return "סוגר דוח בשרת...";
     case "metadata":
       return "מסנכרן פרטי דוח...";
     case "photos":

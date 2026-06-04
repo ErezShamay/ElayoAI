@@ -239,6 +239,11 @@ TABLES: dict[str, TableSchema] = {
                 "field_visit_reports_org_status_idx",
                 ("organization_id", "status"),
             ),
+            IndexDef(
+                "field_visit_reports_client_report_uuid_uniq",
+                ("client_report_uuid",),
+                unique=True,
+            ),
         ),
         rls_policies=(
             RlsPolicyDef(
@@ -271,6 +276,11 @@ TABLES: dict[str, TableSchema] = {
             IndexDef(
                 "field_visit_report_lines_org_idx",
                 ("organization_id",),
+            ),
+            IndexDef(
+                "field_visit_report_lines_client_line_uuid_uniq",
+                ("client_line_uuid",),
+                unique=True,
             ),
         ),
         rls_policies=(
@@ -409,6 +419,17 @@ MIGRATION_SCRIPTS: list[dict] = [
             "TAMA38 scheme on projects for field report metadata prefill (FR-4.3)"
         ),
         "tables": ["projects"],
+    },
+    {
+        "version": "2026060304",
+        "name": "field_visit_report_client_uuids",
+        "description": (
+            "Client UUID columns on field visit reports and lines (offline sync)"
+        ),
+        "tables": [
+            "field_visit_reports",
+            "field_visit_report_lines",
+        ],
     },
 ]
 

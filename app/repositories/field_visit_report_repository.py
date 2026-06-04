@@ -83,6 +83,27 @@ class FieldVisitReportRepository:
 
         return response.data[0]
 
+    def get_by_client_report_uuid(
+        self,
+        client_report_uuid: str,
+    ) -> dict | None:
+        if not self.is_storage_available() or not client_report_uuid:
+            return None
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .select("*")
+            .eq("client_report_uuid", client_report_uuid)
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data:
+            return None
+
+        return response.data[0]
+
     def get_open_for_project(
         self,
         *,
@@ -119,6 +140,7 @@ class FieldVisitReportRepository:
         header_fields: dict | None = None,
         catalog_version: str | None = None,
         organization_profile_snapshot: dict | None = None,
+        client_report_uuid: str | None = None,
     ) -> dict:
         if not self.is_storage_available():
             raise RuntimeError(
@@ -142,6 +164,9 @@ class FieldVisitReportRepository:
             "created_at": now,
             "updated_at": now,
         }
+
+        if client_report_uuid:
+            payload["client_report_uuid"] = client_report_uuid
 
         response = (
             self.client

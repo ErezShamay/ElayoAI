@@ -1,15 +1,22 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 import { useI18n } from "@/providers/I18nProvider";
 import { useOffline } from "@/providers/OfflineProvider";
 
 export default function OfflineBanner() {
+  const pathname = usePathname();
   const { isOnline } = useOffline();
   const { t } = useI18n();
 
   if (isOnline) {
     return null;
   }
+
+  const onFieldReports =
+    pathname === "/field-reports"
+    || pathname.startsWith("/field-reports/");
 
   return (
     <div
@@ -28,7 +35,9 @@ export default function OfflineBanner() {
         text-amber-950
       "
     >
-      {t("common.offline")}
+      {onFieldReports
+        ? "אין רשת — דוחות שטח נשמרים במכשיר; המשך בדוח שפתחת."
+        : t("common.offline")}
     </div>
   );
 }

@@ -11,6 +11,8 @@ type VisitReportPrimaryActionsReport = {
 type VisitReportPrimaryActionsProps = {
   report: VisitReportPrimaryActionsReport;
   isOnline: boolean;
+  /** סגירה מקומית בלי POST לשרת (FR-016). */
+  canCloseOffline?: boolean;
   isReopenedForEdit: boolean;
   reopenLoading: boolean;
   hasLocalPdf: boolean;
@@ -23,6 +25,7 @@ type VisitReportPrimaryActionsProps = {
 export default function VisitReportPrimaryActions({
   report,
   isOnline,
+  canCloseOffline = false,
   isReopenedForEdit,
   reopenLoading,
   hasLocalPdf,
@@ -38,11 +41,11 @@ export default function VisitReportPrimaryActions({
           size="lg"
           className="min-h-12"
           onClick={onOpenFinishDialog}
-          disabled={!isOnline}
+          disabled={!isOnline && !canCloseOffline}
         >
           {isReopenedForEdit ? "סגור דוח שוב" : "סיום דוח"}
         </Button>
-        {!isOnline ? (
+        {!isOnline && !canCloseOffline ? (
           <span className="self-center text-sm text-amber-800">סגירה דורשת רשת</span>
         ) : null}
       </div>

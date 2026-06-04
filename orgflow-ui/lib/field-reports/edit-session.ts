@@ -1,4 +1,6 @@
-const STORAGE_PREFIX = "orgflow-field-reports-editing";
+import { ELAYOAI_FIELD_REPORTS_EDITING_PREFIX } from "@/lib/elayoai/keys";
+
+const STORAGE_PREFIX = ELAYOAI_FIELD_REPORTS_EDITING_PREFIX;
 
 export type FieldReportEditSession = {
   reportId: string;

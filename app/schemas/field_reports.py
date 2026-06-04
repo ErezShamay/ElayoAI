@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -61,11 +61,72 @@ class FieldVisitReportCreateRequest(BaseModel):
         description=HEADER_FIELDS_DOC.strip(),
     )
     catalog_version: str | None = None
+    client_report_uuid: str | None = Field(
+        default=None,
+        description=(
+            "Optional stable UUID from the field device (offline-first sync)"
+        ),
+    )
 
     @model_validator(mode="after")
     def _warn_unknown_header_keys(self) -> Self:
         warn_unknown_header_field_keys(self.header_fields)
         return self
+
+
+class FieldVisitReportSyncLineRequest(BaseModel):
+    """שורת דוח לסנכרון bulk — `client_line_uuid` חובה (§7 ג.ב.2)."""
+
+    client_line_uuid: str
+    location: str | None = None
+    trade: str | None = None
+    status: str | None = None
+    description: str | None = None
+    notes: str | None = None
+    severity: str | None = None
+    standard_ref: str | None = None
+    engineering_impact: str | None = None
+    issue_id: str | None = None
+    catalog_version: str | None = None
+    top_family: str | None = None
+    category_id: str | None = None
+    category_name_he: str | None = None
+    sort_order: int | None = None
+    group_key: str | None = Field(default=None, max_length=120)
+    group_label_he: str | None = Field(default=None, max_length=120)
+    block_id: str | None = Field(default=None, max_length=120)
+
+
+class FieldVisitReportSyncRequest(BaseModel):
+    """גוף `PUT /field-reports/visits/sync` — upsert לפי `client_report_uuid`."""
+
+    client_report_uuid: str
+    project_id: str
+    visit_type: str
+    visit_date: date
+    header_fields: dict = Field(
+        default_factory=dict,
+        description=HEADER_FIELDS_DOC.strip(),
+    )
+    catalog_version: str | None = None
+    organization_profile_snapshot: dict | None = None
+    status: Literal["IN_PROGRESS", "CLOSED"] | None = None
+    closed_at: datetime | str | None = None
+    lines: list[FieldVisitReportSyncLineRequest] = Field(
+        default_factory=list
+    )
+
+    @model_validator(mode="after")
+    def _warn_unknown_header_keys(self) -> Self:
+        warn_unknown_header_field_keys(self.header_fields)
+        return self
+
+
+class FieldVisitReportSyncResponse(BaseModel):
+    created: bool
+    client_report_uuid: str
+    id: str
+    report: dict
 
 
 class FieldVisitReportUpdateRequest(BaseModel):
@@ -113,6 +174,12 @@ class FieldVisitReportLineCreateRequest(BaseModel):
         max_length=120,
         description="Optional link to header_fields.blocks[].id",
     )
+    client_line_uuid: str | None = Field(
+        default=None,
+        description=(
+            "Optional stable UUID from the field device (offline-first sync)"
+        ),
+    )
 
 
 class FieldVisitReportLineUpdateRequest(BaseModel):
@@ -137,6 +204,7 @@ class FieldVisitReportLineUpdateRequest(BaseModel):
 
 class FieldVisitReportSummary(BaseModel):
     id: str
+    client_report_uuid: str | None = None
     organization_id: str
     project_id: str
     project_name: str | None = None
@@ -171,6 +239,7 @@ class FieldVisitReportClosePreview(BaseModel):
 
 class FieldVisitReportLineSummary(BaseModel):
     id: str
+    client_line_uuid: str | None = None
     report_id: str
     sort_order: int
     location: str | None = None

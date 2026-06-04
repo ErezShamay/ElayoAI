@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/api/client";
 
-const STORAGE_PREFIX = "orgflow-field-reports-metadata-draft";
+import { ELAYOAI_FIELD_REPORTS_METADATA_PREFIX } from "@/lib/elayoai/keys";
+
+const STORAGE_PREFIX = ELAYOAI_FIELD_REPORTS_METADATA_PREFIX;
 
 export type ReportMetadataDraft = {
   reportId: string;

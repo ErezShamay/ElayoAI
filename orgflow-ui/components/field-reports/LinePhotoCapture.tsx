@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import Button from "@/components/ui/Button";
+import {
+  pickLinePhotoFromNativeGallery,
+  takeLinePhotoWithNativeCamera,
+  useNativeLinePhotoPicker,
+} from "@/lib/capacitor/line-photo-picker";
 import { apiFetch } from "@/lib/api/client";
 import { MAX_LINE_PHOTOS } from "@/lib/field-reports/line-photo-constants";
 import {
@@ -54,6 +59,7 @@ export default function LinePhotoCapture({
   onPhotosChange,
 }: LinePhotoCaptureProps) {
   const { isOnline } = useOffline();
+  const nativeLinePhotoPicker = useNativeLinePhotoPicker();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
@@ -288,6 +294,21 @@ export default function LinePhotoCapture({
     }
 
     setError("");
+    setCameraBlocked(false);
+
+    if (nativeLinePhotoPicker) {
+      try {
+        const file = await takeLinePhotoWithNativeCamera();
+        if (file) {
+          await handleFileSelected(file);
+        }
+      } catch (err: unknown) {
+        setError(getPhotoActionErrorMessage(err, "save"));
+      }
+
+      return;
+    }
+
     const permissionState = await checkCameraPermission();
 
     if (permissionState === "denied") {
@@ -298,8 +319,30 @@ export default function LinePhotoCapture({
       return;
     }
 
-    setCameraBlocked(false);
     cameraInputRef.current?.click();
+  }
+
+  async function openGalleryPicker() {
+    if (disabled || uploading) {
+      return;
+    }
+
+    setError("");
+
+    if (nativeLinePhotoPicker) {
+      try {
+        const file = await pickLinePhotoFromNativeGallery();
+        if (file) {
+          await handleFileSelected(file);
+        }
+      } catch (err: unknown) {
+        setError(getPhotoActionErrorMessage(err, "save"));
+      }
+
+      return;
+    }
+
+    galleryInputRef.current?.click();
   }
 
   const canAddMore = canAddLinePhoto(
@@ -385,7 +428,7 @@ export default function LinePhotoCapture({
                 className={`flex-1 sm:flex-none ${FR_TOUCH_BUTTON}`}
                 type="button"
                 disabled={uploading}
-                onClick={() => galleryInputRef.current?.click()}
+                onClick={() => void openGalleryPicker()}
               >
                 הוסף מהגלריה
               </Button>
@@ -415,7 +458,7 @@ export default function LinePhotoCapture({
             className={`flex-1 sm:flex-none ${FR_TOUCH_BUTTON}`}
             type="button"
             disabled={uploading}
-            onClick={() => galleryInputRef.current?.click()}
+            onClick={() => void openGalleryPicker()}
           >
             בחר מהגלריה
           </Button>

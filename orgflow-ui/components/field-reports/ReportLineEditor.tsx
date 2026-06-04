@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@/components/ui/Button";
@@ -8,8 +8,11 @@ import LinePhotoCapture, {
   type LinePhotosChangePayload,
 } from "@/components/field-reports/LinePhotoCapture";
 import LineGroupSelector from "@/components/field-reports/LineGroupSelector";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useLockBodyScroll } from "@/hooks/useLockBodyScroll";
+import { FIELD_REPORT_LOCAL_AUTOSAVE_MS } from "@/lib/field-reports/local-autosave";
 import {
+  lineGroupFieldsFromSelection,
   selectionFromLineGroupFields,
 } from "@/lib/field-reports/line-grouping";
 import {
@@ -47,12 +50,23 @@ const LINE_STATUS_OPTIONS = [
   { value: "NEEDS_ACTION", label: "יש להשלים" },
 ];
 
+export type LineSaveOptions = {
+  /** auto-save — ללא חסימת UI מלאה */
+  silent?: boolean;
+};
+
 type ReportLineEditorProps = {
   reportId: string;
   line: EditableReportLine;
   editable: boolean;
   saving: boolean;
-  onSave: (lineId: string, payload: Record<string, unknown>) => Promise<void>;
+  autosave?: boolean;
+  autosaveDelayMs?: number;
+  onSave: (
+    lineId: string,
+    payload: Record<string, unknown>,
+    options?: LineSaveOptions
+  ) => Promise<void>;
   onConvertToFreeText: (lineId: string) => Promise<void>;
   onDelete: (lineId: string) => Promise<void>;
   onPhotosChange: (lineId: string, payload: LinePhotosChangePayload) => void;
@@ -63,6 +77,8 @@ export default function ReportLineEditor({
   line,
   editable,
   saving,
+  autosave = false,
+  autosaveDelayMs = FIELD_REPORT_LOCAL_AUTOSAVE_MS,
   onSave,
   onConvertToFreeText,
   onDelete,
@@ -70,8 +86,39 @@ export default function ReportLineEditor({
 }: ReportLineEditorProps) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(() => lineToDraft(line));
+  const draftSkipAutosave = useRef(true);
 
   useLockBodyScroll(expanded);
+
+  useEffect(() => {
+    setDraft(lineToDraft(line));
+    draftSkipAutosave.current = true;
+  }, [line]);
+
+  const debouncedAutosave = useDebouncedCallback(() => {
+    if (!draft.description.trim()) {
+      return;
+    }
+
+    void onSave(
+      line.id,
+      lineDraftToSavePayload(draft, line),
+      { silent: true }
+    );
+  }, autosaveDelayMs);
+
+  useEffect(() => {
+    if (!expanded || !autosave || !editable) {
+      return;
+    }
+
+    if (draftSkipAutosave.current) {
+      draftSkipAutosave.current = false;
+      return;
+    }
+
+    debouncedAutosave();
+  }, [draft, expanded, autosave, editable, debouncedAutosave]);
 
   function closeEditor() {
     setDraft(lineToDraft(line));
@@ -89,15 +136,7 @@ export default function ReportLineEditor({
       return;
     }
 
-    await onSave(line.id, {
-      location: draft.location || null,
-      trade: draft.trade || null,
-      status: draft.status || null,
-      description: draft.description,
-      notes: draft.notes || null,
-      severity: line.has_catalog_issue ? undefined : draft.severity || null,
-      ...lineGroupFieldsFromSelection(draft.group),
-    });
+    await onSave(line.id, lineDraftToSavePayload(draft, line));
     setExpanded(false);
   }
 
@@ -376,5 +415,20 @@ function lineToDraft(line: EditableReportLine) {
     notes: line.notes || "",
     severity: line.severity || "",
     group: selectionFromLineGroupFields(line),
+  };
+}
+
+function lineDraftToSavePayload(
+  draft: ReturnType<typeof lineToDraft>,
+  line: EditableReportLine
+): Record<string, unknown> {
+  return {
+    location: draft.location || null,
+    trade: draft.trade || null,
+    status: draft.status || null,
+    description: draft.description,
+    notes: draft.notes || null,
+    severity: line.has_catalog_issue ? undefined : draft.severity || null,
+    ...lineGroupFieldsFromSelection(draft.group),
   };
 }

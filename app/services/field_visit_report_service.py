@@ -13,6 +13,10 @@ from app.exceptions.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.lib.field_report_client_ids import (
+    normalize_client_line_uuid,
+    normalize_client_report_uuid,
+)
 from app.repositories.field_visit_report_line_photo_repository import (
     FieldVisitReportLinePhotoRepository,
 )
@@ -51,6 +55,11 @@ VISIT_STATUS_LABELS_HE: dict[str, str] = {
 EDITABLE_STATUSES = frozenset({"IN_PROGRESS"})
 REOPENABLE_STATUSES = frozenset({"CLOSED"})
 SENDABLE_STATUSES = frozenset({"CLOSED"})
+SYNCABLE_STATUSES = frozenset({
+    "IN_PROGRESS",
+    "CLOSED",
+    "PENDING_UPLOAD",
+})
 OFFLINE_MAX_DAYS = 7
 REQUEST_SEND_ERROR_CODE_INVALID_STATUS = (
     "FIELD_VISIT_REPORT_SEND_INVALID_STATUS"
@@ -191,7 +200,10 @@ class FieldVisitReportService:
                 }
                 for project in projects
             ],
-            "reports": self.list_reports(organization_id)["reports"],
+            "reports": self.list_reports(
+                organization_id,
+                status="IN_PROGRESS",
+            )["reports"],
             "lines_storage_available": self.are_lines_available(),
         }
 
@@ -269,6 +281,7 @@ class FieldVisitReportService:
         header_fields: dict | None = None,
         catalog_version: str | None = None,
         snapshot_organization_profile: bool = True,
+        client_report_uuid: str | None = None,
     ) -> dict:
         if not self.is_storage_available():
             raise ValidationError(
@@ -343,6 +356,25 @@ class FieldVisitReportService:
             )
         )
 
+        normalized_client_report_uuid = normalize_client_report_uuid(
+            client_report_uuid
+        )
+
+        if normalized_client_report_uuid:
+            existing_client = (
+                self.report_repository.get_by_client_report_uuid(
+                    normalized_client_report_uuid
+                )
+            )
+            if existing_client:
+                raise ConflictError(
+                    message="דוח עם מזהה מכשיר זה כבר קיים",
+                    details={
+                        "client_report_uuid": normalized_client_report_uuid,
+                        "existing_report_id": str(existing_client["id"]),
+                    },
+                )
+
         record = self.report_repository.create(
             organization_id=organization_id,
             project_id=project_id,
@@ -352,6 +384,7 @@ class FieldVisitReportService:
             header_fields=merged_header_fields,
             catalog_version=resolved_catalog_version,
             organization_profile_snapshot=profile_snapshot,
+            client_report_uuid=normalized_client_report_uuid,
         )
 
         return self._serialize_report(
@@ -627,6 +660,105 @@ class FieldVisitReportService:
             report_id=report_id,
         )
 
+    def sync_visit_report(
+        self,
+        *,
+        organization_id: str,
+        actor_profile_id: str,
+        client_report_uuid: str,
+        project_id: str,
+        visit_type: str,
+        visit_date: str,
+        header_fields: dict | None = None,
+        catalog_version: str | None = None,
+        organization_profile_snapshot: dict | None = None,
+        status: str | None = None,
+        closed_at: str | None = None,
+        lines: list[dict] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        """
+        Upsert דוח+שורות לפי `client_report_uuid` (Tablet Wins, FR-021).
+        יצירה אם לא קיים; עדכון אם קיים. מפתח idempotency אופציונלי = UUID הדוח.
+        """
+        if not self.is_storage_available():
+            raise ValidationError(
+                message=(
+                    "טבלת דוחות ביקור אינה מוגדרת במסד הנתונים. "
+                    "יש להריץ את המיגרציה "
+                    "db/migrations/2026060102_field_visit_reports.sql"
+                ),
+            )
+
+        normalized_client_uuid = normalize_client_report_uuid(
+            client_report_uuid
+        )
+        if not normalized_client_uuid:
+            raise ValidationError(
+                message="client_report_uuid נדרש לסנכרון",
+                details={"client_report_uuid": client_report_uuid},
+            )
+
+        if idempotency_key:
+            key = idempotency_key.strip()
+            if key and key != normalized_client_uuid:
+                raise ValidationError(
+                    message=(
+                        "מפתח Idempotency חייב להתאים ל-client_report_uuid"
+                    ),
+                    details={
+                        "idempotency_key": key,
+                        "client_report_uuid": normalized_client_uuid,
+                    },
+                )
+
+        existing = self.report_repository.get_by_client_report_uuid(
+            normalized_client_uuid
+        )
+
+        if existing:
+            report = self._sync_update_existing_report(
+                organization_id=organization_id,
+                existing=existing,
+                project_id=project_id,
+                visit_type=visit_type,
+                visit_date=visit_date,
+                header_fields=header_fields,
+                catalog_version=catalog_version,
+                organization_profile_snapshot=(
+                    organization_profile_snapshot
+                ),
+                status=status,
+                closed_at=closed_at,
+                lines=lines or [],
+            )
+            created = False
+        else:
+            report = self._sync_create_new_report(
+                organization_id=organization_id,
+                actor_profile_id=actor_profile_id,
+                client_report_uuid=normalized_client_uuid,
+                project_id=project_id,
+                visit_type=visit_type,
+                visit_date=visit_date,
+                header_fields=header_fields,
+                catalog_version=catalog_version,
+                organization_profile_snapshot=(
+                    organization_profile_snapshot
+                ),
+                status=status,
+                closed_at=closed_at,
+                lines=lines or [],
+            )
+            created = True
+
+        return {
+            "created": created,
+            "client_report_uuid": normalized_client_uuid,
+            "id": str(report["id"]),
+            "report": report,
+        }
+
     def list_lines(
         self,
         *,
@@ -674,6 +806,22 @@ class FieldVisitReportService:
             incoming=payload,
             for_create=True,
         )
+
+        client_line_uuid = line_payload.get("client_line_uuid")
+        if client_line_uuid:
+            existing_line = (
+                self.line_repository.get_by_client_line_uuid(
+                    client_line_uuid
+                )
+            )
+            if existing_line:
+                raise ConflictError(
+                    message="שורה עם מזהה מכשיר זה כבר קיימת",
+                    details={
+                        "client_line_uuid": client_line_uuid,
+                        "existing_line_id": str(existing_line["id"]),
+                    },
+                )
 
         created = self.line_repository.create(line_payload)
         return self._serialize_line(
@@ -876,6 +1024,61 @@ class FieldVisitReportService:
             organization_id=organization_id,
             report_id=report_id,
             line=existing,
+        )
+        photos = self._photos_for_line(existing)
+        if len(photos) >= MAX_LINE_PHOTOS:
+            raise ValidationError(
+                message=f"ניתן לצרף עד {MAX_LINE_PHOTOS} תמונות לשורה",
+            )
+
+        updated = self._store_line_photo(
+            organization_id=organization_id,
+            report_id=report_id,
+            line=existing,
+            content=content,
+            content_type=content_type,
+            filename=filename,
+        )
+        return self._serialize_line(updated)
+
+    def add_line_photo_by_client_uuids(
+        self,
+        *,
+        organization_id: str,
+        client_report_uuid: str,
+        client_line_uuid: str,
+        content: bytes,
+        content_type: str | None,
+        filename: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        """
+        העלאת תמונה לשורה לפי מזהי קליינט (§7 ג.ב.4, FR-023).
+        הדוח חייב להיות מסונכרן קודם (`PUT .../visits/sync`).
+        """
+        if not self.are_lines_available():
+            raise ValidationError(
+                message=(
+                    "טבלת שורות דוח אינה מוגדרת במסד הנתונים. "
+                    "יש להריץ את המיגרציה "
+                    "db/migrations/2026060103_field_visit_report_lines.sql"
+                ),
+            )
+
+        report, line = self._resolve_sync_line_by_client_uuids(
+            organization_id=organization_id,
+            client_report_uuid=client_report_uuid,
+            client_line_uuid=client_line_uuid,
+            idempotency_key=idempotency_key,
+        )
+        self._ensure_syncable(report)
+
+        report_id = str(report["id"])
+        line_id = str(line["id"])
+        existing = self._migrate_legacy_line_photo(
+            organization_id=organization_id,
+            report_id=report_id,
+            line=line,
         )
         photos = self._photos_for_line(existing)
         if len(photos) >= MAX_LINE_PHOTOS:
@@ -1119,7 +1322,13 @@ class FieldVisitReportService:
                 report_id
             )
 
-        return {
+        client_line_uuid = None
+        if for_create and "client_line_uuid" in incoming:
+            client_line_uuid = normalize_client_line_uuid(
+                incoming.get("client_line_uuid")
+            )
+
+        payload = {
             "report_id": report_id,
             "organization_id": organization_id,
             "sort_order": sort_order or 0,
@@ -1142,6 +1351,11 @@ class FieldVisitReportService:
             "group_label_he": normalized.get("group_label_he"),
             "block_id": normalized.get("block_id"),
         }
+
+        if client_line_uuid:
+            payload["client_line_uuid"] = client_line_uuid
+
+        return payload
 
     def _build_line_update_payload(
         self,
@@ -1269,6 +1483,74 @@ class FieldVisitReportService:
 
         return record
 
+    def _resolve_sync_line_by_client_uuids(
+        self,
+        *,
+        organization_id: str,
+        client_report_uuid: str,
+        client_line_uuid: str,
+        idempotency_key: str | None = None,
+    ) -> tuple[dict, dict]:
+        normalized_report_uuid = normalize_client_report_uuid(
+            client_report_uuid
+        )
+        if not normalized_report_uuid:
+            raise ValidationError(
+                message="client_report_uuid נדרש",
+                details={"client_report_uuid": client_report_uuid},
+            )
+
+        normalized_line_uuid = normalize_client_line_uuid(
+            client_line_uuid
+        )
+        if not normalized_line_uuid:
+            raise ValidationError(
+                message="client_line_uuid נדרש",
+                details={"client_line_uuid": client_line_uuid},
+            )
+
+        if idempotency_key:
+            key = idempotency_key.strip()
+            if key and key != normalized_line_uuid:
+                raise ValidationError(
+                    message=(
+                        "מפתח Idempotency חייב להתאים ל-client_line_uuid"
+                    ),
+                    details={
+                        "idempotency_key": key,
+                        "client_line_uuid": normalized_line_uuid,
+                    },
+                )
+
+        report = self.report_repository.get_by_client_report_uuid(
+            normalized_report_uuid
+        )
+        if (
+            not report
+            or str(report.get("organization_id")) != organization_id
+        ):
+            raise NotFoundError(
+                message="Field visit report not found",
+                resource_type="field_visit_report",
+                resource_id=normalized_report_uuid,
+            )
+
+        line = self.line_repository.get_by_client_line_uuid(
+            normalized_line_uuid
+        )
+        if (
+            not line
+            or str(line.get("report_id")) != str(report["id"])
+            or str(line.get("organization_id")) != organization_id
+        ):
+            raise NotFoundError(
+                message="Field visit report line not found",
+                resource_type="field_visit_report_line",
+                resource_id=normalized_line_uuid,
+            )
+
+        return report, line
+
     @staticmethod
     def _ensure_editable(record: dict) -> None:
         status = str(record.get("status") or "")
@@ -1277,6 +1559,312 @@ class FieldVisitReportService:
                 message="הדוח אינו במצב עריכה",
                 details={"status": status},
             )
+
+    @staticmethod
+    def _ensure_syncable(record: dict) -> None:
+        status = str(record.get("status") or "")
+        if status not in SYNCABLE_STATUSES:
+            raise ConflictError(
+                message="לא ניתן לסנכרן דוח במצב זה",
+                details={"status": status},
+            )
+
+    def _sync_create_new_report(
+        self,
+        *,
+        organization_id: str,
+        actor_profile_id: str,
+        client_report_uuid: str,
+        project_id: str,
+        visit_type: str,
+        visit_date: str,
+        header_fields: dict | None,
+        catalog_version: str | None,
+        organization_profile_snapshot: dict | None,
+        status: str | None,
+        closed_at: str | None,
+        lines: list[dict],
+    ) -> dict:
+        if not is_valid_visit_type(visit_type):
+            raise ValidationError(
+                message="סוג ביקור לא תקין",
+                details={"visit_type": visit_type},
+            )
+
+        project = self.project_repository.get_project_by_id(
+            project_id
+        )
+        if (
+            not project
+            or str(project.get("organization_id")) != organization_id
+        ):
+            raise NotFoundError(
+                message="Project not found",
+                resource_type="project",
+                resource_id=project_id,
+            )
+
+        open_report = self.report_repository.get_open_for_project(
+            organization_id=organization_id,
+            project_id=project_id,
+        )
+        if open_report:
+            raise ConflictError(
+                message=(
+                    "כבר קיים דוח בעבודה לפרויקט זה. "
+                    "יש להמשיך את הדוח הקיים או לסגור אותו."
+                ),
+                details={
+                    "existing_report_id": str(open_report["id"]),
+                    "project_id": project_id,
+                },
+            )
+
+        merged_header_fields = _merge_header_fields(
+            project,
+            header_fields,
+            visit_type=visit_type,
+            visit_date=visit_date,
+        )
+        resolved_catalog_version = (
+            catalog_version
+            or self.catalog_service.get_catalog_summary().get(
+                "catalog_version"
+            )
+        )
+
+        record = self.report_repository.create(
+            organization_id=organization_id,
+            project_id=project_id,
+            created_by_profile_id=actor_profile_id,
+            visit_type=visit_type,
+            visit_date=visit_date,
+            header_fields=merged_header_fields,
+            catalog_version=resolved_catalog_version,
+            organization_profile_snapshot=organization_profile_snapshot,
+            client_report_uuid=client_report_uuid,
+        )
+
+        if lines:
+            if not self.are_lines_available():
+                raise ValidationError(
+                    message=(
+                        "טבלת שורות דוח אינה מוגדרת במסד הנתונים. "
+                        "יש להריץ את המיגרציה "
+                        "db/migrations/2026060103_field_visit_report_lines.sql"
+                    ),
+                )
+            record = self._sync_lines_for_report(
+                record=record,
+                incoming_lines=lines,
+            )
+
+        status_update = self._build_sync_status_payload(
+            status=status,
+            closed_at=closed_at,
+        )
+        if status_update:
+            updated = self.report_repository.update(
+                str(record["id"]),
+                status_update,
+            )
+            if updated:
+                record = updated
+
+        return self._serialize_report(
+            record,
+            project_name=project.get("project_name"),
+        )
+
+    def _sync_update_existing_report(
+        self,
+        *,
+        organization_id: str,
+        existing: dict,
+        project_id: str,
+        visit_type: str,
+        visit_date: str,
+        header_fields: dict | None,
+        catalog_version: str | None,
+        organization_profile_snapshot: dict | None,
+        status: str | None,
+        closed_at: str | None,
+        lines: list[dict],
+    ) -> dict:
+        report_id = str(existing["id"])
+
+        if str(existing.get("organization_id")) != organization_id:
+            raise NotFoundError(
+                message="Field visit report not found",
+                resource_type="field_visit_report",
+                resource_id=report_id,
+            )
+
+        self._ensure_syncable(existing)
+
+        if str(existing.get("project_id")) != project_id:
+            raise ValidationError(
+                message="לא ניתן לשנות פרויקט בדוח מסונכרן",
+                details={
+                    "project_id": project_id,
+                    "existing_project_id": str(existing["project_id"]),
+                },
+            )
+
+        if not is_valid_visit_type(visit_type):
+            raise ValidationError(
+                message="סוג ביקור לא תקין",
+                details={"visit_type": visit_type},
+            )
+
+        project = self.project_repository.get_project_by_id(
+            project_id
+        )
+        project_name = project.get("project_name") if project else None
+
+        update_payload: dict = {
+            "visit_type": visit_type,
+            "visit_date": visit_date,
+        }
+
+        if header_fields is not None:
+            update_payload["header_fields"] = {
+                **(existing.get("header_fields") or {}),
+                **header_fields,
+            }
+
+        if catalog_version is not None:
+            update_payload["catalog_version"] = catalog_version
+
+        if organization_profile_snapshot is not None:
+            update_payload["organization_profile_snapshot"] = (
+                organization_profile_snapshot
+            )
+
+        update_payload.update(
+            self._build_sync_status_payload(
+                status=status,
+                closed_at=closed_at,
+            )
+        )
+
+        record = self.report_repository.update(
+            report_id,
+            update_payload,
+        )
+        if not record:
+            raise NotFoundError(
+                message="Field visit report not found",
+                resource_type="field_visit_report",
+                resource_id=report_id,
+            )
+
+        if lines:
+            if not self.are_lines_available():
+                raise ValidationError(
+                    message=(
+                        "טבלת שורות דוח אינה מוגדרת במסד הנתונים. "
+                        "יש להריץ את המיגרציה "
+                        "db/migrations/2026060103_field_visit_report_lines.sql"
+                    ),
+                )
+            record = self._sync_lines_for_report(
+                record=record,
+                incoming_lines=lines,
+            )
+
+        return self._serialize_report(
+            record,
+            project_name=project_name,
+        )
+
+    def _sync_lines_for_report(
+        self,
+        *,
+        record: dict,
+        incoming_lines: list[dict],
+    ) -> dict:
+        report_id = str(record["id"])
+        existing_lines = self.line_repository.list_by_report(report_id)
+        existing_by_client = {
+            str(line["client_line_uuid"]): line
+            for line in existing_lines
+            if line.get("client_line_uuid")
+        }
+        seen_client_uuids: set[str] = set()
+
+        for incoming in incoming_lines:
+            client_line_uuid = normalize_client_line_uuid(
+                incoming.get("client_line_uuid")
+            )
+            if not client_line_uuid:
+                raise ValidationError(
+                    message="כל שורה בסנכרון חייבת client_line_uuid",
+                )
+
+            seen_client_uuids.add(client_line_uuid)
+
+            if client_line_uuid in existing_by_client:
+                existing_line = existing_by_client[client_line_uuid]
+                update_payload = self._build_line_update_payload(
+                    record=record,
+                    existing=existing_line,
+                    incoming=incoming,
+                )
+                if update_payload:
+                    updated = self.line_repository.update(
+                        str(existing_line["id"]),
+                        update_payload,
+                    )
+                    if updated:
+                        existing_by_client[client_line_uuid] = updated
+            else:
+                line_payload = self._build_line_payload(
+                    record=record,
+                    incoming=incoming,
+                    for_create=True,
+                )
+                created = self.line_repository.create(line_payload)
+                existing_by_client[client_line_uuid] = created
+
+        for existing_line in existing_lines:
+            client_line_uuid = existing_line.get("client_line_uuid")
+            if not client_line_uuid:
+                continue
+            if str(client_line_uuid) not in seen_client_uuids:
+                self._delete_all_line_photos(existing_line)
+                self.line_repository.delete(str(existing_line["id"]))
+
+        refreshed = self.report_repository.get_by_id(report_id)
+        return refreshed or record
+
+    @staticmethod
+    def _build_sync_status_payload(
+        *,
+        status: str | None,
+        closed_at: str | None,
+    ) -> dict:
+        if not status:
+            return {}
+
+        if status == "CLOSED":
+            payload: dict = {"status": "CLOSED"}
+            if closed_at:
+                payload["closed_at"] = closed_at
+            else:
+                payload["closed_at"] = datetime.now(UTC).isoformat()
+            return payload
+
+        if status == "IN_PROGRESS":
+            return {
+                "status": "IN_PROGRESS",
+                "closed_at": None,
+            }
+
+        raise ValidationError(
+            message="סטטוס לא נתמך לסנכרון",
+            details={"status": status},
+        )
 
     def _serialize_report(
         self,
@@ -1309,6 +1897,7 @@ class FieldVisitReportService:
 
         return {
             "id": report_id,
+            "client_report_uuid": record.get("client_report_uuid"),
             "organization_id": str(record["organization_id"]),
             "project_id": str(record["project_id"]),
             "project_name": project_name,
@@ -1595,6 +2184,7 @@ class FieldVisitReportService:
         )
         return {
             "id": line_id,
+            "client_line_uuid": record.get("client_line_uuid"),
             "report_id": report_id,
             "sort_order": int(record.get("sort_order") or 0),
             "location": record.get("location"),

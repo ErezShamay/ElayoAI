@@ -19,9 +19,20 @@ import VisitReportPrimaryActions from "@/components/field-reports/VisitReportPri
 import VisitReportEditor from "@/components/field-reports/VisitReportEditor";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFieldReportDataSource } from "@/hooks/useFieldReportDataSource";
 import { useFieldReportEditSession } from "@/hooks/useFieldReportEditSession";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { apiFetch } from "@/lib/api/client";
+import {
+  fieldReportDataSourceModeLabelHe,
+} from "@/lib/field-reports/data-source";
+import { finishLocalVisitReportWithPdf } from "@/lib/field-reports/close-local-visit-report";
+import {
+  clientVisitReportUuid,
+  loadVisitReportForPage,
+  serverVisitReportId,
+  type VisitReportView,
+} from "@/lib/field-reports/visit-report-view";
 import { buildClosePreview } from "@/lib/field-reports/close-preview";
 import { processPendingSendRequest } from "@/lib/field-reports/process-send-queue";
 import { downloadVisitReportPdf } from "@/lib/field-reports/pdf/generate-visit-report-pdf";
@@ -32,46 +43,15 @@ import type { OrganizationProfileSnapshot } from "@/lib/field-reports/pdf/types"
 import {
   enqueuePendingSendRequest,
   loadPendingSendRequests,
+  pendingSendMatchesReportKey,
   pendingSendPhaseLabelHe,
   removePendingSendRequest,
+  type PendingSendRequest,
 } from "@/lib/field-reports/send-queue";
 import { useOffline } from "@/providers/OfflineProvider";
 
-type VisitReportLine = {
-  id: string;
-  sort_order: number;
-  description?: string | null;
-  catalog_warning?: string | null;
-  location?: string | null;
-  trade?: string | null;
-  status?: string | null;
-  notes?: string | null;
-  severity?: string | null;
-  standard_ref?: string | null;
-  issue_id?: string | null;
-  has_photo?: boolean;
-  photo_url?: string | null;
-};
-
-type VisitReport = {
-  id: string;
-  project_id?: string;
-  project_name?: string;
-  visit_type: string;
-  visit_type_label_he: string;
-  status_label_he: string;
-  visit_date: string;
-  status: string;
-  header_fields: Record<string, unknown>;
-  catalog_version?: string | null;
-  closed_at?: string | null;
+type VisitReport = VisitReportView & {
   organization_profile_snapshot?: OrganizationProfileSnapshot | null;
-  lines: VisitReportLine[];
-  line_count?: number;
-  is_editable: boolean;
-  can_reopen?: boolean;
-  can_send_to_core?: boolean;
-  was_closed?: boolean;
 };
 
 export default function FieldVisitReportPage() {
@@ -86,6 +66,17 @@ export default function FieldVisitReportPage() {
     reportId
   );
   const [report, setReport] = useState<VisitReport | null>(null);
+  const [dataSourceContext, setDataSourceContext] = useState({
+    hasLocalReport: false,
+    serverReportId: null as string | null,
+  });
+  const {
+    mode: dataSourceMode,
+    pinging,
+    network,
+    useLocalReports,
+    canCallVisitReportApi,
+  } = useFieldReportDataSource(dataSourceContext);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [finishOpen, setFinishOpen] = useState(false);
@@ -103,12 +94,8 @@ export default function FieldVisitReportPage() {
   const [sendLoading, setSendLoading] = useState(false);
   const [sendError, setSendError] = useState("");
   const [sendNotice, setSendNotice] = useState("");
-  const pendingSendEntry =
-    organizationId && reportId
-      ? loadPendingSendRequests(organizationId).find(
-          (entry) => entry.reportId === reportId
-        )
-      : null;
+  const [pendingSendEntry, setPendingSendEntry] =
+    useState<PendingSendRequest | null>(null);
   const localPendingSend = Boolean(pendingSendEntry);
   const pendingSendPhase = pendingSendEntry?.syncPhase
     ? pendingSendPhaseLabelHe(pendingSendEntry.syncPhase)
@@ -122,6 +109,8 @@ export default function FieldVisitReportPage() {
   const isReopenedForEdit = Boolean(
     report?.is_editable && report?.was_closed
   );
+  const canCloseOffline =
+    useLocalReports || dataSourceContext.hasLocalReport;
 
   const loadReport = useCallback(async () => {
     if (!reportId) {
@@ -132,15 +121,13 @@ export default function FieldVisitReportPage() {
       setLoading(true);
       setError("");
 
-      const response = await apiFetch(
-        `/field-reports/visits/${reportId}`
-      );
+      const loaded = await loadVisitReportForPage(reportId, network);
 
-      if (!response.ok) {
-        throw new Error("טעינת הדוח נכשלה");
-      }
-
-      setReport(await response.json());
+      setReport(loaded.report as VisitReport);
+      setDataSourceContext({
+        hasLocalReport: Boolean(loaded.localRecord),
+        serverReportId: loaded.report.server_report_id ?? null,
+      });
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "טעינת הדוח נכשלה"
@@ -148,7 +135,7 @@ export default function FieldVisitReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [reportId]);
+  }, [reportId, network]);
 
   useEffect(() => {
     startTransition(() => {
@@ -174,13 +161,42 @@ export default function FieldVisitReportPage() {
   }, [loadReport]);
 
   useEffect(() => {
-    if (!reportId) {
+    if (!organizationId || !reportId) {
+      setPendingSendEntry(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void loadPendingSendRequests(organizationId).then((entries) => {
+      if (cancelled) {
+        return;
+      }
+
+      setPendingSendEntry(
+        entries.find((entry) =>
+          pendingSendMatchesReportKey(entry, reportId)
+        ) ?? null
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, reportId]);
+
+  const pdfStorageKey = report
+    ? clientVisitReportUuid(report)
+    : reportId;
+
+  useEffect(() => {
+    if (!pdfStorageKey) {
       return;
     }
 
     let active = true;
 
-    void hasVisitReportPdfLocally(reportId).then((exists) => {
+    void hasVisitReportPdfLocally(pdfStorageKey).then((exists) => {
       if (active) {
         setHasLocalPdf(exists);
       }
@@ -189,7 +205,7 @@ export default function FieldVisitReportPage() {
     return () => {
       active = false;
     };
-  }, [reportId, report?.status]);
+  }, [pdfStorageKey, report?.status]);
 
   async function openFinishDialog() {
     if (!report?.is_editable) {
@@ -209,8 +225,14 @@ export default function FieldVisitReportPage() {
     }
 
     try {
+      const serverId = serverVisitReportId(report);
+      if (!serverId) {
+        setFinishLoading(false);
+        return;
+      }
+
       const response = await apiFetch(
-        `/field-reports/visits/${report.id}/close-preview`
+        `/field-reports/visits/${serverId}/close-preview`
       );
 
       if (response.ok) {
@@ -228,17 +250,66 @@ export default function FieldVisitReportPage() {
       return;
     }
 
-    if (!isOnline) {
-      setFinishError("סגירת דוח דורשת חיבור לרשת");
-      return;
-    }
+    const serverId = serverVisitReportId(report);
+    const closeLocally =
+      useLocalReports || dataSourceContext.hasLocalReport;
 
     try {
       setFinishLoading(true);
       setFinishError("");
 
+      if (closeLocally) {
+        const { view, pdfSource } = await finishLocalVisitReportWithPdf({
+          report,
+          inspector: { full_name: profile?.full_name },
+        });
+
+        setReport(view as VisitReport);
+        setFinishOpen(false);
+        editSession.release();
+        setPdfError("");
+        setHasLocalPdf(true);
+        setPdfNotice(
+          pdfSource === "cache"
+            ? "הדוח נסגר במכשיר. ה-PDF כבר היה שמור."
+            : "הדוח נסגר במכשיר וה-PDF נשמר."
+        );
+
+        if (canCallVisitReportApi && serverId && isOnline) {
+          try {
+            const response = await apiFetch(
+              `/field-reports/visits/${serverId}/close`,
+              { method: "POST" }
+            );
+
+            if (response.ok) {
+              const closed = (await response.json()) as VisitReport;
+              setReport({
+                ...closed,
+                client_report_uuid: clientVisitReportUuid(view),
+                server_report_id: serverId,
+              });
+            }
+          } catch {
+            // סגירה מקומית היא מקור האמת בשטח; סנכרון יושלם ב-FR-025.
+          }
+        }
+
+        return;
+      }
+
+      if (!isOnline) {
+        setFinishError("סגירת דוח דורשת חיבור לרשת");
+        return;
+      }
+
+      if (!serverId) {
+        setFinishError("דוח לא נמצא בשרת");
+        return;
+      }
+
       const response = await apiFetch(
-        `/field-reports/visits/${report.id}/close`,
+        `/field-reports/visits/${serverId}/close`,
         { method: "POST" }
       );
 
@@ -299,8 +370,14 @@ export default function FieldVisitReportPage() {
       setReopenLoading(true);
       setReopenError("");
 
+      const serverId = serverVisitReportId(report);
+      if (!serverId) {
+        setReopenError("פתיחה מחדש דורשת דוח שסונכרן לשרת");
+        return;
+      }
+
       const response = await apiFetch(
-        `/field-reports/visits/${report.id}/reopen`,
+        `/field-reports/visits/${serverId}/reopen`,
         { method: "POST" }
       );
 
@@ -352,10 +429,12 @@ export default function FieldVisitReportPage() {
     try {
       setSendLoading(true);
       setSendError("");
-      const pendingRequest = enqueuePendingSendRequest(
+      const sendReportId = serverVisitReportId(report) || report.id;
+      const pendingRequest = await enqueuePendingSendRequest(
         organizationId,
-        report.id
+        sendReportId
       );
+      setPendingSendEntry(pendingRequest);
 
       if (!isOnline) {
         setSendOpen(false);
@@ -369,11 +448,14 @@ export default function FieldVisitReportPage() {
 
       // Keep UI lock/editability consistent with server state.
       try {
-        const response = await apiFetch(
-          `/field-reports/visits/${report.id}`
-        );
-        if (response.ok) {
-          setReport(await response.json());
+        const refreshId = serverVisitReportId(report);
+        if (refreshId) {
+          const response = await apiFetch(
+            `/field-reports/visits/${refreshId}`
+          );
+          if (response.ok) {
+            setReport(await response.json());
+          }
         }
       } catch {
         // If refresh fails, keep current UI state. The pending-send header is still correct via localStorage.
@@ -402,12 +484,16 @@ export default function FieldVisitReportPage() {
     }
   }
 
-  function cancelPendingSend() {
+  async function cancelPendingSend() {
     if (!organizationId || !report) {
       return;
     }
 
-    removePendingSendRequest(organizationId, report.id);
+    await removePendingSendRequest(
+      organizationId,
+      serverVisitReportId(report) || report.id
+    );
+    setPendingSendEntry(null);
     setSendError("");
     setSendNotice("ההמתנה לשליחה בוטלה. הדוח חזר למצב סגור וניתן לעריכה מחדש.");
   }
@@ -449,6 +535,10 @@ export default function FieldVisitReportPage() {
         <p className="text-sm text-zinc-600">
           {report.visit_type_label_he} · תאריך ביקור: {report.visit_date}
         </p>
+        <p className="text-xs text-zinc-500">
+          {fieldReportDataSourceModeLabelHe(dataSourceMode)}
+          {pinging ? " · בודק חיבור..." : ""}
+        </p>
         <p className="text-sm">
           <span className="rounded-full bg-zinc-100 px-3 py-1 font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
             {showPendingSendState
@@ -461,6 +551,7 @@ export default function FieldVisitReportPage() {
             <VisitReportPrimaryActions
               report={report}
               isOnline={isOnline}
+              canCloseOffline={canCloseOffline}
               isReopenedForEdit={isReopenedForEdit}
               reopenLoading={reopenLoading}
               hasLocalPdf={hasLocalPdf}
@@ -484,6 +575,7 @@ export default function FieldVisitReportPage() {
             <VisitReportPrimaryActions
               report={report}
               isOnline={isOnline}
+              canCloseOffline={canCloseOffline}
               isReopenedForEdit={isReopenedForEdit}
               reopenLoading={reopenLoading}
               hasLocalPdf={hasLocalPdf}
@@ -584,6 +676,7 @@ export default function FieldVisitReportPage() {
           <VisitReportPrimaryActions
             report={report}
             isOnline={isOnline}
+            canCloseOffline={canCloseOffline}
             isReopenedForEdit={isReopenedForEdit}
             reopenLoading={reopenLoading}
             hasLocalPdf={hasLocalPdf}
@@ -600,6 +693,7 @@ export default function FieldVisitReportPage() {
           <VisitReportPrimaryActions
             report={report}
             isOnline={isOnline}
+            canCloseOffline={canCloseOffline}
             isReopenedForEdit={isReopenedForEdit}
             reopenLoading={reopenLoading}
             hasLocalPdf={hasLocalPdf}

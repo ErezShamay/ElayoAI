@@ -9,6 +9,12 @@ import {
   type ReactNode,
 } from "react";
 
+import {
+  refreshCapacitorNetworkStatus,
+  subscribeCapacitorNetworkConnectivity,
+  useCapacitorFieldReportNetwork,
+} from "@/lib/capacitor/field-report-network";
+
 type OfflineContextValue = {
   isOnline: boolean;
   wasOffline: boolean;
@@ -27,8 +33,7 @@ export function OfflineProvider({
   const [wasOffline, setWasOffline] = useState(false);
 
   useEffect(() => {
-    const updateStatus = () => {
-      const online = window.navigator.onLine;
+    const applyOnline = (online: boolean) => {
       setIsOnline(online);
 
       if (!online) {
@@ -36,13 +41,24 @@ export function OfflineProvider({
       }
     };
 
-    updateStatus();
-    window.addEventListener("online", updateStatus);
-    window.addEventListener("offline", updateStatus);
+    const updateFromNavigator = () => {
+      applyOnline(window.navigator.onLine);
+    };
+
+    if (useCapacitorFieldReportNetwork()) {
+      void refreshCapacitorNetworkStatus().then(applyOnline);
+
+      const unsubscribe = subscribeCapacitorNetworkConnectivity(applyOnline);
+      return unsubscribe;
+    }
+
+    updateFromNavigator();
+    window.addEventListener("online", updateFromNavigator);
+    window.addEventListener("offline", updateFromNavigator);
 
     return () => {
-      window.removeEventListener("online", updateStatus);
-      window.removeEventListener("offline", updateStatus);
+      window.removeEventListener("online", updateFromNavigator);
+      window.removeEventListener("offline", updateFromNavigator);
     };
   }, []);
 

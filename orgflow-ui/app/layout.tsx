@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { ELAYOAI_APP_NAME } from "@/lib/elayoai/keys";
 import { Toaster } from "sonner";
 
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -17,11 +18,11 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Supervisor AI",
+  title: ELAYOAI_APP_NAME,
   description:
     "AI Operations Platform for Construction Management",
   manifest: "/manifest.webmanifest",
-  applicationName: "OrgFlow",
+  applicationName: ELAYOAI_APP_NAME,
   icons: {
     icon: [
       { url: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
@@ -48,7 +49,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k="orgflow-theme";var s=localStorage.getItem(k);var d=window.matchMedia("(prefers-color-scheme: dark)").matches;var dark=s==="dark"||(s!=="light"&&d);document.documentElement.classList.toggle("dark",dark);}catch(e){}})();`,
+            __html: `(function(){try{var k="elayoai-theme",o="orgflow-theme";var s=localStorage.getItem(k);if(s===null){var l=localStorage.getItem(o);if(l!==null){localStorage.setItem(k,l);s=l;}}var d=window.matchMedia("(prefers-color-scheme: dark)").matches;var dark=s==="dark"||(s!=="light"&&(!s||d));document.documentElement.classList.toggle("dark",dark);}catch(e){}})();`,
           }}
         />
       </head>

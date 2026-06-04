@@ -23,7 +23,9 @@ const ThemeContext = createContext<ThemeContextValue | null>(
   null
 );
 
-const STORAGE_KEY = "orgflow-theme";
+import { ELAYOAI_THEME_KEY } from "@/lib/elayoai/keys";
+
+const STORAGE_KEY = ELAYOAI_THEME_KEY;
 
 function resolveTheme(
   theme: ThemeMode,

@@ -14,6 +14,6 @@ export function clearFieldReportLocalState(organizationId: string) {
 
   clearOfflinePrepBundle(organizationId);
   clearAllReportMetadataDrafts(organizationId);
-  clearAllPendingSendRequests(organizationId);
+  void clearAllPendingSendRequests(organizationId);
   clearEditSession(organizationId);
 }

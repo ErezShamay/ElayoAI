@@ -11,26 +11,49 @@ import {
 } from "react";
 
 import Button from "@/components/ui/Button";
-import { apiFetch } from "@/lib/api/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useFieldReportDataSource } from "@/hooks/useFieldReportDataSource";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
-
-type Project = {
-  id: string;
-  project_name: string;
-};
-
-type VisitType = {
-  code: string;
-  label_he: string;
-};
+import {
+  fieldReportDataSourceModeLabelHe,
+} from "@/lib/field-reports/data-source";
+import {
+  createLocalVisitReport,
+  parseNewReportFormFromApi,
+  parseNewReportFormFromCatalog,
+  syncNewVisitReportToServer,
+  type NewReportProject,
+  type NewReportVisitType,
+} from "@/lib/field-reports/new-report-form";
+import {
+  hydrateOfflinePrepBundle,
+  isOfflinePrepValid,
+} from "@/lib/field-reports/offline-store";
+import { isExpired } from "@/lib/field-reports/repositories/catalog-repository";
 
 export default function NewFieldVisitReportPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedProjectId = searchParams.get("project");
-  const { isEnabled, loading: moduleLoading } = useFieldReportModule();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
+  const { profile } = useAuth();
+  const {
+    status: moduleStatus,
+    isEnabled,
+    loading: moduleLoading,
+  } = useFieldReportModule();
+  const organizationId = moduleStatus?.organization_id || "";
+  const {
+    useLocalCatalog,
+    canCallVisitReportApi,
+    mode: dataSourceMode,
+    pinging,
+  } = useFieldReportDataSource();
+
+  const [projects, setProjects] = useState<NewReportProject[]>([]);
+  const [visitTypes, setVisitTypes] = useState<NewReportVisitType[]>([]);
+  const [catalogVersion, setCatalogVersion] = useState<string | null>(null);
+  const [organizationProfileSnapshot, setOrganizationProfileSnapshot] =
+    useState<Record<string, unknown> | null>(null);
   const [projectId, setProjectId] = useState("");
   const [visitType, setVisitType] = useState("");
   const [visitDate, setVisitDate] = useState(
@@ -39,35 +62,20 @@ export default function NewFieldVisitReportPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  const loadFormData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const [projectsRes, typesRes] = await Promise.all([
-        apiFetch("/projects"),
-        apiFetch("/field-reports/visit-types"),
-      ]);
-
-      if (!projectsRes.ok || !typesRes.ok) {
-        throw new Error("טעינת נתוני הטופס נכשלה");
-      }
-
-      const projectsPayload = await projectsRes.json();
-      const typesPayload = await typesRes.json();
-
-      const projectList = Array.isArray(projectsPayload)
-        ? projectsPayload
-        : projectsPayload.projects || [];
-
+  const applyFormDefaults = useCallback(
+    (
+      projectList: NewReportProject[],
+      typeList: NewReportVisitType[]
+    ) => {
       setProjects(projectList);
-      setVisitTypes(typesPayload.visit_types || []);
+      setVisitTypes(typeList);
 
       const defaultProjectId =
         preselectedProjectId
         && projectList.some(
-          (project: Project) => project.id === preselectedProjectId
+          (project) => project.id === preselectedProjectId
         )
           ? preselectedProjectId
           : projectList[0]?.id;
@@ -76,10 +84,68 @@ export default function NewFieldVisitReportPage() {
         setProjectId(defaultProjectId);
       }
 
-      const firstType = typesPayload.visit_types?.[0]?.code;
+      const firstType = typeList[0]?.code;
       if (firstType) {
         setVisitType(firstType);
       }
+    },
+    [preselectedProjectId]
+  );
+
+  const loadFormData = useCallback(async () => {
+    if (!organizationId) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      setNotice("");
+
+      const bundle = await hydrateOfflinePrepBundle(organizationId);
+      const catalogReady =
+        bundle && isOfflinePrepValid(bundle) && !isExpired(bundle);
+
+      if (useLocalCatalog) {
+        if (!catalogReady) {
+          throw new Error(
+            "אין חבילת הכנה לא מקוון תקפה. חזור לרשימת הדוחות ובצע «הכנה לא מקוון»."
+          );
+        }
+
+        const parsed = parseNewReportFormFromCatalog(bundle);
+        if (!parsed.projects.length || !parsed.visitTypes.length) {
+          throw new Error(
+            "חבילת ההכנה חסרה פרויקטים או סוגי ביקור. בצע הכנה לא מקוון מחדש."
+          );
+        }
+
+        setCatalogVersion(bundle.catalog_version ?? null);
+        setOrganizationProfileSnapshot(
+          (bundle.organization_profile as Record<string, unknown>)
+          ?? null
+        );
+        applyFormDefaults(parsed.projects, parsed.visitTypes);
+        return;
+      }
+
+      if (catalogReady) {
+        const parsed = parseNewReportFormFromCatalog(bundle);
+        if (parsed.projects.length && parsed.visitTypes.length) {
+          setCatalogVersion(bundle.catalog_version ?? null);
+          setOrganizationProfileSnapshot(
+            (bundle.organization_profile as Record<string, unknown>)
+            ?? null
+          );
+          applyFormDefaults(parsed.projects, parsed.visitTypes);
+          return;
+        }
+      }
+
+      const fromApi = await parseNewReportFormFromApi();
+      setCatalogVersion(null);
+      setOrganizationProfileSnapshot(null);
+      applyFormDefaults(fromApi.projects, fromApi.visitTypes);
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -89,52 +155,60 @@ export default function NewFieldVisitReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [preselectedProjectId]);
+  }, [organizationId, useLocalCatalog, applyFormDefaults]);
 
   useEffect(() => {
-    if (moduleLoading || !isEnabled) {
+    if (moduleLoading || !isEnabled || !organizationId) {
       return;
     }
 
     startTransition(() => {
       void loadFormData();
     });
-  }, [moduleLoading, isEnabled, loadFormData]);
+  }, [moduleLoading, isEnabled, organizationId, loadFormData]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    if (!projectId || !visitType || !visitDate) {
+    if (!organizationId || !projectId || !visitType || !visitDate) {
       setError("יש למלא את כל השדות");
       return;
     }
 
+    const selectedProject = projects.find(
+      (project) => project.id === projectId
+    );
+    const selectedVisitType = visitTypes.find(
+      (type) => type.code === visitType
+    );
+
     try {
       setSubmitting(true);
       setError("");
+      setNotice("");
 
-      const response = await apiFetch("/field-reports/visits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: projectId,
-          visit_type: visitType,
-          visit_date: visitDate,
-        }),
+      const localReport = await createLocalVisitReport({
+        organizationId,
+        userId: profile?.id ?? null,
+        projectId,
+        projectName: selectedProject?.project_name ?? null,
+        visitType,
+        visitTypeLabelHe: selectedVisitType?.label_he ?? null,
+        visitDate,
+        catalogVersion,
+        organizationProfileSnapshot,
       });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(
-          payload.error?.message
-            || payload.message
-            || payload.detail
-            || "יצירת הדוח נכשלה"
-        );
+      if (canCallVisitReportApi) {
+        const syncResult = await syncNewVisitReportToServer(localReport);
+        if (!syncResult.ok) {
+          setNotice(
+            `הדוח נשמר במכשיר. ${syncResult.message}`
+          );
+        }
       }
 
-      const report = await response.json();
-      router.push(`/field-reports/${report.id}`);
+      router.push(`/field-reports/${localReport.client_report_uuid}`);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "יצירת הדוח נכשלה"
@@ -178,6 +252,10 @@ export default function NewFieldVisitReportPage() {
         <h1 className="of-page-title text-2xl">דוח ביקור חדש</h1>
         <p className="of-page-desc text-sm">
           דוח שבועי אחד לפרויקט — אם קיים דוח בעבודה, יש להמשיך אותו.
+        </p>
+        <p className="text-xs text-zinc-500">
+          {fieldReportDataSourceModeLabelHe(dataSourceMode)}
+          {pinging ? " · בודק חיבור..." : ""}
         </p>
       </header>
 
@@ -227,6 +305,10 @@ export default function NewFieldVisitReportPage() {
 
         {error ? (
           <p className="text-sm text-red-600">{error}</p>
+        ) : null}
+
+        {notice ? (
+          <p className="text-sm text-amber-700 dark:text-amber-300">{notice}</p>
         ) : null}
 
         <div className="flex flex-wrap gap-3">

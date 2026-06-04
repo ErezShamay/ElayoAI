@@ -1,4 +1,7 @@
-import type { Content, TableCell } from "pdfmake/interfaces";
+import type { Content } from "pdfmake/interfaces";
+
+/** תא בטבלת pdfmake — מחרוזת או אובייקט תוכן. */
+type PdfTableCell = string | Content;
 
 import { getColumnPreset, getColumnPresetHeaders } from "../schema/column-presets";
 import { normalizeReportBlocks } from "../schema/normalize";
@@ -243,15 +246,17 @@ export function renderFindingsTable(
       findingRowToCells(row, columns, includeCatalogColumns, photoLookup)
     );
 
+    const tableBody: PdfTableCell[][] = [headers, ...body];
+
     content.push({
       table: {
         headerRows: 1,
         widths,
-        body: [headers, ...body],
+        body: tableBody,
       },
       layout: "lightHorizontalLines",
       margin: [0, 0, 0, segment.groupLabelHe ? 8 : 12],
-    });
+    } as Content);
   }
 
   return content;
@@ -390,8 +395,8 @@ function pdfColumnsForFindingsPreset(
 function tableWidthsForColumns(
   columns: readonly BlockColumnDef[],
   includeCatalogColumns: boolean
-): (number | string)[] {
-  const widths = columns.map((column) =>
+): Array<number | "*" | "auto"> {
+  const widths: Array<number | "*" | "auto"> = columns.map((column) =>
     column.id === "photos" ? INLINE_PHOTO_THUMB_SIZE * 3 + 12 : "*"
   );
   if (includeCatalogColumns) {
@@ -423,7 +428,7 @@ function findingRowToCells(
   columns: readonly BlockColumnDef[],
   includeCatalogColumns: boolean,
   photoLookup: LinePhotoLookup
-): TableCell[] {
+): PdfTableCell[] {
   const statusNotes = [
     row.status ? formatLineStatus(row.status) : "",
     row.notes || "",
@@ -431,7 +436,7 @@ function findingRowToCells(
     .filter(Boolean)
     .join(" — ");
 
-  const cells: TableCell[] = columns.map((column) => {
+  const cells: PdfTableCell[] = columns.map((column) => {
     switch (column.id as BlockColumnId) {
       case "location":
         return row.location || "";
@@ -468,7 +473,7 @@ function rowHasPhotoMarker(row: FindingRow): boolean {
 function renderInlinePhotoCell(
   row: FindingRow,
   photoLookup: LinePhotoLookup
-): TableCell {
+): PdfTableCell {
   if (!rowHasPhotoMarker(row)) {
     return "";
   }
@@ -493,7 +498,7 @@ function renderInlinePhotoCell(
     columnGap: 4,
     alignment: "center",
     margin: [0, 2, 0, 2],
-  };
+  } as PdfTableCell;
 }
 
 function formatLineStatus(status: string): string {

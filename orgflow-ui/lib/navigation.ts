@@ -75,6 +75,8 @@ export function landingSectionHref(sectionId: string) {
 
 export const PUBLIC_ROUTES = ["/"] as const;
 
+export const POST_LOGIN_ROUTE = "/portfolio" as const;
+
 export function isPublicRoute(pathname: string) {
   return (
     pathname === "/"

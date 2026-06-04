@@ -1,9 +1,13 @@
 import type { MetadataRoute } from "next";
 
+import { ELAYOAI_APP_NAME } from "@/lib/elayoai/keys";
+
+export const dynamic = "force-static";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "OrgFlow Field Reports",
-    short_name: "OrgFlow",
+    name: ELAYOAI_APP_NAME,
+    short_name: ELAYOAI_APP_NAME,
     description: "דוחות שטח ועריכה במצב רשת/אופליין",
     start_url: "/",
     scope: "/",

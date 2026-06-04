@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import FieldReportsOfflineGuide from "@/components/field-reports/FieldReportsOfflineGuide";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api/client";
@@ -36,12 +37,15 @@ export default function FieldReportsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState("");
-  const [showOfflinePrepGuide, setShowOfflinePrepGuide] = useState(false);
+  const [showOfflineGuide, setShowOfflineGuide] = useState(true);
+  const importedInProgressCount = offlinePrep.importSummary
+    ? offlinePrep.importSummary.imported + offlinePrep.importSummary.updated
+    : 0;
 
   async function handleOfflinePrep() {
     const saved = await offlinePrep.prepare();
     if (saved) {
-      setShowOfflinePrepGuide(true);
+      setShowOfflineGuide(true);
     }
   }
 
@@ -112,6 +116,31 @@ export default function FieldReportsPage() {
 
     return () => {
       window.clearTimeout(timer);
+    };
+  }, [isEnabled, statusFilter, loadReports, loadInProgressCount]);
+
+  useEffect(() => {
+    if (!isEnabled) {
+      return;
+    }
+
+    const handleSyncComplete = () => {
+      void loadReports(statusFilter);
+      if (statusFilter !== "IN_PROGRESS") {
+        void loadInProgressCount();
+      }
+    };
+
+    window.addEventListener(
+      "field-report-sync-complete",
+      handleSyncComplete
+    );
+
+    return () => {
+      window.removeEventListener(
+        "field-report-sync-complete",
+        handleSyncComplete
+      );
     };
   }, [isEnabled, statusFilter, loadReports, loadInProgressCount]);
 
@@ -195,37 +224,14 @@ export default function FieldReportsPage() {
         </p>
       ) : null}
 
-      {showOfflinePrepGuide && offlinePrep.isReady ? (
-        <div
-          className="space-y-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100"
-          role="status"
-        >
-          <p className="font-semibold">ההכנה לא מקוון הושלמה</p>
-          <p className="text-sky-900 dark:text-sky-200">
-            זה לא יוצר דוח — רק שומר במכשיר נתונים לעבודה בשטח. כך ממשיכים:
-          </p>
-          <ol className="list-decimal space-y-1.5 pr-5 text-sky-900 dark:text-sky-200">
-            <li>
-              <strong>עם רשת:</strong> לחץ «דוח ביקור חדש» (או פתח דוח בעבודה)
-              וצור את הדוח.
-            </li>
-            <li>
-              <strong>בשטח בלי רשת:</strong> המשך בדוח שכבר פתחת; בחירת ממצאים
-              מהמפרט תעבוד מהנתונים שנשמרו.
-            </li>
-            <li>
-              <strong>שוב עם רשת:</strong> סיום דוח, הפקת PDF ושליחה לליבה.
-            </li>
-          </ol>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowOfflinePrepGuide(false)}
-          >
-            הבנתי
-          </Button>
-        </div>
+      {offlinePrep.isReady && showOfflineGuide ? (
+        <FieldReportsOfflineGuide
+          expiresAt={offlinePrep.expiresAt}
+          catalogVersion={offlinePrep.catalogVersion}
+          importedInProgressCount={importedInProgressCount}
+          dismissible
+          onDismiss={() => setShowOfflineGuide(false)}
+        />
       ) : null}
 
       {offlinePrep.error ? (

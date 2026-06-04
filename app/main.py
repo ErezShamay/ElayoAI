@@ -130,6 +130,8 @@ from app.schemas.field_reports import (
     FieldVisitReportCreateRequest,
     FieldVisitReportLineCreateRequest,
     FieldVisitReportLineUpdateRequest,
+    FieldVisitReportSyncRequest,
+    FieldVisitReportSyncResponse,
     FieldVisitReportUpdateRequest,
 )
 
@@ -385,13 +387,21 @@ jwt_service = JWTService()
 FRONTEND_URL = str(settings.FRONTEND_URL)
 IS_AUTOMATION_ENABLED = settings.FEATURE_FLAGS.enable_automation
 
-FRONTEND_URLS = [
-    FRONTEND_URL,
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://localhost:3000",
-    "https://127.0.0.1:3000",
-]
+FRONTEND_URLS = list(
+    dict.fromkeys(
+        [
+            FRONTEND_URL,
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://localhost:3000",
+            "https://127.0.0.1:3000",
+            # Capacitor / APK WebView origins (static export + dev server)
+            "https://localhost",
+            "http://localhost",
+            "capacitor://localhost",
+        ]
+    )
+)
 
 # ==========================================
 # APP
@@ -1299,6 +1309,10 @@ def exchange_supabase_session(request: ExchangeTokenRequest):
         ) from error
 
     if not profile:
+        logger.warning(
+            "Token exchange rejected — profile missing for Supabase user",
+            extra={"event": "auth.exchange.profile_not_found", "user_id": user_id},
+        )
         raise HTTPException(
             status_code=404,
             detail=(
@@ -1536,6 +1550,70 @@ def create_field_visit_report(
         visit_date=request.visit_date.isoformat(),
         header_fields=request.header_fields,
         catalog_version=request.catalog_version,
+        client_report_uuid=request.client_report_uuid,
+    )
+
+
+@app.put(
+    "/field-reports/visits/sync",
+    response_model=FieldVisitReportSyncResponse,
+)
+def sync_field_visit_report(
+    body: FieldVisitReportSyncRequest,
+    http_request: Request,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    closed_at = body.closed_at
+    if closed_at is not None and hasattr(closed_at, "isoformat"):
+        closed_at = closed_at.isoformat()
+
+    return field_visit_report_service.sync_visit_report(
+        organization_id=auth.org_id,
+        actor_profile_id=auth.user_id,
+        client_report_uuid=body.client_report_uuid,
+        project_id=body.project_id,
+        visit_type=body.visit_type,
+        visit_date=body.visit_date.isoformat(),
+        header_fields=body.header_fields,
+        catalog_version=body.catalog_version,
+        organization_profile_snapshot=body.organization_profile_snapshot,
+        status=body.status,
+        closed_at=closed_at,
+        lines=[line.model_dump(exclude_none=True) for line in body.lines],
+        idempotency_key=http_request.headers.get(
+            settings.IDEMPOTENCY_HEADER
+        ),
+    )
+
+
+@app.post(
+    "/field-reports/visits/sync/{client_report_uuid}/lines/"
+    "{client_line_uuid}/photos",
+)
+async def add_field_visit_report_sync_line_photo(
+    client_report_uuid: str,
+    client_line_uuid: str,
+    http_request: Request,
+    file: UploadFile = File(...),
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    content = await file.read()
+    return field_visit_report_service.add_line_photo_by_client_uuids(
+        organization_id=auth.org_id,
+        client_report_uuid=client_report_uuid,
+        client_line_uuid=client_line_uuid,
+        content=content,
+        content_type=file.content_type,
+        filename=file.filename,
+        idempotency_key=http_request.headers.get(
+            settings.IDEMPOTENCY_HEADER
+        ),
     )
 
 

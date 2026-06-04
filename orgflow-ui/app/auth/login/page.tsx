@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import {
+  useEffect,
   useState,
 } from "react";
 
@@ -12,22 +13,96 @@ import {
 
 import BrandLogo from "@/components/ui/BrandLogo";
 import Button from "@/components/ui/Button";
+import {
+  useAuth,
+} from "@/contexts/AuthContext";
+import {
+  logAuthError,
+  logAuthInfo,
+} from "@/lib/auth/logger";
+import {
+  describeMobileAuthConfig,
+  getApiBaseUrl,
+  isSupabaseConfigured,
+} from "@/lib/env/public-env";
+import { POST_LOGIN_ROUTE } from "@/lib/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, loading: authLoading, authBootstrapError } = useAuth();
+  const configWarning = describeMobileAuthConfig();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [awaitingRedirect, setAwaitingRedirect] = useState(false);
+
+  useEffect(() => {
+    if (!awaitingRedirect) {
+      return;
+    }
+
+    if (!authLoading && !user) {
+      const message =
+        authBootstrapError
+        || configWarning
+        || "לא ניתן להשלים את ההתחברות. נסו שוב.";
+
+      logAuthError("login:redirect_failed", new Error(message), {
+        authBootstrapError,
+        configWarning,
+        apiBaseUrl: getApiBaseUrl(),
+      });
+
+      setAwaitingRedirect(false);
+      setLoading(false);
+      setError(message);
+      return;
+    }
+
+    if (authLoading || !user) {
+      return;
+    }
+
+    logAuthInfo("login:redirect_ok", {
+      route: POST_LOGIN_ROUTE,
+      userId: user.id,
+    });
+
+    setAwaitingRedirect(false);
+    setLoading(false);
+    router.replace(POST_LOGIN_ROUTE);
+  }, [
+    awaitingRedirect,
+    authLoading,
+    authBootstrapError,
+    configWarning,
+    router,
+    user,
+  ]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
 
+    let redirectPending = false;
+
     try {
       setLoading(true);
       setError("");
+
+      if (!isSupabaseConfigured()) {
+        throw new Error(
+          configWarning
+          || "Supabase לא מוגדר — בנו APK עם .env.capacitor.local"
+        );
+      }
+
+      logAuthInfo("login:supabase:start", {
+        email,
+        apiBaseUrl: getApiBaseUrl(),
+      });
 
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -38,15 +113,24 @@ export default function LoginPage() {
         throw error;
       }
 
-      router.push("/portfolio");
+      logAuthInfo("login:supabase:ok", { email });
+      redirectPending = true;
+      setAwaitingRedirect(true);
     } catch (err: unknown) {
+      logAuthError("login:supabase:failed", err, {
+        email,
+        apiBaseUrl: getApiBaseUrl(),
+      });
+
       setError(
         err instanceof Error
           ? err.message
           : "Login failed"
       );
     } finally {
-      setLoading(false);
+      if (!redirectPending) {
+        setLoading(false);
+      }
     }
   }
 
@@ -82,6 +166,12 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {configWarning ? (
+          <div className="of-card of-card-p6 of-badge-danger mb-5 rounded-2xl text-sm">
+            {configWarning}
+          </div>
+        ) : null}
+
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label className="mb-2 block font-medium">
@@ -111,9 +201,9 @@ export default function LoginPage() {
             />
           </div>
 
-          {error ? (
+          {error || authBootstrapError ? (
             <div className="of-card of-card-p6 of-badge-danger rounded-2xl text-sm">
-              {error}
+              {error || authBootstrapError}
             </div>
           ) : null}
 
@@ -121,10 +211,10 @@ export default function LoginPage() {
             type="submit"
             variant="accent"
             size="lg"
-            disabled={loading}
+            disabled={loading || awaitingRedirect}
             className="w-full"
           >
-            {loading ? "מתחבר..." : "התחבר"}
+            {loading || awaitingRedirect ? "מתחבר..." : "התחבר"}
           </Button>
         </form>
 

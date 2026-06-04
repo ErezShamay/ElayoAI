@@ -632,7 +632,7 @@ export default function PublicHomePage() {
                 md:text-4xl
               "
             >
-              Supervisor AI —
+              ElayoAI —
               מערכת ההפעלה
               לפרויקטים שלך
             </h2>
@@ -906,7 +906,7 @@ export default function PublicHomePage() {
           <div className="flex items-center gap-3">
             <BrandLogo size="sm" showTagline={false} />
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              © {new Date().getFullYear()} Supervisor AI
+              © {new Date().getFullYear()} ElayoAI
             </p>
           </div>
 

@@ -1,63 +1,62 @@
-const STORAGE_PREFIX = "orgflow-field-reports-offline";
+import type { OfflinePrepBundle } from "@/lib/field-reports/offline-store-types";
+import { clearLegacyOfflinePrepBundle } from "@/lib/field-reports/offline-prep-local-storage";
+import {
+  clearCatalogBundle,
+  resolveOfflinePrepBundle,
+  saveFromOfflinePrep,
+} from "@/lib/field-reports/repositories/catalog-repository";
 
-export type OfflinePrepBundle = {
-  organization_id: string;
-  offline_max_days: number;
-  prepared_at: string;
-  expires_at: string;
-  catalog_version?: string | null;
-  catalog: unknown;
-  visit_types: unknown[];
-  organization_profile: unknown;
-  projects: unknown[];
-  reports: unknown[];
-};
+export type { OfflinePrepBundle } from "@/lib/field-reports/offline-store-types";
 
-function storageKey(organizationId: string) {
-  return `${STORAGE_PREFIX}:${organizationId}`;
-}
+const prepBundleCache = new Map<string, OfflinePrepBundle>();
 
-export function saveOfflinePrepBundle(
+function setCachedOfflinePrepBundle(
   organizationId: string,
-  bundle: Omit<OfflinePrepBundle, "prepared_at" | "expires_at">
+  bundle: OfflinePrepBundle | null
 ) {
-  const preparedAt = new Date();
-  const expiresAt = new Date(preparedAt);
-  expiresAt.setDate(
-    expiresAt.getDate() + (bundle.offline_max_days || 7)
-  );
+  if (!bundle) {
+    prepBundleCache.delete(organizationId);
+    return;
+  }
 
-  const payload: OfflinePrepBundle = {
-    ...bundle,
-    prepared_at: preparedAt.toISOString(),
-    expires_at: expiresAt.toISOString(),
-  };
-
-  localStorage.setItem(
-    storageKey(organizationId),
-    JSON.stringify(payload)
-  );
-
-  return payload;
+  prepBundleCache.set(organizationId, bundle);
 }
 
+/**
+ * טוען חבילת הכנה ל-IndexedDB ומעדכן מטמון סינכרוני לקריאות UI.
+ */
+export async function hydrateOfflinePrepBundle(
+  organizationId: string
+): Promise<OfflinePrepBundle | null> {
+  if (!organizationId) {
+    setCachedOfflinePrepBundle(organizationId, null);
+    return null;
+  }
+
+  const bundle = await resolveOfflinePrepBundle(organizationId);
+  setCachedOfflinePrepBundle(organizationId, bundle);
+  return bundle;
+}
+
+/** קריאה סינכרונית מהמטמון — אחרי `hydrateOfflinePrepBundle`. */
 export function loadOfflinePrepBundle(
   organizationId: string
 ): OfflinePrepBundle | null {
-  if (typeof window === "undefined") {
+  if (!organizationId) {
     return null;
   }
 
-  const raw = localStorage.getItem(storageKey(organizationId));
-  if (!raw) {
-    return null;
-  }
+  return prepBundleCache.get(organizationId) ?? null;
+}
 
-  try {
-    return JSON.parse(raw) as OfflinePrepBundle;
-  } catch {
-    return null;
-  }
+export async function saveOfflinePrepBundle(
+  organizationId: string,
+  bundle: Omit<OfflinePrepBundle, "prepared_at" | "expires_at">
+): Promise<OfflinePrepBundle> {
+  const saved = await saveFromOfflinePrep(organizationId, bundle);
+  clearLegacyOfflinePrepBundle(organizationId);
+  setCachedOfflinePrepBundle(organizationId, saved);
+  return saved;
 }
 
 export function isOfflinePrepValid(
@@ -71,5 +70,11 @@ export function isOfflinePrepValid(
 }
 
 export function clearOfflinePrepBundle(organizationId: string) {
-  localStorage.removeItem(storageKey(organizationId));
+  if (typeof window === "undefined" || !organizationId) {
+    return;
+  }
+
+  clearLegacyOfflinePrepBundle(organizationId);
+  setCachedOfflinePrepBundle(organizationId, null);
+  void clearCatalogBundle(organizationId);
 }

@@ -1,11 +1,16 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api/client";
 import {
+  importInProgressReportsFromOfflinePrep,
+  type ImportInProgressReportsResult,
+} from "@/lib/field-reports/import-in-progress-reports";
+import {
+  hydrateOfflinePrepBundle,
   isOfflinePrepValid,
-  loadOfflinePrepBundle,
   saveOfflinePrepBundle,
   type OfflinePrepBundle,
 } from "@/lib/field-reports/offline-store";
@@ -13,21 +18,47 @@ import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 
 export function useFieldReportOfflinePrep() {
   const { status } = useFieldReportModule();
+  const { profile } = useAuth();
   const organizationId = status?.organization_id || "";
   const isModuleEnabled = Boolean(status?.is_enabled);
-  const storedBundle = useMemo(
-    () =>
-      organizationId && isModuleEnabled
-        ? loadOfflinePrepBundle(organizationId)
-        : null,
-    [organizationId, isModuleEnabled]
+  const [storedBundle, setStoredBundle] = useState<OfflinePrepBundle | null>(
+    null
   );
+  const [hydrating, setHydrating] = useState(false);
   const [preparedBundle, setPreparedBundle] = useState<{
     organizationId: string;
     bundle: OfflinePrepBundle;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [importSummary, setImportSummary] =
+    useState<ImportInProgressReportsResult | null>(null);
+
+  useEffect(() => {
+    if (!organizationId || !isModuleEnabled) {
+      setStoredBundle(null);
+      return;
+    }
+
+    let cancelled = false;
+    setHydrating(true);
+
+    void hydrateOfflinePrepBundle(organizationId)
+      .then((bundle) => {
+        if (!cancelled) {
+          setStoredBundle(bundle);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setHydrating(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, isModuleEnabled]);
 
   const bundle =
     isModuleEnabled
@@ -56,11 +87,18 @@ export function useFieldReportOfflinePrep() {
       }
 
       const payload = await response.json();
-      const saved = saveOfflinePrepBundle(organizationId, payload);
+      const saved = await saveOfflinePrepBundle(organizationId, payload);
+      const imported = await importInProgressReportsFromOfflinePrep({
+        organizationId,
+        userId: profile?.id ?? null,
+        prepReports: payload.reports ?? [],
+      });
+      setImportSummary(imported);
       setPreparedBundle({
         organizationId,
         bundle: saved,
       });
+      setStoredBundle(saved);
       return saved;
     } catch (err: unknown) {
       setError(
@@ -72,14 +110,15 @@ export function useFieldReportOfflinePrep() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, isModuleEnabled]);
+  }, [organizationId, isModuleEnabled, profile?.id]);
 
   return {
     bundle,
     isReady: isOfflinePrepValid(bundle),
     expiresAt: bundle?.expires_at || null,
     catalogVersion: bundle?.catalog_version || null,
-    loading,
+    importSummary,
+    loading: loading || hydrating,
     error,
     prepare,
   };

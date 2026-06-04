@@ -11,14 +11,23 @@ import ReportBlocksManager from "@/components/field-reports/ReportBlocksManager"
 import ReportFixedBlocksSection from "@/components/field-reports/ReportFixedBlocksSection";
 import ReportProjectMetadataSection from "@/components/field-reports/ReportProjectMetadataSection";
 import ReportStakeholdersSection from "@/components/field-reports/ReportStakeholdersSection";
-import ReportLineEditor from "@/components/field-reports/ReportLineEditor";
+import ReportLineEditor, {
+  type LineSaveOptions,
+} from "@/components/field-reports/ReportLineEditor";
 import LineGroupSelector from "@/components/field-reports/LineGroupSelector";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { apiFetch } from "@/lib/api/client";
-import { loadOfflineCatalogForVisitType } from "@/lib/field-reports/catalog-offline";
+import {
+  loadOfflineCatalogForPicker,
+  OFFLINE_CATALOG_UNAVAILABLE_MESSAGE,
+} from "@/lib/field-reports/catalog-offline";
+import {
+  FIELD_REPORT_LOCAL_AUTOSAVE_MS,
+  fieldReportHeaderAutosaveDelayMs,
+} from "@/lib/field-reports/local-autosave";
 import {
   normalizeHeaderFields,
   patchHeaderFieldsBlocks,
@@ -37,7 +46,19 @@ import {
   FR_TOUCH_NOTES,
   FR_TOUCH_TEXTAREA,
 } from "@/lib/field-reports/touch-input-class";
-import { useOffline } from "@/providers/OfflineProvider";
+import { useFieldReportDataSource } from "@/hooks/useFieldReportDataSource";
+import { isClientUuid } from "@/lib/field-reports/ids";
+import {
+  clientVisitReportUuid,
+  localVisitReportToView,
+  type VisitReportView,
+} from "@/lib/field-reports/visit-report-view";
+import {
+  deleteLine as deleteLocalLine,
+  getLocalReport,
+  saveLocalReport,
+  upsertLine,
+} from "@/lib/field-reports/repositories/reports-repository";
 
 type ReportLine = {
   id: string;
@@ -61,25 +82,8 @@ type ReportLine = {
   block_id?: string | null;
 };
 
-type VisitReport = {
-  id: string;
-  project_id?: string;
-  project_name?: string;
-  visit_type: string;
-  visit_type_label_he: string;
-  status_label_he: string;
-  status: string;
-  visit_date: string;
-  header_fields: Record<string, unknown>;
-  catalog_version?: string | null;
-  current_catalog_version?: string | null;
-  catalog_sync?: {
-    is_current?: boolean;
-    message?: string | null;
-  };
+type VisitReport = VisitReportView & {
   lines: ReportLine[];
-  line_count?: number;
-  is_editable: boolean;
 };
 
 const LINE_STATUS_OPTIONS = [
@@ -98,7 +102,15 @@ export default function VisitReportEditor({
   report,
   onReportChange,
 }: VisitReportEditorProps) {
-  const { isOnline } = useOffline();
+  const {
+    useLocalReports,
+    canCallVisitReportApi,
+    mode: dataSourceMode,
+  } = useFieldReportDataSource({
+    hasLocalReport: isClientUuid(clientVisitReportUuid(report)),
+    serverReportId: report.server_report_id ?? null,
+  });
+  const clientReportUuid = clientVisitReportUuid(report);
   const { status: moduleStatus } = useFieldReportModule();
   const organizationId = moduleStatus?.organization_id || "";
   const [saving, setSaving] = useState(false);
@@ -106,6 +118,9 @@ export default function VisitReportEditor({
     "idle" | "saving" | "saved" | "offline"
   >("idle");
   const [lineSaving, setLineSaving] = useState(false);
+  const [lineAutosaveState, setLineAutosaveState] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
   const [error, setError] = useState("");
   const [headerFields, setHeaderFields] = useState(() =>
     normalizeHeaderFields(report.header_fields, report.visit_type, {
@@ -135,6 +150,20 @@ export default function VisitReportEditor({
     defaultLineGroupSelection()
   );
 
+  async function persistHeaderLocally() {
+    const record = await getLocalReport(clientReportUuid);
+    if (!record) {
+      throw new Error("דוח מקומי לא נמצא");
+    }
+
+    const updated = await saveLocalReport({
+      ...record,
+      header_fields: serializeHeaderFieldsForApi(headerFields),
+    });
+    onReportChange(localVisitReportToView(updated) as VisitReport);
+    setSaveState("saved");
+  }
+
   async function saveHeaderFields() {
     if (!report.is_editable) {
       return;
@@ -144,8 +173,18 @@ export default function VisitReportEditor({
       setSaving(true);
       setError("");
 
+      if (useLocalReports) {
+        await persistHeaderLocally();
+        return;
+      }
+
+      const serverId = report.server_report_id;
+      if (!serverId) {
+        throw new Error("אין מזהה שרת לדוח — שמירה מקומית בלבד");
+      }
+
       const response = await apiFetch(
-        `/field-reports/visits/${report.id}`,
+        `/field-reports/visits/${serverId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -178,12 +217,27 @@ export default function VisitReportEditor({
     }
   }
 
+  const headerAutosaveMs = fieldReportHeaderAutosaveDelayMs(useLocalReports);
+
   const debouncedSaveHeader = useDebouncedCallback(() => {
     if (!report.is_editable) {
       return;
     }
 
-    if (!isOnline) {
+    if (useLocalReports) {
+      setSaveState("saving");
+      void persistHeaderLocally().catch((err: unknown) => {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "שמירת פרטי הדוח במכשיר נכשלה"
+        );
+        setSaveState("idle");
+      });
+      return;
+    }
+
+    if (!canCallVisitReportApi) {
       if (organizationId) {
         saveReportMetadataDraft(
           organizationId,
@@ -196,7 +250,7 @@ export default function VisitReportEditor({
     }
 
     void saveHeaderFields();
-  }, 900);
+  }, headerAutosaveMs);
 
   useEffect(() => {
     if (!report.is_editable) {
@@ -210,7 +264,47 @@ export default function VisitReportEditor({
 
     setSaveState("saving");
     debouncedSaveHeader();
-  }, [headerFields, report.is_editable, debouncedSaveHeader, isOnline]);
+  }, [
+    headerFields,
+    report.is_editable,
+    debouncedSaveHeader,
+    canCallVisitReportApi,
+    useLocalReports,
+  ]);
+
+  async function persistLinePhotosLocally(
+    lineId: string,
+    payload: {
+      has_photo: boolean;
+      photo_ids: string[];
+    }
+  ) {
+    const updated = await upsertLine(clientReportUuid, {
+      client_line_uuid: lineId,
+      has_photo: payload.has_photo,
+      photo_ids: payload.photo_ids,
+    });
+
+    if (updated) {
+      onReportChange(localVisitReportToView(updated) as VisitReport);
+      setLineAutosaveState("saved");
+    }
+  }
+
+  const debouncedPersistLinePhotos = useDebouncedCallback(
+    (lineId: string, payload: { has_photo: boolean; photo_ids: string[] }) => {
+      setLineAutosaveState("saving");
+      void persistLinePhotosLocally(lineId, payload).catch((err: unknown) => {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "שמירת תמונות במכשיר נכשלה"
+        );
+        setLineAutosaveState("idle");
+      });
+    },
+    FIELD_REPORT_LOCAL_AUTOSAVE_MS
+  );
 
   function updateLinePhotosState(
     lineId: string,
@@ -235,25 +329,35 @@ export default function VisitReportEditor({
           : line
       ),
     });
+
+    if (useLocalReports) {
+      debouncedPersistLinePhotos(lineId, {
+        has_photo: payload.has_photo,
+        photo_ids: payload.photo_ids,
+      });
+    }
   }
 
   async function loadCatalog() {
     try {
       setCatalogLoading(true);
+      setError("");
 
-      if (!isOnline && organizationId) {
-        const offlineCatalog = loadOfflineCatalogForVisitType(
+      if (organizationId) {
+        const offlineCatalog = await loadOfflineCatalogForPicker(
           organizationId,
           report.visit_type
         );
-        if (!offlineCatalog?.issues?.length) {
-          throw new Error(
-            "אין מפרט מקומי — הרץ «הכנה לא מקוון» כשיש רשת"
-          );
+
+        if (offlineCatalog) {
+          applyCatalogPayload(offlineCatalog);
+          setCatalogOpen(true);
+          return;
         }
-        applyCatalogPayload(offlineCatalog);
-        setCatalogOpen(true);
-        return;
+      }
+
+      if (!canCallVisitReportApi) {
+        throw new Error(OFFLINE_CATALOG_UNAVAILABLE_MESSAGE);
       }
 
       const response = await apiFetch(
@@ -312,37 +416,59 @@ export default function VisitReportEditor({
       setLineSaving(true);
       setError("");
 
-      const response = await apiFetch(
-        `/field-reports/visits/${report.id}/lines`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: newLine.location || null,
-            trade: newLine.trade || null,
-            status: newLine.status || null,
-            description: newLine.description,
-            notes: newLine.notes || null,
-            ...lineGroupFieldsFromSelection(pendingLineGroup),
-          }),
+      if (useLocalReports) {
+        const updated = await upsertLine(clientReportUuid, {
+          location: newLine.location || null,
+          trade: newLine.trade || null,
+          status: newLine.status || null,
+          description: newLine.description,
+          notes: newLine.notes || null,
+          ...lineGroupFieldsFromSelection(pendingLineGroup),
+        });
+
+        if (!updated) {
+          throw new Error("הוספת שורה במכשיר נכשלה");
         }
-      );
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(
-          payload.error?.message
-            || payload.message
-            || "הוספת שורה נכשלה"
+        onReportChange(localVisitReportToView(updated) as VisitReport);
+      } else {
+        const serverId = report.server_report_id;
+        if (!serverId) {
+          throw new Error("אין מזהה שרת לדוח");
+        }
+
+        const response = await apiFetch(
+          `/field-reports/visits/${serverId}/lines`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: newLine.location || null,
+              trade: newLine.trade || null,
+              status: newLine.status || null,
+              description: newLine.description,
+              notes: newLine.notes || null,
+              ...lineGroupFieldsFromSelection(pendingLineGroup),
+            }),
+          }
         );
-      }
 
-      const createdLine = await response.json();
-      onReportChange({
-        ...report,
-        lines: [...report.lines, createdLine],
-        line_count: report.lines.length + 1,
-      });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(
+            payload.error?.message
+              || payload.message
+              || "הוספת שורה נכשלה"
+          );
+        }
+
+        const createdLine = await response.json();
+        onReportChange({
+          ...report,
+          lines: [...report.lines, createdLine],
+          line_count: report.lines.length + 1,
+        });
+      }
       setNewLine({
         location: "",
         trade: "",
@@ -369,32 +495,54 @@ export default function VisitReportEditor({
       setLineSaving(true);
       setError("");
 
-      const response = await apiFetch(
-        `/field-reports/visits/${report.id}/lines`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            issue_id: issue.issue_id,
-            ...lineGroupFieldsFromSelection(pendingLineGroup),
-          }),
-        }
-      );
+      if (useLocalReports) {
+        const updated = await upsertLine(clientReportUuid, {
+          issue_id: issue.issue_id,
+          description: issue.issue_name_he,
+          severity: issue.severity ?? null,
+          standard_ref: issue.standard_ref ?? null,
+          ...lineGroupFieldsFromSelection(pendingLineGroup),
+        });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(
-          payload.error?.message
-            || payload.message
-            || "הוספת ממצא מהמפרט נכשלה"
+        if (!updated) {
+          throw new Error("הוספת ממצא במכשיר נכשלה");
+        }
+
+        onReportChange(localVisitReportToView(updated) as VisitReport);
+      } else {
+        const serverId = report.server_report_id;
+        if (!serverId) {
+          throw new Error("אין מזהה שרת לדוח");
+        }
+
+        const response = await apiFetch(
+          `/field-reports/visits/${serverId}/lines`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              issue_id: issue.issue_id,
+              ...lineGroupFieldsFromSelection(pendingLineGroup),
+            }),
+          }
         );
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(
+            payload.error?.message
+              || payload.message
+              || "הוספת ממצא מהמפרט נכשלה"
+          );
+        }
+
+        const createdLine = await response.json();
+        onReportChange({
+          ...report,
+          lines: [...report.lines, createdLine],
+        });
       }
 
-      const createdLine = await response.json();
-      onReportChange({
-        ...report,
-        lines: [...report.lines, createdLine],
-      });
       setCatalogOpen(false);
     } catch (err: unknown) {
       setError(
@@ -409,43 +557,76 @@ export default function VisitReportEditor({
 
   async function saveLine(
     lineId: string,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown>,
+    options?: LineSaveOptions
   ) {
     if (!report.is_editable) {
       return;
     }
 
+    const silent = Boolean(options?.silent);
+
     try {
-      setLineSaving(true);
+      if (!silent) {
+        setLineSaving(true);
+      } else {
+        setLineAutosaveState("saving");
+      }
       setError("");
 
-      const response = await apiFetch(
-        `/field-reports/visits/${report.id}/lines/${lineId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+      if (useLocalReports) {
+        const updated = await upsertLine(clientReportUuid, {
+          client_line_uuid: lineId,
+          ...payload,
+        });
+
+        if (!updated) {
+          throw new Error("עדכון שורה במכשיר נכשל");
         }
-      );
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(
-          body.error?.message || body.message || "עדכון שורה נכשל"
+        onReportChange(localVisitReportToView(updated) as VisitReport);
+        if (silent) {
+          setLineAutosaveState("saved");
+        }
+      } else {
+        const serverId = report.server_report_id;
+        if (!serverId) {
+          throw new Error("אין מזהה שרת לדוח");
+        }
+
+        const response = await apiFetch(
+          `/field-reports/visits/${serverId}/lines/${lineId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
         );
-      }
 
-      const updatedLine = await response.json();
-      onReportChange({
-        ...report,
-        lines: report.lines.map((line) =>
-          line.id === lineId ? { ...line, ...updatedLine } : line
-        ),
-      });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(
+            body.error?.message || body.message || "עדכון שורה נכשל"
+          );
+        }
+
+        const updatedLine = await response.json();
+        onReportChange({
+          ...report,
+          lines: report.lines.map((line) =>
+            line.id === lineId ? { ...line, ...updatedLine } : line
+          ),
+        });
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "עדכון שורה נכשל");
+      if (silent) {
+        setLineAutosaveState("idle");
+      }
     } finally {
-      setLineSaving(false);
+      if (!silent) {
+        setLineSaving(false);
+      }
     }
   }
 
@@ -462,24 +643,39 @@ export default function VisitReportEditor({
       setLineSaving(true);
       setError("");
 
-      const response = await apiFetch(
-        `/field-reports/visits/${report.id}/lines/${lineId}`,
-        { method: "DELETE" }
-      );
+      if (useLocalReports) {
+        const updated = await deleteLocalLine(clientReportUuid, lineId);
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(
-          payload.error?.message
-            || payload.message
-            || "מחיקת שורה נכשלה"
+        if (!updated) {
+          throw new Error("מחיקת שורה במכשיר נכשלה");
+        }
+
+        onReportChange(localVisitReportToView(updated) as VisitReport);
+      } else {
+        const serverId = report.server_report_id;
+        if (!serverId) {
+          throw new Error("אין מזהה שרת לדוח");
+        }
+
+        const response = await apiFetch(
+          `/field-reports/visits/${serverId}/lines/${lineId}`,
+          { method: "DELETE" }
         );
-      }
 
-      onReportChange({
-        ...report,
-        lines: report.lines.filter((line) => line.id !== lineId),
-      });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(
+            payload.error?.message
+              || payload.message
+              || "מחיקת שורה נכשלה"
+          );
+        }
+
+        onReportChange({
+          ...report,
+          lines: report.lines.filter((line) => line.id !== lineId),
+        });
+      }
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "מחיקת שורה נכשלה"
@@ -493,12 +689,14 @@ export default function VisitReportEditor({
     <div className="space-y-6 md:space-y-8">
       <div className="flex flex-wrap items-center gap-2.5 text-sm text-zinc-600">
         <Badge>{report.status_label_he}</Badge>
-        {!isOnline ? (
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-900">
-            לא מקוון — שינויים יישמרו כשתחזור רשת
+        {useLocalReports ? (
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100">
+            {dataSourceMode === "local-only"
+              ? "אופליין — נשמר במכשיר"
+              : "נשמר במכשיר"}
           </span>
         ) : (
-          <span className="text-zinc-500">מחובר</span>
+          <span className="text-zinc-500">מחובר לשרת</span>
         )}
         {report.catalog_version ? (
           <span>קטלוג: {report.catalog_version}</span>
@@ -511,6 +709,12 @@ export default function VisitReportEditor({
         ) : null}
         {saveState === "offline" ? (
           <span className="text-amber-800">נשמר במכשיר — יסונכרן ברשת</span>
+        ) : null}
+        {useLocalReports && lineAutosaveState === "saving" ? (
+          <span className="text-zinc-500">שומר שורות...</span>
+        ) : null}
+        {useLocalReports && lineAutosaveState === "saved" ? (
+          <span className="text-emerald-700">שורות נשמרו במכשיר</span>
         ) : null}
       </div>
 
@@ -574,7 +778,7 @@ export default function VisitReportEditor({
             variant="secondary"
             size="lg"
             className={FR_TOUCH_BUTTON}
-            disabled={saving || !isOnline}
+            disabled={saving || (!canCallVisitReportApi && !useLocalReports)}
             onClick={() => void saveHeaderFields()}
           >
             {saving ? "שומר..." : "שמור עכשיו"}
@@ -657,6 +861,7 @@ export default function VisitReportEditor({
                 line={line}
                 editable={report.is_editable}
                 saving={lineSaving}
+                autosave={useLocalReports}
                 onSave={saveLine}
                 onConvertToFreeText={convertLineToFreeText}
                 onDelete={deleteLine}

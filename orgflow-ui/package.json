@@ -1,5 +1,5 @@
 {
-  "name": "supervisor-ai-ui",
+  "name": "elayo-ai-ui",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,10 +8,28 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:mobile": "node scripts/build-mobile-export.mjs",
+    "cap:stub-web": "node scripts/capacitor-stub-web.mjs",
+    "cap:sync": "npm run cap:stub-web && npx cap sync",
+    "cap:sync:mobile": "npm run build:mobile && npx cap sync",
+    "cap:sync:url": "ELAYOAI_CAPACITOR_BUILD_MODE=url npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ls": "npx cap ls",
+    "cap:icons": "node scripts/generate-android-icons.mjs",
+    "cap:apk:debug": "node scripts/build-android-apk.mjs debug",
+    "cap:apk:release": "node scripts/build-android-apk.mjs release",
+    "android:apk": "npm run cap:apk:debug",
+    "android:apk:release": "npm run cap:apk:release"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/camera": "^8.2.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/network": "^8.0.1",
     "@supabase/supabase-js": "^2.106.2",
+    "idb": "^8.0.3",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "pdfmake": "^0.3.9",
@@ -21,12 +39,15 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4"

@@ -28,7 +28,9 @@ const I18nContext = createContext<I18nContextValue | null>(
   null
 );
 
-const STORAGE_KEY = "orgflow-locale";
+import { ELAYOAI_LOCALE_KEY } from "@/lib/elayoai/keys";
+
+const STORAGE_KEY = ELAYOAI_LOCALE_KEY;
 
 function readStoredLocale(defaultLocale: Locale): Locale {
   if (typeof window === "undefined") {

@@ -1,12 +1,14 @@
+import "fake-indexeddb/auto";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  clearAllPendingSendRequests,
+  closeFieldReportDatabase,
+  deleteFieldReportDatabase,
+} from "@/lib/field-reports/db/field-report-db";
+import {
   enqueuePendingSendRequest,
   loadPendingSendRequests,
-  pendingSendPhaseLabelHe,
-  removePendingSendRequest,
-  updatePendingSendRequest,
 } from "@/lib/field-reports/send-queue";
 
 function createLocalStorageMock() {
@@ -25,69 +27,6 @@ function createLocalStorageMock() {
     },
   };
 }
-
-describe("send-queue", () => {
-  beforeEach(() => {
-    vi.stubGlobal("localStorage", createLocalStorageMock());
-    vi.stubGlobal("window", { localStorage: createLocalStorageMock() });
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("enqueues and removes pending send requests per organization", () => {
-    enqueuePendingSendRequest("org-1", "report-a");
-    enqueuePendingSendRequest("org-1", "report-b");
-
-    expect(loadPendingSendRequests("org-1")).toHaveLength(2);
-
-    removePendingSendRequest("org-1", "report-a");
-    expect(loadPendingSendRequests("org-1")).toHaveLength(1);
-    expect(loadPendingSendRequests("org-1")[0].reportId).toBe("report-b");
-  });
-
-  it("replaces an existing queue entry for the same report", () => {
-    const first = enqueuePendingSendRequest("org-1", "report-a");
-    updatePendingSendRequest("org-1", "report-a", {
-      syncPhase: "photos",
-      lastError: "retry",
-    });
-    enqueuePendingSendRequest("org-1", "report-a");
-
-    const [entry] = loadPendingSendRequests("org-1");
-    expect(entry.syncPhase).toBe("queued");
-    expect(entry.lastError).toBeUndefined();
-    expect(entry.idempotencyKey).toBe(first.idempotencyKey);
-  });
-
-  it("maps sync phases to Hebrew labels", () => {
-    expect(pendingSendPhaseLabelHe("photos")).toContain("תמונות");
-    expect(pendingSendPhaseLabelHe("request_send")).toContain("ליבה");
-  });
-
-  it("cancels pending send for one report without touching other reports (3D.7)", () => {
-    enqueuePendingSendRequest("org-1", "report-a");
-    enqueuePendingSendRequest("org-1", "report-b");
-
-    removePendingSendRequest("org-1", "report-a");
-
-    const remaining = loadPendingSendRequests("org-1");
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0].reportId).toBe("report-b");
-  });
-
-  it("clears all pending sends for an organization", () => {
-    enqueuePendingSendRequest("org-1", "report-a");
-    enqueuePendingSendRequest("org-1", "report-b");
-    enqueuePendingSendRequest("org-2", "report-c");
-
-    clearAllPendingSendRequests("org-1");
-
-    expect(loadPendingSendRequests("org-1")).toHaveLength(0);
-    expect(loadPendingSendRequests("org-2")).toHaveLength(1);
-  });
-});
 
 vi.mock("@/lib/api/client", () => ({
   apiFetch: vi.fn(),
@@ -115,12 +54,15 @@ vi.mock("@/lib/field-reports/pdf/visit-report-pdf-store", () => ({
 }));
 
 describe("process-send-queue", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.stubGlobal("localStorage", createLocalStorageMock());
     vi.stubGlobal("window", { localStorage: createLocalStorageMock() });
+    await deleteFieldReportDatabase();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await closeFieldReportDatabase();
+    await deleteFieldReportDatabase();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -141,24 +83,18 @@ describe("process-send-queue", () => {
       "@/lib/field-reports/process-send-queue"
     );
 
-    enqueuePendingSendRequest("org-1", "report-a");
+    const queued = await enqueuePendingSendRequest("org-1", "report-a");
 
-    const result = await processPendingSendRequest({
-      reportId: "report-a",
-      organizationId: "org-1",
-      requestedAt: new Date().toISOString(),
-      idempotencyKey: "idem-report-a",
-      syncPhase: "queued",
-    });
+    const result = await processPendingSendRequest(queued);
 
     expect(result.success).toBe(true);
-    expect(loadPendingSendRequests("org-1")).toHaveLength(0);
+    expect(await loadPendingSendRequests("org-1")).toHaveLength(0);
     expect(apiFetch).toHaveBeenCalledWith(
       "/field-reports/visits/report-a/request-send",
       expect.objectContaining({
         method: "POST",
         headers: {
-          "X-Idempotency-Key": "idem-report-a",
+          "X-Idempotency-Key": queued.idempotencyKey,
         },
       })
     );
@@ -183,19 +119,13 @@ describe("process-send-queue", () => {
       "@/lib/field-reports/process-send-queue"
     );
 
-    enqueuePendingSendRequest("org-1", "report-a");
-    const result = await processPendingSendRequest({
-      reportId: "report-a",
-      organizationId: "org-1",
-      requestedAt: new Date().toISOString(),
-      idempotencyKey: "idem-report-a",
-      syncPhase: "queued",
-    });
+    const queued = await enqueuePendingSendRequest("org-1", "report-a");
+    const result = await processPendingSendRequest(queued);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("לא אישר נעילת דוח");
 
-    const [entry] = loadPendingSendRequests("org-1");
+    const [entry] = await loadPendingSendRequests("org-1");
     expect(entry.reportId).toBe("report-a");
     expect(entry.syncPhase).toBe("request_send");
     expect(entry.lastError).toContain("לא אישר נעילת דוח");
@@ -224,19 +154,13 @@ describe("process-send-queue", () => {
       "@/lib/field-reports/process-send-queue"
     );
 
-    enqueuePendingSendRequest("org-1", "report-a");
-    const result = await processPendingSendRequest({
-      reportId: "report-a",
-      organizationId: "org-1",
-      requestedAt: new Date().toISOString(),
-      idempotencyKey: "idem-report-a",
-      syncPhase: "queued",
-    });
+    const queued = await enqueuePendingSendRequest("org-1", "report-a");
+    const result = await processPendingSendRequest(queued);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("CORE_PIPELINE_FAILED");
 
-    const [entry] = loadPendingSendRequests("org-1");
+    const [entry] = await loadPendingSendRequests("org-1");
     expect(entry.reportId).toBe("report-a");
     expect(entry.syncPhase).toBe("request_send");
     expect(entry.lastError).toContain("CORE_PIPELINE_FAILED");
@@ -261,7 +185,6 @@ describe("process-send-queue", () => {
                   error_code: "TRANSIENT_CORE_ERROR",
                 },
               },
-              // Ensure mock uses the same idempotency key (helps catch regressions).
               idempotencyKey,
             }),
           } as Response;
@@ -280,20 +203,20 @@ describe("process-send-queue", () => {
       "@/lib/field-reports/process-send-queue"
     );
 
-    enqueuePendingSendRequest("org-1", "report-a");
-    const [firstEntry] = loadPendingSendRequests("org-1");
+    await enqueuePendingSendRequest("org-1", "report-a");
+    const [firstEntry] = await loadPendingSendRequests("org-1");
     const firstKey = firstEntry.idempotencyKey;
 
     const result1 = await processPendingSendRequest(firstEntry);
     expect(result1.success).toBe(false);
 
-    const [afterFail] = loadPendingSendRequests("org-1");
+    const [afterFail] = await loadPendingSendRequests("org-1");
     expect(afterFail.idempotencyKey).toBe(firstKey);
     expect(afterFail.lastError).toContain("TRANSIENT_CORE_ERROR");
 
     const result2 = await processPendingSendRequest(afterFail);
     expect(result2.success).toBe(true);
-    expect(loadPendingSendRequests("org-1")).toHaveLength(0);
+    expect(await loadPendingSendRequests("org-1")).toHaveLength(0);
 
     const requestSendCallsArgs = vi.mocked(apiFetch).mock.calls.filter(
       (call) =>

@@ -82,25 +82,25 @@ export async function processPendingSendRequest(
     || `field-report-send:${reportId}:${request.requestedAt}`;
   let currentPhase: PendingSendSyncPhase = request.syncPhase ?? "queued";
 
-  const setPhase = (phase: PendingSendSyncPhase, lastError?: string) => {
+  const setPhase = async (phase: PendingSendSyncPhase, lastError?: string) => {
     currentPhase = phase;
-    updatePendingSendRequest(organizationId, reportId, {
+    await updatePendingSendRequest(organizationId, reportId, {
       syncPhase: phase,
       lastError,
     });
   };
 
   if (request.idempotencyKey !== idempotencyKey) {
-    updatePendingSendRequest(organizationId, reportId, {
+    await updatePendingSendRequest(organizationId, reportId, {
       idempotencyKey,
     });
   }
 
   try {
-    setPhase("metadata");
+    await setPhase("metadata");
     await flushReportMetadataDraft(organizationId, reportId);
 
-    setPhase("photos");
+    await setPhase("photos");
     const photoResult = await syncPendingLinePhotosForReport(reportId);
     if (photoResult.failed.length) {
       throw new Error(
@@ -108,25 +108,25 @@ export async function processPendingSendRequest(
       );
     }
 
-    setPhase("pdf");
+    await setPhase("pdf");
     const storedPdf = await loadVisitReportPdfLocally(reportId);
     if (!storedPdf?.blob) {
       throw new Error("PDF לא נמצא במכשיר — יש להפיק מחדש לפני שליחה");
     }
 
-    setPhase("request_send");
+    await setPhase("request_send");
     await requestSendToCore(reportId, idempotencyKey, {
       blob: storedPdf.blob,
       filename: storedPdf.filename || `${reportId}.pdf`,
     });
 
-    removePendingSendRequest(organizationId, reportId);
+    await removePendingSendRequest(organizationId, reportId);
 
     return { reportId, success: true };
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "סנכרון השליחה נכשל";
-    setPhase(currentPhase, message);
+    await setPhase(currentPhase, message);
     return { reportId, success: false, error: message };
   }
 }
@@ -134,7 +134,7 @@ export async function processPendingSendRequest(
 export async function processSendQueue(
   organizationId: string
 ): Promise<ProcessSendQueueResult> {
-  const pending = loadPendingSendRequests(organizationId);
+  const pending = await loadPendingSendRequests(organizationId);
   const processed: SendQueueItemResult[] = [];
 
   for (const request of pending) {

@@ -71,6 +71,27 @@ class FieldVisitReportLineRepository:
 
         return response.data[0]
 
+    def get_by_client_line_uuid(
+        self,
+        client_line_uuid: str,
+    ) -> dict | None:
+        if not self.is_storage_available() or not client_line_uuid:
+            return None
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .select("*")
+            .eq("client_line_uuid", client_line_uuid)
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data:
+            return None
+
+        return response.data[0]
+
     def next_sort_order(self, report_id: str) -> int:
         lines = self.list_by_report(report_id)
         if not lines:

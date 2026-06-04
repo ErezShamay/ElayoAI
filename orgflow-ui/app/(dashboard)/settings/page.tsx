@@ -10,7 +10,7 @@ export default function SettingsPage() {
       <PageHeader
         title="הגדרות"
         description="התאימו את חוויית השימוש במערכת לפי העדפותיכם"
-        eyebrow="Supervisor AI"
+        eyebrow="ElayoAI"
       />
 
       <Card padding="lg">

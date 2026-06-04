@@ -1,10 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
+import { migrateElayoAiStorage } from "@/lib/elayoai/migrate-storage";
 import { I18nProvider } from "@/providers/I18nProvider";
 import { OfflineProvider } from "@/providers/OfflineProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
+import CapacitorBootstrap from "@/components/capacitor/CapacitorBootstrap";
 import PwaRegistration from "@/components/pwa/PwaRegistration";
 import OfflineBanner from "@/components/ui/OfflineBanner";
 
@@ -13,10 +15,15 @@ export default function AppProviders({
 }: {
   children: ReactNode;
 }) {
+  useEffect(() => {
+    migrateElayoAiStorage();
+  }, []);
+
   return (
-    <ThemeProvider>
+    <ThemeProvider defaultTheme="dark">
       <I18nProvider>
         <OfflineProvider>
+          <CapacitorBootstrap />
           <PwaRegistration />
           <OfflineBanner />
           {children}

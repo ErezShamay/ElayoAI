@@ -1,5 +1,9 @@
-const ACCESS_TOKEN_KEY = "orgflow_access_token";
-const ORG_ID_KEY = "orgflow_org_id";
+import { logAuthError, logAuthInfo } from "@/lib/auth/logger";
+import {
+  ELAYOAI_ACCESS_TOKEN_KEY,
+  ELAYOAI_ORG_ID_KEY,
+} from "@/lib/elayoai/keys";
+import { getApiBaseUrl } from "@/lib/env/public-env";
 
 let accessToken: string | null = null;
 let orgId: string | null = null;
@@ -13,7 +17,7 @@ function readStoredToken(): string | null {
     return null;
   }
 
-  return sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  return sessionStorage.getItem(ELAYOAI_ACCESS_TOKEN_KEY);
 }
 
 function readStoredOrgId(): string | null {
@@ -25,14 +29,19 @@ function readStoredOrgId(): string | null {
     return null;
   }
 
-  return sessionStorage.getItem(ORG_ID_KEY);
+  return sessionStorage.getItem(ELAYOAI_ORG_ID_KEY);
 }
 
-export function getApiBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:8000"
-  );
+export { getApiBaseUrl };
+
+export class ProfileLoadError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ProfileLoadError";
+    this.status = status;
+  }
 }
 
 export class TokenExchangeError extends Error {
@@ -53,8 +62,8 @@ export function setApiSession(
   orgId = organizationId;
 
   if (typeof window !== "undefined") {
-    sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
-    sessionStorage.setItem(ORG_ID_KEY, organizationId);
+    sessionStorage.setItem(ELAYOAI_ACCESS_TOKEN_KEY, token);
+    sessionStorage.setItem(ELAYOAI_ORG_ID_KEY, organizationId);
   }
 }
 
@@ -63,8 +72,8 @@ export function clearApiSession() {
   orgId = null;
 
   if (typeof window !== "undefined") {
-    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-    sessionStorage.removeItem(ORG_ID_KEY);
+    sessionStorage.removeItem(ELAYOAI_ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(ELAYOAI_ORG_ID_KEY);
   }
 }
 
@@ -156,6 +165,15 @@ export async function exchangeBackendToken(
 
   let response: Response | null = null;
 
+  logAuthInfo("token_exchange:start", {
+    userId,
+    organizationId: organizationId ?? null,
+    apiBaseUrl: baseUrl,
+    urls: uniqueUrls,
+  });
+
+  let lastNetworkError: unknown = null;
+
   for (const url of uniqueUrls) {
     try {
       response = await fetch(url, {
@@ -172,6 +190,9 @@ export async function exchangeBackendToken(
       });
       break;
     } catch (error) {
+      lastNetworkError = error;
+      logAuthError("token_exchange:network", error, { url });
+
       if (url === uniqueUrls[uniqueUrls.length - 1]) {
         throw error;
       }
@@ -179,8 +200,12 @@ export async function exchangeBackendToken(
   }
 
   if (!response) {
+    logAuthError("token_exchange:no_response", lastNetworkError, {
+      userId,
+      apiBaseUrl: baseUrl,
+    });
     throw new TokenExchangeError(
-      "Token exchange failed",
+      "Token exchange failed — no response from API",
       0
     );
   }
@@ -198,6 +223,12 @@ export async function exchangeBackendToken(
       // Keep default message when error body is not JSON.
     }
 
+    logAuthError("token_exchange:http", new Error(message), {
+      userId,
+      status: response.status,
+      url: response.url,
+    });
+
     throw new TokenExchangeError(
       message,
       response.status
@@ -210,6 +241,12 @@ export async function exchangeBackendToken(
     data.access_token,
     data.org_id
   );
+
+  logAuthInfo("token_exchange:ok", {
+    userId,
+    orgId: data.org_id,
+    role: data.role,
+  });
 
   return data;
 }

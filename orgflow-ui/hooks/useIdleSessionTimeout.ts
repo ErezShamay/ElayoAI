@@ -66,11 +66,13 @@ export function useIdleSessionTimeout(
 
       try {
         await onIdleRef.current();
-      } finally {
         toast.info(
           `הסשן נותק לאחר ${SESSION_IDLE_TIMEOUT_MINUTES} דקות של אי-פעילות`
         );
         router.replace("/");
+      } catch {
+        // onIdle נכשל או נחסם (למשל דוחות ממתינים לסנכרון) — נשארים מחוברים.
+      } finally {
         signingOutRef.current = false;
       }
     }

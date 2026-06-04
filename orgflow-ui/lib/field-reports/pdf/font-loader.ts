@@ -1,4 +1,6 @@
-const FONT_CACHE_KEY = "orgflow-field-report-pdf-font";
+import { ELAYOAI_FIELD_REPORT_PDF_FONT_KEY } from "@/lib/elayoai/keys";
+
+const FONT_CACHE_KEY = ELAYOAI_FIELD_REPORT_PDF_FONT_KEY;
 const FONT_PATH = "/fonts/NotoSansHebrew-Regular.ttf";
 const FONT_FILE = "NotoSansHebrew-Regular.ttf";
 

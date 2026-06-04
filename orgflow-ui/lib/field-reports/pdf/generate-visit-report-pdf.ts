@@ -1,3 +1,5 @@
+import { openVisitReportPdfOnNative } from "@/lib/capacitor/visit-report-pdf-filesystem";
+
 import {
   buildPdfFilename,
   buildVisitReportDocDefinition,
@@ -42,7 +44,21 @@ export async function generateVisitReportPdf(
   });
 }
 
-export function triggerVisitReportPdfDownload(blob: Blob, filename: string) {
+export async function triggerVisitReportPdfDownload(
+  reportId: string,
+  blob: Blob,
+  filename: string
+): Promise<void> {
+  const openedNative = await openVisitReportPdfOnNative(
+    reportId,
+    blob,
+    filename
+  );
+
+  if (openedNative) {
+    return;
+  }
+
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
@@ -60,7 +76,8 @@ export async function downloadVisitReportPdf(
   if (!options?.forceRegenerate) {
     const cached = await loadVisitReportPdfLocally(input.report.id);
     if (cached?.blob) {
-      triggerVisitReportPdfDownload(
+      await triggerVisitReportPdfDownload(
+        input.report.id,
         cached.blob,
         cached.filename || filename
       );
@@ -75,7 +92,7 @@ export async function downloadVisitReportPdf(
     filename,
     input.generatedAt ?? new Date()
   );
-  triggerVisitReportPdfDownload(blob, filename);
+  await triggerVisitReportPdfDownload(input.report.id, blob, filename);
   return "generated";
 }
 

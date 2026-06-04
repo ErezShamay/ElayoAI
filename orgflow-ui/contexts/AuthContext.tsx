@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -14,13 +15,26 @@ import {
 } from "@supabase/supabase-js";
 
 import {
+  logAuthError,
+  logAuthInfo,
+  logAuthWarn,
+} from "@/lib/auth/logger";
+import {
   apiFetch,
   clearApiSession,
   exchangeBackendToken,
+  getApiBaseUrl,
+  ProfileLoadError,
   TokenExchangeError,
 } from "@/lib/api/client";
+import {
+  assertFieldReportLogoutAllowed,
+  FieldReportLogoutBlockedError,
+  type FieldReportLogoutBlock,
+} from "@/lib/field-reports/field-report-logout-block";
 import { useIdleSessionTimeout } from "@/hooks/useIdleSessionTimeout";
 import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 type Profile = {
   id: string;
@@ -52,9 +66,10 @@ type AuthContextType = {
   organizations: Organization[];
   currentOrgId: string | null;
   loading: boolean;
+  authBootstrapError: string | null;
   switchOrganization: (organizationId: string) => Promise<void>;
   refreshOrganizations: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ ok: true } | { ok: false; block: FieldReportLogoutBlock }>;
 };
 
 const AuthContext =
@@ -65,6 +80,36 @@ const AuthContext =
 async function clearSupabaseSession() {
   clearApiSession();
   await supabase.auth.signOut();
+}
+
+function shouldSignOutAfterBootstrapError(error: unknown): boolean {
+  if (error instanceof TokenExchangeError) {
+    return [0, 401, 404, 422].includes(error.status);
+  }
+
+  if (error instanceof ProfileLoadError) {
+    return [401, 403, 404].includes(error.status);
+  }
+
+  return false;
+}
+
+function bootstrapErrorMessage(error: unknown): string {
+  if (error instanceof TokenExchangeError) {
+    return error.status === 0
+      ? `לא ניתן להגיע לשרת ב-${getApiBaseUrl()} — ודאו שה-API רץ (uvicorn --host 0.0.0.0) ושהמכשיר והמחשב באותה רשת`
+      : `שגיאת שרת (${error.status}): ${error.message}`;
+  }
+
+  if (error instanceof ProfileLoadError) {
+    return `טעינת פרופיל נכשלה (${error.status}): ${error.message}`;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "שגיאה בהתחברות לשרת";
 }
 
 export function AuthProvider({
@@ -79,6 +124,9 @@ export function AuthProvider({
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authBootstrapError, setAuthBootstrapError] = useState<string | null>(
+    null
+  );
 
   const FORCE_LOGIN =
     process.env.NEXT_PUBLIC_FORCE_LOGIN === "true";
@@ -87,11 +135,24 @@ export function AuthProvider({
     const response = await apiFetch(`/profiles/${userId}`);
 
     if (!response.ok) {
-      throw new Error("Failed loading profile");
+      let message = `Failed loading profile (${response.status})`;
+
+      try {
+        const body = await response.json();
+        message =
+          body?.detail
+          || body?.error?.message
+          || message;
+      } catch {
+        // Keep default message when error body is not JSON.
+      }
+
+      throw new ProfileLoadError(message, response.status);
     }
 
     const data = await response.json();
     setProfile(data);
+    logAuthInfo("profile:loaded", { userId });
   }, []);
 
   const loadOrganizations = useCallback(async () => {
@@ -124,6 +185,13 @@ export function AuthProvider({
         return false;
       }
 
+      logAuthInfo("bootstrap:start", {
+        userId: nextSession.user.id,
+        email: nextSession.user.email,
+        organizationId: organizationId ?? null,
+        apiBaseUrl: getApiBaseUrl(),
+      });
+
       const exchangeData = await exchangeBackendToken(
         nextSession.user.id,
         organizationId,
@@ -139,8 +207,14 @@ export function AuthProvider({
         setOrganizations([]);
       }
 
+      setAuthBootstrapError(null);
       setSession(nextSession);
       setUser(nextSession.user);
+      logAuthInfo("bootstrap:ok", {
+        userId: nextSession.user.id,
+        orgId: exchangeData.org_id,
+        role: exchangeData.role,
+      });
       return true;
     },
     [loadOrganizations, loadProfile]
@@ -149,6 +223,9 @@ export function AuthProvider({
   const handleSession = useCallback(
     async (nextSession: Session | null) => {
       if (FORCE_LOGIN && nextSession?.user) {
+        logAuthWarn("bootstrap:force_login", {
+          userId: nextSession.user.id,
+        });
         await clearSupabaseSession();
         setSession(null);
         setUser(null);
@@ -160,6 +237,8 @@ export function AuthProvider({
       }
 
       if (!nextSession?.user) {
+        logAuthInfo("bootstrap:signed_out");
+        setAuthBootstrapError(null);
         clearApiSession();
         setSession(null);
         setUser(null);
@@ -173,6 +252,15 @@ export function AuthProvider({
       try {
         await establishBackendSession(nextSession);
       } catch (error) {
+        const signOut = shouldSignOutAfterBootstrapError(error);
+
+        logAuthError("bootstrap:failed", error, {
+          userId: nextSession.user.id,
+          email: nextSession.user.email,
+          apiBaseUrl: getApiBaseUrl(),
+          signOut,
+        });
+
         clearApiSession();
         setSession(null);
         setUser(null);
@@ -180,37 +268,76 @@ export function AuthProvider({
         setSessionRole(null);
         setOrganizations([]);
         setCurrentOrgId(null);
+        setAuthBootstrapError(bootstrapErrorMessage(error));
 
-        const shouldSignOut =
-          error instanceof TokenExchangeError
-          && [404, 422].includes(error.status);
-
-        if (shouldSignOut) {
+        if (signOut) {
           await supabase.auth.signOut();
-        } else {
-          console.warn(
-            "Failed bootstrapping backend session:",
-            error
-          );
         }
       }
     },
     [FORCE_LOGIN, establishBackendSession]
   );
 
+  const bootstrapInflightRef = useRef<{
+    userId: string;
+    promise: Promise<void>;
+  } | null>(null);
+
+  const runBootstrap = useCallback(
+    async (nextSession: Session | null) => {
+      const userId = nextSession?.user?.id ?? "";
+
+      if (
+        bootstrapInflightRef.current?.userId === userId
+        && bootstrapInflightRef.current.promise
+      ) {
+        await bootstrapInflightRef.current.promise;
+        return;
+      }
+
+      const promise = handleSession(nextSession);
+      bootstrapInflightRef.current = { userId, promise };
+
+      try {
+        await promise;
+      } finally {
+        if (bootstrapInflightRef.current?.promise === promise) {
+          bootstrapInflightRef.current = null;
+        }
+      }
+    },
+    [handleSession]
+  );
+
   useEffect(() => {
+    let active = true;
+
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
-        void handleSession(nextSession).finally(() => {
-          setLoading(false);
+      (event, nextSession) => {
+        if (!active) {
+          return;
+        }
+
+        logAuthInfo("supabase:event", {
+          event,
+          userId: nextSession?.user?.id ?? null,
+        });
+
+        setLoading(true);
+
+        void runBootstrap(nextSession).finally(() => {
+          if (active) {
+            setLoading(false);
+          }
         });
       }
     );
 
     return () => {
+      active = false;
       listener.subscription.unsubscribe();
     };
-  }, [handleSession]);
+  }, [runBootstrap]);
 
   async function switchOrganization(organizationId: string) {
     if (!session?.user) {
@@ -221,6 +348,19 @@ export function AuthProvider({
   }
 
   const signOut = useCallback(async () => {
+    const organizationId = currentOrgId ?? profile?.organization_id ?? null;
+    const userId = profile?.id ?? user?.id ?? null;
+
+    try {
+      await assertFieldReportLogoutAllowed(organizationId, userId);
+    } catch (error: unknown) {
+      if (error instanceof FieldReportLogoutBlockedError) {
+        return { ok: false as const, block: error.block };
+      }
+
+      throw error;
+    }
+
     await clearSupabaseSession();
     setSession(null);
     setUser(null);
@@ -228,12 +368,18 @@ export function AuthProvider({
     setSessionRole(null);
     setOrganizations([]);
     setCurrentOrgId(null);
-  }, []);
+    return { ok: true as const };
+  }, [currentOrgId, profile?.id, profile?.organization_id, user?.id]);
 
-  useIdleSessionTimeout(
-    Boolean(user) && !loading,
-    signOut
-  );
+  useIdleSessionTimeout(Boolean(user) && !loading, async () => {
+    const result = await signOut();
+    if (!result.ok) {
+      toast.warning(
+        result.block?.message || "לא ניתן להתנתק — דוחות ממתינים לשליחה"
+      );
+      throw new Error("field-report-logout-blocked");
+    }
+  });
 
   return (
     <AuthContext.Provider
@@ -245,6 +391,7 @@ export function AuthProvider({
         organizations,
         currentOrgId,
         loading,
+        authBootstrapError,
         switchOrganization,
         refreshOrganizations: loadOrganizations,
         signOut,

@@ -13,7 +13,10 @@ import AppLoadingScreen from "@/components/ui/AppLoadingScreen";
 import {
   useAuth,
 } from "@/contexts/AuthContext";
-import { isPublicRoute } from "@/lib/navigation";
+import {
+  isPublicRoute,
+  POST_LOGIN_ROUTE,
+} from "@/lib/navigation";
 
 export default function AuthGuard({
   children,
@@ -41,7 +44,7 @@ export default function AuthGuard({
     }
 
     if (user && isAuthPage && !preserveAuthFlow) {
-      router.push("/");
+      router.replace(POST_LOGIN_ROUTE);
     }
   }, [user, loading, pathname, router]);
 

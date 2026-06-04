@@ -1,7 +1,11 @@
 import {
+  hydrateOfflinePrepBundle,
   loadOfflinePrepBundle,
   type OfflinePrepBundle,
 } from "@/lib/field-reports/offline-store";
+import {
+  getCatalogForVisitType,
+} from "@/lib/field-reports/repositories/catalog-repository";
 
 export type CatalogPayload = {
   catalog_version?: string | null;
@@ -27,20 +31,78 @@ export type CatalogPayload = {
   }>;
 };
 
-export function loadOfflineCatalogForVisitType(
+export const OFFLINE_CATALOG_UNAVAILABLE_MESSAGE =
+  "אין מפרט מקומי — בצע «הכנה לא מקוון» כשיש רשת.";
+
+export async function loadOfflineCatalogForVisitType(
+  organizationId: string,
+  visitType: string
+): Promise<CatalogPayload | null> {
+  return getCatalogForVisitType(organizationId, visitType);
+}
+
+/**
+ * טוען קטלוג מ-IndexedDB (עם hydrate) ל-picker — בלי קריאת API (FR-014).
+ */
+export async function loadOfflineCatalogForPicker(
+  organizationId: string,
+  visitType: string
+): Promise<CatalogPayload | null> {
+  if (!organizationId || !visitType) {
+    return null;
+  }
+
+  await hydrateOfflinePrepBundle(organizationId);
+
+  const fromIndexedDb = await loadOfflineCatalogForVisitType(
+    organizationId,
+    visitType
+  );
+  if (fromIndexedDb?.issues?.length) {
+    return fromIndexedDb;
+  }
+
+  const fromCache = loadOfflineCatalogForVisitTypeFromCache(
+    organizationId,
+    visitType
+  );
+  if (fromCache?.issues?.length) {
+    return fromCache;
+  }
+
+  return null;
+}
+
+export function catalogPayloadHasIssues(
+  payload: CatalogPayload | null | undefined
+): payload is CatalogPayload {
+  return Boolean(payload?.issues?.length);
+}
+
+/** גרסה סינכרונית — רק אם המטמון כבר הותהלם (`hydrateOfflinePrepBundle`). */
+export function loadOfflineCatalogForVisitTypeFromCache(
   organizationId: string,
   visitType: string
 ): CatalogPayload | null {
   const bundle = loadOfflinePrepBundle(organizationId);
+  if (!bundle) {
+    return null;
+  }
+
+  return filterCatalogForVisitType(bundle, visitType);
+}
+
+/** מסנן קטלוג לפי משפחות מותרות לסוג ביקור — משותף ל-localStorage ול-IndexedDB. */
+export function filterCatalogForVisitType(
+  bundle: OfflinePrepBundle,
+  visitType: string
+): CatalogPayload | null {
   if (!bundle?.catalog) {
     return null;
   }
 
   const fullCatalog = bundle.catalog as CatalogPayload;
-  const allowedFamilies = visitTypeAllowedFamilies(
-    bundle,
-    visitType
-  );
+  const allowedFamilies = visitTypeAllowedFamilies(bundle, visitType);
 
   if (!allowedFamilies.length) {
     return fullCatalog;
