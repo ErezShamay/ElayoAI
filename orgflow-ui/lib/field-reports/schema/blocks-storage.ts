@@ -55,16 +55,18 @@ export function findFindingsTableBlock(
   return match ?? null;
 }
 
+/**
+ * ממיר שורות בלוק התקדמות ל-`construction_progress`.
+ * לא מסנן שורות ריקות — כדי ש«הוסף שורה» יישאר ב-UI עד מילוי (סינון רק ב-API/PDF).
+ */
 export function progressRowsToConstructionProgress(
   rows: ProgressRow[]
 ): ConstructionProgressRow[] {
-  return serializeConstructionProgressRows(
-    rows.map((row) => ({
-      description: row.description,
-      status: row.status,
-      completion_date: row.completion_date,
-    }))
-  );
+  return rows.map((row) => ({
+    description: row.description,
+    status: row.status,
+    completion_date: row.completion_date,
+  }));
 }
 
 export function constructionProgressToProgressRows(

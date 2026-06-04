@@ -356,7 +356,13 @@ export default function LinePhotoCapture({
   );
 
   return (
-    <div className="mt-3 space-y-2">
+    <div className="mt-3 space-y-2 rounded-lg border border-dashed border-zinc-300 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+        תמונות לשורה
+      </p>
+      <p className="text-xs text-zinc-500">
+        עד {MAX_LINE_PHOTOS} תמונות — נשמרות במכשיר ומסתנכרנות לשרת כשיש רשת.
+      </p>
       <input
         ref={cameraInputRef}
         type="file"

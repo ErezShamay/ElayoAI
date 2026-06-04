@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
+import Script from "next/script";
+import { Suspense } from "react";
 
 import { ELAYOAI_APP_NAME } from "@/lib/elayoai/keys";
+import { THEME_INIT_SCRIPT } from "@/lib/theme/theme-init-script";
 import { Toaster } from "sonner";
 
 import { AuthProvider } from "@/contexts/AuthContext";
 
 import AuthGuard from "@/components/auth/AuthGuard";
+import CapacitorRoutePersistence from "@/components/capacitor/CapacitorRoutePersistence";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import AppProviders from "@/providers/AppProviders";
 
@@ -46,14 +50,6 @@ export default function RootLayout({
       suppressHydrationWarning
     >
 
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k="elayoai-theme",o="orgflow-theme";var s=localStorage.getItem(k);if(s===null){var l=localStorage.getItem(o);if(l!==null){localStorage.setItem(k,l);s=l;}}var d=window.matchMedia("(prefers-color-scheme: dark)").matches;var dark=s==="dark"||(s==="system"&&d);document.documentElement.classList.toggle("dark",dark);}catch(e){}})();`,
-          }}
-        />
-      </head>
-
       <body
         className="
           bg-[var(--of-color-surface-muted)]
@@ -62,9 +58,15 @@ export default function RootLayout({
           antialiased
         "
       >
+        <Script id="elayoai-theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
 
         <AppProviders>
           <AuthProvider>
+            <Suspense fallback={null}>
+              <CapacitorRoutePersistence />
+            </Suspense>
             <AuthGuard>
               <ErrorBoundary>
                 {children}

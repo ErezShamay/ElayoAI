@@ -805,31 +805,17 @@ export default function VisitReportEditor({
         ) : null}
       </section>
 
-      <ReportBlocksManager
-        blocks={headerFields.blocks}
-        visitType={report.visit_type}
-        disabled={!report.is_editable}
-        hasExplicitBlocks={hasExplicitBlocks}
-        onChange={(blocks) =>
-          setHeaderFields((current) =>
-            patchHeaderFieldsBlocks(current, blocks, report.visit_type)
-          )
-        }
-      />
-
-      <ReportFixedBlocksSection
-        fields={headerFields}
-        visitType={report.visit_type}
-        visitDate={report.visit_date}
-        disabled={!report.is_editable}
-        onChange={setHeaderFields}
-      />
-
-      <section className="space-y-4">
+      <section className="space-y-4" id="field-report-finding-lines">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">
-            שורות ממצאים ({report.lines.length})
-          </h2>
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">
+              שורות ממצאים ({report.lines.length})
+            </h2>
+            <p className="text-sm text-zinc-500">
+              צילום וצירוף תמונות — לכל שורת ממצא בנפרד (לא בטבלת
+              ההתקדמות למטה).
+            </p>
+          </div>
           {report.is_editable ? (
             <div className="flex flex-wrap gap-2">
               <Button
@@ -870,7 +856,13 @@ export default function VisitReportEditor({
         ) : null}
 
         {report.lines.length === 0 ? (
-          <p className="text-sm text-zinc-500">אין שורות עדיין.</p>
+          <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/80 px-4 py-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            <p className="font-medium">אין שורות ממצאים — אין עדיין לאן לצרף תמונות</p>
+            <p className="mt-2 text-amber-900/90 dark:text-amber-200/90">
+              הוסף שורה חופשית למטה (עם תיאור) או «בחר ממצא מהמפרט». אחרי
+              השמירה יופיעו כפתורי «צלם תמונה» ו«בחר מהגלריה» בתוך השורה.
+            </p>
+          </div>
         ) : (
           <ul className="space-y-3">
             {report.lines.map((line) => (
@@ -981,6 +973,26 @@ export default function VisitReportEditor({
           </form>
         ) : null}
       </section>
+
+      <ReportBlocksManager
+        blocks={headerFields.blocks}
+        visitType={report.visit_type}
+        disabled={!report.is_editable}
+        hasExplicitBlocks={hasExplicitBlocks}
+        onChange={(blocks) =>
+          setHeaderFields((current) =>
+            patchHeaderFieldsBlocks(current, blocks, report.visit_type)
+          )
+        }
+      />
+
+      <ReportFixedBlocksSection
+        fields={headerFields}
+        visitType={report.visit_type}
+        visitDate={report.visit_date}
+        disabled={!report.is_editable}
+        onChange={setHeaderFields}
+      />
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </div>

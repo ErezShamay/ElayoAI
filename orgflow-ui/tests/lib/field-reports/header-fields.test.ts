@@ -243,6 +243,36 @@ describe("patchHeaderFieldsBlocks", () => {
     expect((payload.blocks as unknown[]).length).toBe(2);
   });
 
+  it("keeps a newly added empty progress row until the user fills it", () => {
+    const base = normalizeHeaderFields({}, "STRUCTURE_SITE");
+    const progressBlock = findProgressTableBlock(base.blocks);
+    expect(progressBlock).not.toBeNull();
+
+    const withExtraRow = patchHeaderFieldsBlocks(
+      base,
+      [
+        {
+          ...progressBlock!,
+          rows: [
+            ...progressBlock!.rows,
+            {
+              id: "new-empty-row",
+              description: "",
+              status: "",
+              completion_date: "",
+              sort_order: progressBlock!.rows.length,
+            },
+          ],
+        },
+      ],
+      "STRUCTURE_SITE"
+    );
+
+    const syncedBlock = findProgressTableBlock(withExtraRow.blocks);
+    expect(syncedBlock?.rows).toHaveLength(progressBlock!.rows.length + 1);
+    expect(syncedBlock?.rows.at(-1)?.description).toBe("");
+  });
+
   it("serializes fixed_text_blocks for API (FR-4.2)", () => {
     const blocks = buildFixedTextBlocksForNewReport({ visitDate: "2026-12-01" });
     const fields = patchHeaderFieldsFixedTextBlocks(

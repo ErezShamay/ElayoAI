@@ -113,6 +113,10 @@ export default function ReportBlocksManager({
           הוסף וסדר בלוקים (התקדמות, ממצאים, טקסט). שורות ממצאים ב-API נשארות
           בסעיף למטה — תואם דוחות קיימים.
         </p>
+        <p className="mt-2 text-sm text-brand">
+          לצירוף תמונות: השתמש בסעיף «שורות ממצאים» (מעל) — לא בשורות
+          בטבלת ההתקדמות כאן.
+        </p>
       </div>
 
       {sortedBlocks.length === 0 ? (
