@@ -28,7 +28,12 @@ class FakeDeadLetterRepository:
         self.dead_letters = dead_letters or []
         self.updates = []
 
-    def get_dead_letters(self, limit: int = 20):
+    def get_dead_letters(
+        self,
+        limit: int = 20,
+        organization_id=None,
+        project_ids=None,
+    ):
         return self.dead_letters[:limit]
 
     def search_dead_letters(
@@ -39,6 +44,8 @@ class FakeDeadLetterRepository:
         project_id=None,
         query=None,
         limit: int = 50,
+        organization_id=None,
+        project_ids=None,
     ):
         results = list(self.dead_letters)
         if execution_type:

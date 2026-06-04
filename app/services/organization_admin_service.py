@@ -12,6 +12,10 @@ from app.auth.roles import is_platform_admin
 from app.repositories.profile_repository import (
     ProfileRepository,
 )
+from app.exceptions.exceptions import ForbiddenError
+from app.services.organization_deletion_service import (
+    OrganizationDeletionService,
+)
 from app.services.tenant_access_service import (
     TenantAccessService,
 )
@@ -26,6 +30,8 @@ class OrganizationAdminService:
             OrganizationRepository | None = None,
         profile_repository: ProfileRepository | None = None,
         tenant_access_service: TenantAccessService | None = None,
+        organization_deletion_service:
+            OrganizationDeletionService | None = None,
     ) -> None:
         self.organization_repository = (
             organization_repository or OrganizationRepository()
@@ -35,6 +41,13 @@ class OrganizationAdminService:
         )
         self.tenant_access_service = (
             tenant_access_service or TenantAccessService()
+        )
+        self.organization_deletion_service = (
+            organization_deletion_service
+            or OrganizationDeletionService(
+                organization_repository=self.organization_repository,
+                profile_repository=self.profile_repository,
+            )
         )
 
     def list_accessible_organizations(
@@ -117,3 +130,21 @@ class OrganizationAdminService:
         return {
             "organization": organization,
         }
+
+    def delete_customer_organization(
+        self,
+        *,
+        organization_id: str,
+        actor_user_id: str,
+        actor_role: str,
+    ) -> dict:
+        if not is_platform_admin(actor_role):
+            raise ForbiddenError(
+                message="Only platform admins can delete customer organizations"
+            )
+
+        return self.organization_deletion_service.delete_organization(
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
+        )

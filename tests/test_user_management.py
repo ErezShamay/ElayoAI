@@ -158,3 +158,55 @@ def test_resolve_account_status_active_after_sign_in():
 
     assert service._resolve_account_status("user-1") == "active"
 
+
+def test_list_users_requires_organization_for_non_global_scope():
+    service = UserManagementService()
+
+    with pytest.raises(ValidationError):
+        service.list_users("")
+
+
+def test_update_user_rejects_platform_admin_role():
+    service = UserManagementService(
+        profile_repository=MagicMock(
+            get_profile_by_id=MagicMock(
+                return_value={
+                    "id": "user-1",
+                    "role": "VIEWER",
+                    "organization_id": "org-1",
+                }
+            ),
+        )
+    )
+
+    with pytest.raises(ForbiddenError):
+        service.update_user(
+            organization_id="org-1",
+            profile_id="user-1",
+            actor_user_id="admin-1",
+            actor_role="PLATFORM_ADMIN",
+            role="PLATFORM_ADMIN",
+        )
+
+
+def test_set_password_validates_policy():
+    service = UserManagementService(
+        profile_repository=MagicMock(
+            get_profile_by_id=MagicMock(
+                return_value={
+                    "id": "user-1",
+                    "email": "user@example.com",
+                    "organization_id": "org-1",
+                }
+            ),
+        )
+    )
+
+    with pytest.raises(ValidationError):
+        service.set_password(
+            organization_id="org-1",
+            profile_id="user-1",
+            password="weak",
+            actor_user_id="admin-1",
+        )
+

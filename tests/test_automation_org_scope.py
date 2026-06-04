@@ -59,6 +59,7 @@ def test_apply_organization_scope_without_projects():
             return self
 
     request = FakeRequest()
+    repository._supports_organization_id_column = True
 
     repository._apply_organization_scope(
         request,
@@ -91,7 +92,14 @@ def test_apply_organization_scope_with_projects():
             )
             return self
 
+        def in_(self, column, values):
+            self.filters.append(
+                ("in", column, values)
+            )
+            return self
+
     request = FakeRequest()
+    repository._supports_organization_id_column = True
 
     repository._apply_organization_scope(
         request,

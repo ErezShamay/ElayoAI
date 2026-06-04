@@ -116,7 +116,10 @@ from app.services.user_management_service import (
 )
 
 from app.schemas.user_management import (
+    ALL_ORGANIZATIONS_SCOPE,
     UserInviteRequest,
+    UserSetPasswordRequest,
+    UserUpdateRequest,
 )
 
 from app.schemas.organization import (
@@ -1399,6 +1402,18 @@ def create_admin_organization(
     )
 
 
+@app.delete("/admin/organizations/{organization_id}")
+def delete_admin_organization(
+    organization_id: str,
+    auth=Depends(require_permission("organizations:write")),
+):
+    return organization_admin_service.delete_customer_organization(
+        organization_id=organization_id,
+        actor_user_id=auth.user_id,
+        actor_role=auth.role,
+    )
+
+
 @app.get("/admin/field-reports/modules")
 def list_field_report_modules(
     _: object = Depends(
@@ -2422,11 +2437,20 @@ def list_organization_users(
     organization_id: str | None = None,
     auth=Depends(require_permission("users:read")),
 ):
+    if organization_id == ALL_ORGANIZATIONS_SCOPE:
+        return user_management_service.list_users(
+            ALL_ORGANIZATIONS_SCOPE,
+            actor_role=auth.role,
+        )
+
     target_org_id = _admin_target_organization_id(
         auth,
         organization_id,
     )
-    return user_management_service.list_users(target_org_id)
+    return user_management_service.list_users(
+        target_org_id,
+        actor_role=auth.role,
+    )
 
 
 @app.post("/admin/users")
@@ -2496,6 +2520,46 @@ def send_organization_user_password_reset(
     return user_management_service.send_password_reset(
         organization_id=target_org_id,
         profile_id=profile_id,
+        actor_user_id=auth.user_id,
+    )
+
+
+@app.patch("/admin/users/{profile_id}")
+def update_organization_user(
+    profile_id: str,
+    request: UserUpdateRequest,
+    organization_id: str | None = None,
+    auth=Depends(require_permission("users:write")),
+):
+    target_org_id = _admin_target_organization_id(
+        auth,
+        organization_id or request.organization_id,
+    )
+    return user_management_service.update_user(
+        organization_id=target_org_id,
+        profile_id=profile_id,
+        actor_user_id=auth.user_id,
+        actor_role=auth.role,
+        full_name=request.full_name,
+        role=request.role,
+    )
+
+
+@app.post("/admin/users/{profile_id}/set-password")
+def set_organization_user_password(
+    profile_id: str,
+    request: UserSetPasswordRequest,
+    organization_id: str | None = None,
+    auth=Depends(require_permission("users:write")),
+):
+    target_org_id = _admin_target_organization_id(
+        auth,
+        organization_id or request.organization_id,
+    )
+    return user_management_service.set_password(
+        organization_id=target_org_id,
+        profile_id=profile_id,
+        password=request.password,
         actor_user_id=auth.user_id,
     )
 

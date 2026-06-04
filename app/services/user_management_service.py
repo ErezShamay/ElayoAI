@@ -22,7 +22,10 @@ from app.auth.roles import (
     is_platform_admin,
     ORG_SCOPED_INVITE_ROLES,
 )
+from app.auth.password_policy import validate_password
+from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.profile_repository import ProfileRepository
+from app.schemas.user_management import ALL_ORGANIZATIONS_SCOPE
 from app.services.user_invite_email_service import UserInviteEmailService
 
 logger = logging.getLogger(__name__)
@@ -34,16 +37,32 @@ class UserManagementService:
     def __init__(
         self,
         profile_repository: ProfileRepository | None = None,
+        organization_repository: OrganizationRepository | None = None,
         invite_email_service: UserInviteEmailService | None = None,
     ) -> None:
         self.profile_repository = profile_repository or ProfileRepository()
+        self.organization_repository = (
+            organization_repository or OrganizationRepository()
+        )
         self.invite_email_service = invite_email_service or UserInviteEmailService()
         self.auth_client = supabase
 
     def list_users(
         self,
         organization_id: str,
+        *,
+        actor_role: str | None = None,
     ) -> dict:
+        if (
+            organization_id == ALL_ORGANIZATIONS_SCOPE
+            and is_platform_admin(actor_role)
+        ):
+            return self.list_all_users()
+
+        if not organization_id.strip():
+            raise ValidationError(
+                message="organization_id is required"
+            )
         profiles = self.profile_repository.list_profiles_by_organization(
             organization_id
         )
@@ -61,6 +80,177 @@ class UserManagementService:
         return {
             "users": users,
             "total": len(users),
+        }
+
+    def list_all_users(self) -> dict:
+        profiles = self.profile_repository.list_all_profiles()
+        org_names = self._organization_name_lookup()
+
+        users = []
+        for profile in profiles:
+            org_id = ProfileRepository.extract_organization_id(profile)
+            users.append(
+                {
+                    **profile,
+                    "organization_id": org_id or None,
+                    "organization_name": (
+                        org_names.get(org_id)
+                        if org_id
+                        else None
+                    ),
+                    "account_status": self._resolve_account_status(
+                        str(profile.get("id") or "")
+                    ),
+                }
+            )
+
+        return {
+            "users": users,
+            "total": len(users),
+        }
+
+    def update_user(
+        self,
+        *,
+        organization_id: str,
+        profile_id: str,
+        actor_user_id: str,
+        actor_role: str,
+        full_name: str | None = None,
+        role: str | None = None,
+    ) -> dict:
+        profile = self._get_profile_in_org(
+            organization_id=organization_id,
+            profile_id=profile_id,
+        )
+
+        updates: dict[str, str] = {}
+
+        if full_name is not None:
+            normalized_name = full_name.strip()
+            if not normalized_name:
+                raise ValidationError(message="Full name is required")
+            updates["full_name"] = normalized_name
+
+        if role is not None:
+            normalized_role = role.strip().upper()
+            current_role = str(profile.get("role") or "").strip().upper()
+
+            if normalized_role == PLATFORM_ADMIN_ROLE:
+                raise ForbiddenError(
+                    message=(
+                        "Global admin role cannot be assigned via user management"
+                    ),
+                )
+
+            if not can_assign_role(
+                actor_role=actor_role,
+                target_role=normalized_role,
+            ):
+                raise ValidationError(
+                    message="Invalid role for this update",
+                )
+
+            if (
+                normalized_role == ORG_ADMIN_ROLE
+                and current_role != ORG_ADMIN_ROLE
+            ):
+                existing_admin_count = (
+                    self.profile_repository.count_profiles_with_role(
+                        organization_id,
+                        ORG_ADMIN_ROLE,
+                    )
+                )
+                if existing_admin_count > 0:
+                    raise ConflictError(
+                        message=(
+                            "ללקוח כבר יש מנהל לקוח. "
+                            "מותר מנהל לקוח אחד בלבד לכל ארגון."
+                        ),
+                    )
+
+            updates["role"] = normalized_role
+
+        if not updates:
+            raise ValidationError(message="No updates provided")
+
+        updated = self.profile_repository.update_profile(
+            profile_id,
+            updates,
+        )
+
+        if not updated:
+            raise NotFoundError(
+                message="User not found",
+                resource_type="profile",
+                resource_id=profile_id,
+            )
+
+        logger.info(
+            "User updated",
+            extra={
+                "event": "audit.user_update",
+                "actor_user_id": actor_user_id,
+                "profile_id": profile_id,
+                "organization_id": organization_id,
+                "fields": sorted(updates.keys()),
+            },
+        )
+
+        return {
+            "user": {
+                **updated,
+                "account_status": self._resolve_account_status(profile_id),
+            },
+        }
+
+    def set_password(
+        self,
+        *,
+        organization_id: str,
+        profile_id: str,
+        password: str,
+        actor_user_id: str,
+    ) -> dict:
+        profile = self._get_profile_in_org(
+            organization_id=organization_id,
+            profile_id=profile_id,
+        )
+
+        password_errors = validate_password(password)
+        if password_errors:
+            raise ValidationError(
+                message="Password does not meet policy requirements",
+                details={"errors": password_errors},
+            )
+
+        try:
+            self.auth_client.auth.admin.update_user_by_id(
+                profile_id,
+                {"password": password},
+            )
+        except AuthApiError as error:
+            raise self._auth_admin_error(error) from error
+        except Exception as error:
+            raise ValidationError(
+                message="Failed to set password",
+                details={"error": str(error)},
+            ) from error
+
+        logger.info(
+            "User password set by admin",
+            extra={
+                "event": "audit.user_password_set",
+                "actor_user_id": actor_user_id,
+                "profile_id": profile_id,
+                "organization_id": organization_id,
+                "target_email": profile.get("email"),
+            },
+        )
+
+        return {
+            "profile_id": profile_id,
+            "status": "password_updated",
         }
 
     def invite_user(
@@ -398,6 +588,25 @@ class UserManagementService:
             raise ForbiddenError(message="User belongs to a different organization")
 
         return profile
+
+    def _organization_name_lookup(self) -> dict[str, str]:
+        organizations = self.organization_repository.get_all_organizations()
+        lookup: dict[str, str] = {}
+
+        for organization in organizations:
+            org_id = str(organization.get("id") or "").strip()
+            if not org_id:
+                continue
+
+            name = str(
+                organization.get("organization_name")
+                or organization.get("name")
+                or organization.get("contact_email")
+                or org_id
+            ).strip()
+            lookup[org_id] = name
+
+        return lookup
 
     def _resolve_account_status(
         self,

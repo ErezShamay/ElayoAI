@@ -7,7 +7,10 @@ import UserMenu from "@/components/auth/UserMenu";
 import OrgSwitcher from "@/components/admin/OrgSwitcher";
 import SystemNavDropdown from "@/components/layout/SystemNavDropdown";
 import BrandLogo from "@/components/ui/BrandLogo";
-import { HOME_NAVBAR_LINKS } from "@/lib/navigation";
+import {
+  HOME_NAVBAR_LINKS,
+  isNavLinkActive,
+} from "@/lib/navigation";
 
 export default function HomeNavBar() {
   const pathname = usePathname();
@@ -49,7 +52,7 @@ export default function HomeNavBar() {
           "
         >
           {HOME_NAVBAR_LINKS.map((link) => {
-            const isActive = pathname === link.href;
+            const isActive = isNavLinkActive(pathname, link.href);
 
             return (
               <Link

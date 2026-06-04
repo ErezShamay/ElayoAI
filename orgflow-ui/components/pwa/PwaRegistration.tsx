@@ -17,6 +17,15 @@ export default function PwaRegistration() {
       return;
     }
 
+    if (process.env.NODE_ENV === "development") {
+      void navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          void registration.unregister();
+        });
+      });
+      return;
+    }
+
     let reloadingForUpdate = false;
 
     const safeReload = () => {

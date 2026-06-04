@@ -22,3 +22,17 @@ class ManagedUser(BaseModel):
     full_name: str | None = None
     role: str
     created_at: str | None = None
+
+
+class UserUpdateRequest(BaseModel):
+    full_name: str | None = Field(default=None, max_length=120)
+    role: str | None = None
+    organization_id: str | None = None
+
+
+class UserSetPasswordRequest(BaseModel):
+    password: str = Field(..., min_length=8, max_length=128)
+    organization_id: str | None = None
+
+
+ALL_ORGANIZATIONS_SCOPE = "__all__"

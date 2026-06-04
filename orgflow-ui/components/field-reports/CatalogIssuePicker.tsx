@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@/components/ui/Button";
-import { useLockBodyScroll } from "@/hooks/useLockBodyScroll";
+import { useLockBackgroundScrollWhileOverlay } from "@/hooks/useLockBodyScroll";
 import {
   FR_TOUCH_BUTTON,
   FR_TOUCH_INPUT,
@@ -62,7 +62,7 @@ export default function CatalogIssuePicker({
   );
   const [search, setSearch] = useState("");
 
-  useLockBodyScroll(true);
+  useLockBackgroundScrollWhileOverlay(true);
 
   const searchResults = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -278,7 +278,7 @@ export default function CatalogIssuePicker({
     typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed inset-0 z-[60] flex flex-col bg-zinc-50 dark:bg-zinc-950 lg:hidden"
+            className="fixed inset-0 z-[60] flex h-dvh max-h-dvh flex-col bg-zinc-50 dark:bg-zinc-950 lg:hidden"
             role="dialog"
             aria-modal="true"
             aria-label="בחירת ממצא מהמפרט"

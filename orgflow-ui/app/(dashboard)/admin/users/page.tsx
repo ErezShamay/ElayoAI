@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 
 import AdminGuard from "@/components/admin/AdminGuard";
+import DeleteOrganizationDialog from "@/components/admin/DeleteOrganizationDialog";
 import { TenantMigrationBanner } from "@/components/admin/OrgSwitcher";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -18,15 +19,23 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   useCanManageOrganizations,
 } from "@/hooks/useEffectiveRole";
-import { inviteableRoles, organizationHasClientAdmin } from "@/lib/auth/permissions";
+import {
+  inviteableRoles,
+  isPlatformAdmin,
+  organizationHasClientAdmin,
+} from "@/lib/auth/permissions";
 import { getRoleLabel } from "@/lib/auth/roleLabels";
 import { apiFetch } from "@/lib/api/client";
+
+const ALL_ORGANIZATIONS_SCOPE = "__all__";
 
 type ManagedUser = {
   id: string;
   email: string;
   full_name: string | null;
   role: string;
+  organization_id?: string | null;
+  organization_name?: string | null;
   account_status?: "pending" | "active";
   created_at?: string | null;
 };
@@ -82,22 +91,6 @@ function AdminUsersContent() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const canManageOrganizations = useCanManageOrganizations();
   const effectiveRole = profile?.role || sessionRole;
-  const hasClientAdmin = organizationHasClientAdmin(users);
-  const [role, setRole] = useState<string>("VIEWER");
-  const roleOptions = useMemo(
-    () => [
-      ...inviteableRoles(effectiveRole, {
-        hasClientAdmin,
-      }),
-    ] as Array<"ADMIN" | "SUPERVISOR" | "VIEWER">,
-    [effectiveRole, hasClientAdmin],
-  );
-  const selectedRole = roleOptions.includes(
-    role as (typeof roleOptions)[number]
-  )
-    ? role
-    : (roleOptions[0] ?? "VIEWER");
-
   const [customerOrganizations, setCustomerOrganizations] =
     useState<CustomerOrganization[]>([]);
   const [fieldReportModules, setFieldReportModules] = useState<
@@ -127,9 +120,21 @@ function AdminUsersContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [creatingOrganization, setCreatingOrganization] = useState(false);
+  const [deletingOrganizationId, setDeletingOrganizationId] = useState<
+    string | null
+  >(null);
+  const [organizationPendingDelete, setOrganizationPendingDelete] =
+    useState<CustomerOrganization | null>(null);
+  const [deleteOrganizationConfirmValue, setDeleteOrganizationConfirmValue] =
+    useState("");
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [resendingUserId, setResendingUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [settingPasswordUserId, setSettingPasswordUserId] = useState<
+    string | null
+  >(null);
+  const [usersScopeId, setUsersScopeId] = useState(ALL_ORGANIZATIONS_SCOPE);
   const [error, setError] = useState("");
 
   const [email, setEmail] = useState("");
@@ -137,6 +142,7 @@ function AdminUsersContent() {
   const [organizationName, setOrganizationName] = useState("");
   const [organizationEmail, setOrganizationEmail] = useState("");
   const [inviteOrganizationId, setInviteOrganizationId] = useState("");
+  const [role, setRole] = useState<string>("VIEWER");
 
   const defaultInviteOrganizationId =
     canManageOrganizations
@@ -150,15 +156,68 @@ function AdminUsersContent() {
   const activeInviteOrganizationId =
     inviteOrganizationId || defaultInviteOrganizationId || "";
 
+  const usersInInviteOrg = useMemo(
+    () =>
+      users.filter(
+        (item) =>
+          !activeInviteOrganizationId
+          || item.organization_id === activeInviteOrganizationId
+      ),
+    [users, activeInviteOrganizationId]
+  );
+  const hasClientAdmin = organizationHasClientAdmin(usersInInviteOrg);
+  const updateRoleOptions = useMemo(
+    () =>
+      isPlatformAdmin(effectiveRole)
+        ? (["ADMIN", "SUPERVISOR", "VIEWER"] as const)
+        : (["SUPERVISOR", "VIEWER"] as const),
+    [effectiveRole]
+  );
+  const roleOptions = useMemo(
+    () => [
+      ...inviteableRoles(effectiveRole, {
+        hasClientAdmin,
+      }),
+    ] as Array<"ADMIN" | "SUPERVISOR" | "VIEWER">,
+    [effectiveRole, hasClientAdmin],
+  );
+  const selectedRole = roleOptions.includes(
+    role as (typeof roleOptions)[number]
+  )
+    ? role
+    : (roleOptions[0] ?? "VIEWER");
+
+  const activeUsersScopeId = canManageOrganizations
+    ? usersScopeId
+    : "";
+
+  function adminUserActionQuery(
+    user?: ManagedUser
+  ) {
+    const organizationId = user?.organization_id
+      || (
+        canManageOrganizations
+        && activeUsersScopeId
+        && activeUsersScopeId !== ALL_ORGANIZATIONS_SCOPE
+          ? activeUsersScopeId
+          : ""
+      );
+
+    if (!organizationId) {
+      return "";
+    }
+
+    return `?organization_id=${encodeURIComponent(organizationId)}`;
+  }
+
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
       const usersPath = canManageOrganizations
-        && activeInviteOrganizationId
         ? `/admin/users?organization_id=${encodeURIComponent(
-            activeInviteOrganizationId
+            activeUsersScopeId || ALL_ORGANIZATIONS_SCOPE
           )}`
         : "/admin/users";
 
@@ -179,7 +238,7 @@ function AdminUsersContent() {
     } finally {
       setLoading(false);
     }
-  }, [activeInviteOrganizationId, canManageOrganizations]);
+  }, [activeUsersScopeId, canManageOrganizations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,7 +261,7 @@ function AdminUsersContent() {
   }, [
     currentOrgId,
     canManageOrganizations,
-    activeInviteOrganizationId,
+    activeUsersScopeId,
     loadUsers,
   ]);
 
@@ -372,6 +431,96 @@ function AdminUsersContent() {
     }
   }
 
+  function organizationDisplayName(
+    organization: CustomerOrganization
+  ) {
+    return (
+      organization.organization_name
+      || organization.name
+      || organization.contact_email
+      || organization.id
+    );
+  }
+
+  function openDeleteOrganizationDialog(
+    organization: CustomerOrganization
+  ) {
+    setOrganizationPendingDelete(organization);
+    setDeleteOrganizationConfirmValue("");
+  }
+
+  function closeDeleteOrganizationDialog() {
+    if (deletingOrganizationId) {
+      return;
+    }
+
+    setOrganizationPendingDelete(null);
+    setDeleteOrganizationConfirmValue("");
+  }
+
+  async function executeDeleteOrganization(
+    organization: CustomerOrganization
+  ) {
+    const requiredName = organizationDisplayName(organization).trim();
+
+    if (deleteOrganizationConfirmValue.trim() !== requiredName) {
+      toast.error("יש להקליד את שם הלקוח בדיוק כפי שמוצג");
+      return;
+    }
+
+    try {
+      setDeletingOrganizationId(organization.id);
+      setError("");
+
+      const response = await apiFetch(
+        `/admin/organizations/${organization.id}`,
+        { method: "DELETE" }
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error?.message
+          || data?.detail
+          || "מחיקת הלקוח נכשלה"
+        );
+      }
+
+      toast.success("הלקוח נמחק מהמערכת");
+
+      const remainingOrganizations = customerOrganizations.filter(
+        (item) => item.id !== organization.id
+      );
+
+      setCustomerOrganizations(remainingOrganizations);
+
+      await Promise.all([
+        loadOrganizations(),
+        refreshOrganizations(),
+        loadFieldReportModules(),
+      ]);
+
+      if (
+        currentOrgId === organization.id
+        && remainingOrganizations[0]?.id
+      ) {
+        await switchOrganization(remainingOrganizations[0].id);
+        toast.info("עברת ללקוח אחר לאחר המחיקה");
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "מחיקת הלקוח נכשלה";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setDeletingOrganizationId(null);
+      setOrganizationPendingDelete(null);
+      setDeleteOrganizationConfirmValue("");
+    }
+  }
+
   async function handleCreateOrganization(e: FormEvent) {
     e.preventDefault();
 
@@ -503,7 +652,7 @@ function AdminUsersContent() {
       setError("");
 
       const response = await apiFetch(
-        `/admin/users/${user.id}/resend-invite`,
+        `/admin/users/${user.id}/resend-invite${adminUserActionQuery(user)}`,
         { method: "POST" }
       );
 
@@ -548,7 +697,7 @@ function AdminUsersContent() {
       setError("");
 
       const response = await apiFetch(
-        `/admin/users/${user.id}/password-reset`,
+        `/admin/users/${user.id}/password-reset${adminUserActionQuery(user)}`,
         { method: "POST" }
       );
 
@@ -579,6 +728,135 @@ function AdminUsersContent() {
     }
   }
 
+  async function handleUpdateUser(user: ManagedUser) {
+    const nextName = window.prompt(
+      "שם מלא",
+      user.full_name || ""
+    );
+
+    if (nextName === null) {
+      return;
+    }
+
+    const trimmedName = nextName.trim();
+    if (!trimmedName) {
+      toast.error("שם מלא הוא שדה חובה");
+      return;
+    }
+
+    const nextRole = window.prompt(
+      `תפקיד (${updateRoleOptions.join(", ")})`,
+      user.role
+    );
+
+    if (nextRole === null) {
+      return;
+    }
+
+    const normalizedRole = nextRole.trim().toUpperCase();
+    if (!updateRoleOptions.some((option) => option === normalizedRole)) {
+      toast.error("תפקיד לא חוקי");
+      return;
+    }
+
+    const organizationQuery = adminUserActionQuery(user);
+    if (canManageOrganizations && !organizationQuery) {
+      toast.error("לא ניתן לעדכן משתמש ללא זיהוי לקוח");
+      return;
+    }
+
+    try {
+      setUpdatingUserId(user.id);
+      setError("");
+
+      const response = await apiFetch(
+        `/admin/users/${user.id}${organizationQuery}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            full_name: trimmedName,
+            role: normalizedRole,
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error?.message
+          || data?.detail
+          || "עדכון המשתמש נכשל"
+        );
+      }
+
+      toast.success("המשתמש עודכן");
+      await loadUsers();
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "עדכון המשתמש נכשל";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
+
+  async function handleSetPassword(user: ManagedUser) {
+    const organizationQuery = adminUserActionQuery(user);
+    if (canManageOrganizations && !organizationQuery) {
+      toast.error("לא ניתן להגדיר סיסמה ללא זיהוי לקוח");
+      return;
+    }
+
+    const password = window.prompt(
+      `הגדרת סיסמה חדשה עבור ${user.full_name || user.email}\n(לפחות 8 תווים, אות גדולה/קטנה, ספרה ותו מיוחד)`
+    );
+
+    if (!password) {
+      return;
+    }
+
+    try {
+      setSettingPasswordUserId(user.id);
+      setError("");
+
+      const response = await apiFetch(
+        `/admin/users/${user.id}/set-password${organizationQuery}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ password }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const policyErrors = data?.error?.details?.errors;
+        throw new Error(
+          Array.isArray(policyErrors) && policyErrors.length > 0
+            ? policyErrors.join("\n")
+            : data?.error?.message
+            || data?.detail
+            || "הגדרת הסיסמה נכשלה"
+        );
+      }
+
+      toast.success("הסיסמה עודכנה במערכת");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "הגדרת הסיסמה נכשלה";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setSettingPasswordUserId(null);
+    }
+  }
+
   async function handleDelete(user: ManagedUser) {
     if (user.id === profile?.id) {
       toast.error("לא ניתן למחוק את המשתמש שלך");
@@ -598,7 +876,7 @@ function AdminUsersContent() {
       setError("");
 
       const response = await apiFetch(
-        `/admin/users/${user.id}`,
+        `/admin/users/${user.id}${adminUserActionQuery(user)}`,
         { method: "DELETE" }
       );
 
@@ -628,8 +906,36 @@ function AdminUsersContent() {
     }
   }
 
+  const pendingDeleteConfirmName = organizationPendingDelete
+    ? organizationDisplayName(organizationPendingDelete)
+    : "";
+
   return (
     <div className="of-dashboard-page of-container mx-auto max-w-5xl space-y-10">
+      <DeleteOrganizationDialog
+        open={organizationPendingDelete !== null}
+        organizationLabel={
+          organizationPendingDelete
+            ? organizationDisplayName(organizationPendingDelete)
+            : ""
+        }
+        confirmName={pendingDeleteConfirmName}
+        confirmValue={deleteOrganizationConfirmValue}
+        deleting={
+          organizationPendingDelete !== null
+          && deletingOrganizationId === organizationPendingDelete.id
+        }
+        onConfirmValueChange={setDeleteOrganizationConfirmValue}
+        onCancel={closeDeleteOrganizationDialog}
+        onConfirm={() => {
+          if (!organizationPendingDelete) {
+            return;
+          }
+
+          void executeDeleteOrganization(organizationPendingDelete);
+        }}
+      />
+
       <header>
         <h1 className="of-page-title text-2xl md:text-3xl">
           ניהול משתמשים
@@ -698,16 +1004,29 @@ function AdminUsersContent() {
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200/80 px-4 py-3 dark:border-zinc-800"
               >
                 <span className="font-medium">
-                  {organization.organization_name
-                    || organization.name
-                    || "לקוח"}
+                  {organizationDisplayName(organization)}
                 </span>
                 <span className="text-zinc-500">
                   {organization.contact_email || organization.id}
                 </span>
-                {organization.id === currentOrgId ? (
-                  <Badge>לקוח פעיל</Badge>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  {organization.id === currentOrgId ? (
+                    <Badge>לקוח פעיל</Badge>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    disabled={deletingOrganizationId === organization.id}
+                    onClick={() =>
+                      openDeleteOrganizationDialog(organization)
+                    }
+                  >
+                    {deletingOrganizationId === organization.id
+                      ? "מוחק..."
+                      : "מחיקת לקוח"}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
@@ -1036,14 +1355,43 @@ function AdminUsersContent() {
       </section>
 
       <section className="of-card of-card-p6">
-        <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-xl font-semibold">
-            משתמשים בארגון
+            {canManageOrganizations
+              ? "משתמשים במערכת"
+              : "משתמשים בארגון"}
           </h2>
           <span className="text-sm text-zinc-500">
             {users.length} משתמשים
           </span>
         </div>
+
+        {canManageOrganizations ? (
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium">
+              תצוגת משתמשים
+            </label>
+            <select
+              value={activeUsersScopeId}
+              onChange={(event) => {
+                setUsersScopeId(event.target.value);
+              }}
+              className="of-input of-focus-ring w-full max-w-md text-sm"
+            >
+              <option value={ALL_ORGANIZATIONS_SCOPE}>
+                כל המשתמשים במערכת
+              </option>
+              {customerOrganizations.map((organization) => (
+                <option
+                  key={organization.id}
+                  value={organization.id}
+                >
+                  {organizationDisplayName(organization)}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         {error ? (
           <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
@@ -1064,6 +1412,10 @@ function AdminUsersContent() {
                 <tr className="border-b border-zinc-200 text-right dark:border-zinc-700">
                   <th className="px-3 py-3 font-semibold">שם</th>
                   <th className="px-3 py-3 font-semibold">אימייל</th>
+                  {canManageOrganizations
+                  && activeUsersScopeId === ALL_ORGANIZATIONS_SCOPE ? (
+                    <th className="px-3 py-3 font-semibold">לקוח</th>
+                  ) : null}
                   <th className="px-3 py-3 font-semibold">תפקיד</th>
                   <th className="px-3 py-3 font-semibold">סטטוס</th>
                   <th className="px-3 py-3 font-semibold">פעולות</th>
@@ -1079,6 +1431,14 @@ function AdminUsersContent() {
                       {user.full_name || "—"}
                     </td>
                     <td className="px-3 py-3">{user.email}</td>
+                    {canManageOrganizations
+                    && activeUsersScopeId === ALL_ORGANIZATIONS_SCOPE ? (
+                      <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400">
+                        {user.organization_name
+                          || user.organization_id
+                          || "—"}
+                      </td>
+                    ) : null}
                     <td className="px-3 py-3">
                       <Badge>{getRoleLabel(user.role)}</Badge>
                     </td>
@@ -1110,12 +1470,36 @@ function AdminUsersContent() {
                           type="button"
                           variant="secondary"
                           size="sm"
+                          disabled={updatingUserId === user.id}
+                          onClick={() => void handleUpdateUser(user)}
+                        >
+                          {updatingUserId === user.id
+                            ? "מעדכן..."
+                            : "עריכה"}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
                           disabled={resettingUserId === user.id}
                           onClick={() => void handlePasswordReset(user)}
                         >
                           {resettingUserId === user.id
                             ? "שולח..."
                             : "איפוס סיסמה"}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={settingPasswordUserId === user.id}
+                          onClick={() => void handleSetPassword(user)}
+                        >
+                          {settingPasswordUserId === user.id
+                            ? "מגדיר..."
+                            : "הגדרת סיסמה"}
                         </Button>
 
                         <Button

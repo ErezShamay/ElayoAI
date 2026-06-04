@@ -292,3 +292,16 @@ class OrganizationRepository:
             return None
 
         return response.data[0]
+
+    def delete_organization(
+        self,
+        organization_id: str,
+    ) -> bool:
+        response = (
+            self.client
+            .table("organizations")
+            .delete()
+            .eq("id", organization_id)
+            .execute()
+        )
+        return bool(response.data)

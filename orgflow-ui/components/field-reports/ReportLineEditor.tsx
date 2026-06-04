@@ -9,7 +9,7 @@ import LinePhotoCapture, {
 } from "@/components/field-reports/LinePhotoCapture";
 import LineGroupSelector from "@/components/field-reports/LineGroupSelector";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
-import { useLockBodyScroll } from "@/hooks/useLockBodyScroll";
+import { useLockBackgroundScrollWhileOverlay } from "@/hooks/useLockBodyScroll";
 import { FIELD_REPORT_LOCAL_AUTOSAVE_MS } from "@/lib/field-reports/local-autosave";
 import {
   lineGroupFieldsFromSelection,
@@ -88,7 +88,7 @@ export default function ReportLineEditor({
   const [draft, setDraft] = useState(() => lineToDraft(line));
   const draftSkipAutosave = useRef(true);
 
-  useLockBodyScroll(expanded);
+  useLockBackgroundScrollWhileOverlay(expanded);
 
   useEffect(() => {
     setDraft(lineToDraft(line));
@@ -263,7 +263,7 @@ export default function ReportLineEditor({
     expanded && typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed inset-0 z-[60] flex flex-col bg-zinc-50 dark:bg-zinc-950 lg:hidden"
+            className="fixed inset-0 z-[60] flex h-dvh max-h-dvh flex-col overscroll-none bg-zinc-50 dark:bg-zinc-950 lg:hidden"
             role="dialog"
             aria-modal="true"
             aria-label="עריכת שורת ממצא"
@@ -287,7 +287,7 @@ export default function ReportLineEditor({
                 סגור
               </Button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               {editForm}
               {photoCapture}
             </div>

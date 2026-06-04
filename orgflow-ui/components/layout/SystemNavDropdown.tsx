@@ -154,21 +154,11 @@ export default function SystemNavDropdown({
                     href={link.href}
                     role="menuitem"
                     onClick={() => setIsOpen(false)}
-                    className={`
-                      block
-                      rounded-xl
-                      px-3
-                      py-2.5
-                      text-right
-                      text-sm
-                      font-medium
-                      transition-colors
-                      ${
-                        linkIsActive
-                          ? "bg-brand-muted text-brand dark:bg-brand/15 dark:text-brand-light"
-                          : "of-nav-pill"
-                      }
-                    `}
+                    className={
+                      linkIsActive
+                        ? "of-nav-link of-nav-link-active text-right text-sm"
+                        : "of-nav-link text-right text-sm"
+                    }
                   >
                     {link.label}
                   </Link>

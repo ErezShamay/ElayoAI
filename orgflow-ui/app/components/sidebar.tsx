@@ -79,17 +79,17 @@ export default function Sidebar() {
                 key={link.href}
                 href={link.href}
                 label={link.label}
-                isActive={pathname === link.href}
+                isActive={isNavLinkActive(pathname, link.href)}
               />
             ))}
             {fieldReportsEnabled ? (
               <NavLinkItem
                 href={FIELD_REPORTS_ROUTE.href}
                 label={FIELD_REPORTS_ROUTE.label}
-                isActive={
-                  pathname === FIELD_REPORTS_ROUTE.href
-                  || pathname.startsWith(`${FIELD_REPORTS_ROUTE.href}/`)
-                }
+                isActive={isNavLinkActive(
+                  pathname,
+                  FIELD_REPORTS_ROUTE.href
+                )}
               />
             ) : null}
           </div>

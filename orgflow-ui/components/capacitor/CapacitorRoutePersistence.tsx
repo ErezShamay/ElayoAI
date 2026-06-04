@@ -6,12 +6,14 @@ import { App } from "@capacitor/app";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { readLinePhotoCaptureContext } from "@/lib/capacitor/line-photo-capture-context";
+import { isCapacitorNativePlatform } from "@/lib/capacitor/platform";
 import {
+  currentDocumentPath,
   readCapacitorPersistedRoute,
   shouldRestoreCapacitorRoute,
   writeCapacitorPersistedRoute,
 } from "@/lib/capacitor/route-persistence";
-import { isCapacitorNativePlatform } from "@/lib/capacitor/platform";
 
 function buildPersistedPath(
   pathname: string,
@@ -19,6 +21,46 @@ function buildPersistedPath(
 ): string {
   const query = searchParams.toString();
   return query ? `${pathname}?${query}` : pathname;
+}
+
+function resolveRestoreTarget(): string | null {
+  const saved = readCapacitorPersistedRoute();
+  if (saved) {
+    return saved;
+  }
+
+  const pendingPhoto = readLinePhotoCaptureContext();
+  return pendingPhoto?.returnPath?.trim() || null;
+}
+
+function navigateToRestoreTarget(target: string, router: ReturnType<typeof useRouter>) {
+  if (currentDocumentPath() === target) {
+    return;
+  }
+
+  if (isCapacitorNativePlatform()) {
+    window.location.assign(target);
+    return;
+  }
+
+  router.replace(target);
+}
+
+function tryRestoreRoute(
+  pathname: string,
+  router: ReturnType<typeof useRouter>
+): boolean {
+  if (!shouldRestoreCapacitorRoute(pathname)) {
+    return false;
+  }
+
+  const target = resolveRestoreTarget();
+  if (!target) {
+    return false;
+  }
+
+  navigateToRestoreTarget(target, router);
+  return true;
 }
 
 /**
@@ -51,15 +93,7 @@ export default function CapacitorRoutePersistence() {
         return;
       }
 
-      const saved = readCapacitorPersistedRoute();
-      if (!saved) {
-        return;
-      }
-
-      const currentPath = window.location.pathname;
-      if (shouldRestoreCapacitorRoute(currentPath)) {
-        router.replace(saved);
-      }
+      tryRestoreRoute(window.location.pathname, router);
     });
 
     return () => {
@@ -81,13 +115,13 @@ export default function CapacitorRoutePersistence() {
       return;
     }
 
-    const saved = readCapacitorPersistedRoute();
-    if (!saved) {
+    const target = resolveRestoreTarget();
+    if (!target) {
       return;
     }
 
     restoredRef.current = true;
-    router.replace(saved);
+    navigateToRestoreTarget(target, router);
   }, [loading, user, pathname, router]);
 
   return null;
@@ -99,7 +133,5 @@ export function persistCapacitorRouteNow(): void {
     return;
   }
 
-  writeCapacitorPersistedRoute(
-    `${window.location.pathname}${window.location.search}`
-  );
+  writeCapacitorPersistedRoute(currentDocumentPath());
 }

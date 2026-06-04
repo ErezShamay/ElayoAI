@@ -1,4 +1,4 @@
-const CACHE_VERSION = "orgflow-shell-v1";
+const CACHE_VERSION = "orgflow-shell-v2";
 const SHELL_ASSETS = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -32,7 +32,6 @@ self.addEventListener("fetch", (event) => {
   }
 
   const { request } = event;
-  const url = new URL(request.url);
 
   if (request.mode === "navigate") {
     event.respondWith(
@@ -41,24 +40,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const sameOrigin = url.origin === self.location.origin;
-  const isStaticAsset = sameOrigin && url.pathname.startsWith("/_next/static/");
-
-  if (!isStaticAsset) {
-    return;
-  }
-
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const networkFetch = fetch(request)
-        .then((response) => {
-          const cloned = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(request, cloned));
-          return response;
-        })
-        .catch(() => cached);
-
-      return cached || networkFetch;
-    })
-  );
+  // Do not cache /_next/static/ — Next.js uses hashed chunks; cache-first here
+  // causes stale modules and "module factory is not available" after deploy/HMR.
 });

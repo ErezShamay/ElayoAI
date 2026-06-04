@@ -1,5 +1,12 @@
+from postgrest.exceptions import APIError
+
 from app.db.supabase_client import (
     supabase
+)
+
+from app.repositories.postgrest_errors import (
+    is_invalid_uuid_error,
+    is_missing_column_error,
 )
 
 from app.schemas.ai_execution_log import (
@@ -10,6 +17,8 @@ from datetime import (
     datetime,
     timezone,
 )
+
+_EMPTY_SCOPE_ID = "00000000-0000-0000-0000-000000000000"
 
 
 class AIExecutionLogRepository:
@@ -23,6 +32,41 @@ class AIExecutionLogRepository:
         self.table_name = (
             "ai_execution_logs"
         )
+        self._supports_organization_id_column: bool | None = None
+
+    def _supports_organization_scope(self) -> bool:
+        if self._supports_organization_id_column is not None:
+            return self._supports_organization_id_column
+
+        try:
+            (
+                self.client
+                .table(self.table_name)
+                .select("organization_id")
+                .limit(1)
+                .execute()
+            )
+            self._supports_organization_id_column = True
+        except APIError as error:
+            if is_missing_column_error(
+                error,
+                "organization_id",
+            ):
+                self._supports_organization_id_column = False
+            else:
+                raise
+
+        return self._supports_organization_id_column
+
+    def _scoped_project_ids(
+        self,
+        project_ids: list[str] | None,
+    ) -> list[str]:
+        return [
+            project_id
+            for project_id in (project_ids or [])
+            if project_id
+        ]
 
     def _apply_organization_scope(
         self,
@@ -33,11 +77,18 @@ class AIExecutionLogRepository:
         if not organization_id:
             return request
 
-        scoped_project_ids = [
-            project_id
-            for project_id in (project_ids or [])
-            if project_id
-        ]
+        scoped_project_ids = self._scoped_project_ids(project_ids)
+
+        if not self._supports_organization_scope():
+            if scoped_project_ids:
+                return request.in_(
+                    "project_id",
+                    scoped_project_ids,
+                )
+            return request.eq(
+                "id",
+                _EMPTY_SCOPE_ID,
+            )
 
         if scoped_project_ids:
             return request.or_(
@@ -49,6 +100,16 @@ class AIExecutionLogRepository:
             "organization_id",
             organization_id,
         )
+
+    def _execute_list(self, request) -> list:
+        try:
+            response = request.execute()
+        except APIError as error:
+            if is_invalid_uuid_error(error):
+                return []
+            raise
+
+        return response.data or []
 
     # ==========================================
     # CREATE LOG
@@ -126,16 +187,12 @@ class AIExecutionLogRepository:
             project_ids,
         )
 
-        response = (
-            request
-            .order(
+        return self._execute_list(
+            request.order(
                 "created_at",
-                desc=False
+                desc=False,
             )
-            .execute()
         )
-
-        return response.data
 
     # ==========================================
     # GET RECENT EXECUTIONS
@@ -160,17 +217,12 @@ class AIExecutionLogRepository:
             project_ids,
         )
 
-        response = (
-            request
-            .order(
+        return self._execute_list(
+            request.order(
                 "created_at",
-                desc=True
-            )
-            .limit(limit)
-            .execute()
+                desc=True,
+            ).limit(limit)
         )
-
-        return response.data
 
     # ==========================================
     # GET DEAD LETTERS
@@ -199,17 +251,12 @@ class AIExecutionLogRepository:
             project_ids,
         )
 
-        response = (
-            request
-            .order(
+        return self._execute_list(
+            request.order(
                 "created_at",
-                desc=True
-            )
-            .limit(limit)
-            .execute()
+                desc=True,
+            ).limit(limit)
         )
-
-        return response.data
 
     # ==========================================
     # GET BY ID
@@ -293,17 +340,12 @@ class AIExecutionLogRepository:
                 project_id,
             )
 
-        response = (
-            request
-            .order(
+        results = self._execute_list(
+            request.order(
                 "created_at",
                 desc=True,
-            )
-            .limit(limit)
-            .execute()
+            ).limit(limit)
         )
-
-        results = response.data
 
         if query:
             needle = query.lower()

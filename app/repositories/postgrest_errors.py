@@ -19,6 +19,14 @@ def is_missing_column_error(
     )
 
 
+def is_invalid_uuid_error(error: APIError) -> bool:
+    code = getattr(error, "code", None)
+    if code == "22P02":
+        return True
+
+    return "invalid input syntax for type uuid" in str(error).lower()
+
+
 def is_missing_table_error(error: APIError, table: str) -> bool:
     message = str(error).lower()
     code = getattr(error, "code", None)

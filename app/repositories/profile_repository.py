@@ -85,6 +85,25 @@ class ProfileRepository:
 
         return response.data[0]
 
+    def list_all_profiles(self) -> list[dict]:
+        if not self.supports_organization_column():
+            raise ConfigurationError(
+                message=(
+                    "profiles.organization_id column is missing. "
+                    f"Run {MIGRATION_SQL_PATH} in Supabase SQL Editor."
+                ),
+            )
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        return response.data or []
+
     def list_profiles_by_organization(
         self,
         organization_id: str,

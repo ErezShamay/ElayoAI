@@ -39,7 +39,15 @@ export function getSystemNavLinks(isAdmin: boolean): NavLink[] {
   return SYSTEM_NAV_LINKS;
 }
 
+function matchesNavPath(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function isNavLinkActive(pathname: string, href: string) {
+  if (href === "/") {
+    return pathname === "/";
+  }
+
   if (href === AUTOMATION_ROUTE.href) {
     return (
       pathname === href
@@ -51,10 +59,10 @@ export function isNavLinkActive(pathname: string, href: string) {
   }
 
   if (href === DEAD_LETTERS_ROUTE.href) {
-    return pathname === href || pathname.startsWith(`${href}/`);
+    return matchesNavPath(pathname, href);
   }
 
-  return pathname === href;
+  return matchesNavPath(pathname, href);
 }
 
 export function isSystemNavActive(pathname: string, isAdmin: boolean) {

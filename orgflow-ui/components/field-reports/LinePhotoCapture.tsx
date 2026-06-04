@@ -19,6 +19,13 @@ import {
   saveLinePhotoLocally,
 } from "@/lib/field-reports/line-photo-store";
 import { persistCapacitorRouteNow } from "@/components/capacitor/CapacitorRoutePersistence";
+import {
+  clearLinePhotoCaptureContext,
+  linePhotoCaptureResumeMessage,
+  readLinePhotoCaptureContext,
+  writeLinePhotoCaptureContext,
+} from "@/lib/capacitor/line-photo-capture-context";
+import { currentDocumentPath } from "@/lib/capacitor/route-persistence";
 import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
 import { useOffline } from "@/providers/OfflineProvider";
 
@@ -67,6 +74,23 @@ export default function LinePhotoCapture({
   const [uploading, setUploading] = useState(false);
   const [cameraBlocked, setCameraBlocked] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const pending = readLinePhotoCaptureContext();
+    if (!pending) {
+      return;
+    }
+
+    const resumeMessage = linePhotoCaptureResumeMessage(
+      pending,
+      reportId,
+      lineId
+    );
+    if (resumeMessage) {
+      setError(resumeMessage);
+      clearLinePhotoCaptureContext();
+    }
+  }, [lineId, reportId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,12 +323,19 @@ export default function LinePhotoCapture({
 
     if (nativeLinePhotoPicker) {
       persistCapacitorRouteNow();
+      writeLinePhotoCaptureContext({
+        returnPath: currentDocumentPath(),
+        reportId,
+        lineId,
+      });
       try {
         const file = await takeLinePhotoWithNativeCamera();
+        clearLinePhotoCaptureContext();
         if (file) {
           await handleFileSelected(file);
         }
       } catch (err: unknown) {
+        clearLinePhotoCaptureContext();
         setError(getPhotoActionErrorMessage(err, "save"));
       }
 
@@ -333,12 +364,19 @@ export default function LinePhotoCapture({
 
     if (nativeLinePhotoPicker) {
       persistCapacitorRouteNow();
+      writeLinePhotoCaptureContext({
+        returnPath: currentDocumentPath(),
+        reportId,
+        lineId,
+      });
       try {
         const file = await pickLinePhotoFromNativeGallery();
+        clearLinePhotoCaptureContext();
         if (file) {
           await handleFileSelected(file);
         }
       } catch (err: unknown) {
+        clearLinePhotoCaptureContext();
         setError(getPhotoActionErrorMessage(err, "save"));
       }
 

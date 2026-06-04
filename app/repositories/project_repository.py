@@ -287,16 +287,21 @@ class ProjectRepository:
         organization_id: str
     ):
 
-        response = (
-            self.client
-            .table("projects")
-            .select("*")
-            .eq(
-                "organization_id",
-                organization_id
+        try:
+            response = (
+                self.client
+                .table("projects")
+                .select("*")
+                .eq(
+                    "organization_id",
+                    organization_id
+                )
+                .execute()
             )
-            .execute()
-        )
+        except APIError as error:
+            if _is_invalid_uuid_error(error):
+                return []
+            raise
 
         return response.data
 
