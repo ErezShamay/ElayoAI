@@ -536,16 +536,19 @@ app.add_middleware(
 # CORS
 # ==========================================
 
+_cors_kwargs: dict = {
+    "allow_origins": FRONTEND_URLS,
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+
+if settings.ENVIRONMENT in ("staging", "development"):
+    _cors_kwargs["allow_origin_regex"] = r"https://.*\.vercel\.app"
+
 app.add_middleware(
     CORSMiddleware,
-
-    allow_origins=FRONTEND_URLS,
-
-    allow_credentials=True,
-
-    allow_methods=["*"],
-
-    allow_headers=["*"],
+    **_cors_kwargs,
 )
 
 # ==========================================
