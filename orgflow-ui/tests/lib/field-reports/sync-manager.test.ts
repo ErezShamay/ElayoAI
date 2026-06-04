@@ -63,6 +63,7 @@ vi.mock("@/lib/field-reports/pdf/visit-report-pdf-store", () => ({
     filename: "report.pdf",
     generatedAt: new Date().toISOString(),
   })),
+  deleteVisitReportPdfLocally: vi.fn(async () => undefined),
 }));
 
 async function seedClosedLocalReport() {
@@ -196,9 +197,7 @@ describe("SyncManager (FR-025)", () => {
     expect(result.processed[0].reportId).toBe(SERVER_ID);
 
     const local = await getLocalReport(CLIENT_UUID);
-    expect(local?.server_report_id).toBe(SERVER_ID);
-    expect(local?.sync_status).toBe("done");
-    expect(local?.lines[0].server_line_id).toBe("line-server-1");
+    expect(local).toBeNull();
     expect(await loadPendingSendRequests(ORG_ID)).toHaveLength(0);
     expect(await getSyncQueueRecord(CLIENT_UUID)).toBeNull();
 

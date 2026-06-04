@@ -8,7 +8,9 @@ import {
   useNativeLinePhotoGallery,
 } from "@/lib/capacitor/line-photo-picker";
 import { apiFetch } from "@/lib/api/client";
+import { useFieldReportNetworkStatus } from "@/hooks/useFieldReportNetworkStatus";
 import { MAX_LINE_PHOTOS } from "@/lib/field-reports/line-photo-constants";
+import { uploadLinePhotoForReport } from "@/lib/field-reports/line-photo-upload";
 import {
   canAddLinePhoto,
   countLinePhotosLocally,
@@ -62,6 +64,7 @@ export default function LinePhotoCapture({
   onPhotosChange,
 }: LinePhotoCaptureProps) {
   const { isOnline } = useOffline();
+  const { canSync } = useFieldReportNetworkStatus();
   const nativeGalleryPicker = useNativeLinePhotoGallery();
   const androidEmulator = useMemo(() => isLikelyAndroidEmulator(), []);
   const useDeviceCameraCapture = !androidEmulator;
@@ -69,6 +72,7 @@ export default function LinePhotoCapture({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [syncingPending, setSyncingPending] = useState(false);
   const [cameraBlocked, setCameraBlocked] = useState(false);
   const [error, setError] = useState("");
 
@@ -102,7 +106,7 @@ export default function LinePhotoCapture({
           continue;
         }
 
-        if (!isOnline) {
+        if (!canSync) {
           continue;
         }
 
@@ -137,6 +141,58 @@ export default function LinePhotoCapture({
       }
     };
   }, [hasServerPhoto, isOnline, lineId, photoUrl, photos, reportId]);
+
+  useEffect(() => {
+    if (!canSync || disabled) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function uploadPendingPhotos() {
+      const pending = (await listLinePhotosForLine(reportId, lineId)).filter(
+        (photo) => photo.pendingUpload
+      );
+
+      if (!pending.length || cancelled) {
+        return;
+      }
+
+      setSyncingPending(true);
+      setError("");
+
+      try {
+        for (const photo of pending) {
+          if (cancelled) {
+            return;
+          }
+
+          const line = await uploadLinePhotoForReport(
+            reportId,
+            lineId,
+            photo.blob,
+            { photoId: photo.photoId }
+          );
+          await deleteLinePhotoLocally(reportId, lineId, photo.photoId);
+          emitFromLine(line);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(getPhotoActionErrorMessage(err, "save"));
+        }
+      } finally {
+        if (!cancelled) {
+          setSyncingPending(false);
+        }
+      }
+    }
+
+    void uploadPendingPhotos();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canSync, disabled, lineId, reportId]);
 
   useEffect(() => {
     return () => {
@@ -192,34 +248,15 @@ export default function LinePhotoCapture({
 
     try {
       const localPhotoId = await saveLinePhotoLocally(reportId, lineId, file, {
-        pendingUpload: !isOnline,
+        pendingUpload: !canSync,
       });
 
-      if (isOnline) {
+      if (canSync) {
         try {
-          const formData = new FormData();
-          formData.append("file", file, file.name || "line-photo.jpg");
-
-          const endpoint =
-            remoteCount === 0
-              ? `/field-reports/visits/${reportId}/lines/${lineId}/photo`
-              : `/field-reports/visits/${reportId}/lines/${lineId}/photos`;
-
-          const response = await apiFetch(endpoint, {
-            method: "POST",
-            body: formData,
+          const line = await uploadLinePhotoForReport(reportId, lineId, file, {
+            photoId: localPhotoId,
+            useLegacySinglePhotoEndpoint: remoteCount === 0,
           });
-
-          if (!response.ok) {
-            const payload = await response.json().catch(() => ({}));
-            throw new Error(
-              payload.error?.message
-                || payload.message
-                || "העלאת התמונה נכשלה"
-            );
-          }
-
-          const line = await response.json();
           await deleteLinePhotoLocally(reportId, lineId, localPhotoId);
           emitFromLine(line);
         } catch (uploadError: unknown) {
@@ -253,7 +290,7 @@ export default function LinePhotoCapture({
     setUploading(true);
 
     try {
-      if (isOnline) {
+      if (canSync) {
         const endpoint =
           photoId === "legacy"
             ? `/field-reports/visits/${reportId}/lines/${lineId}/photo`
@@ -277,7 +314,7 @@ export default function LinePhotoCapture({
       await deleteLinePhotoLocally(reportId, lineId, photoId);
       setPreviews((current) => current.filter((item) => item.id !== photoId));
 
-      if (!isOnline) {
+      if (!canSync) {
         const remaining = photos.filter((photo) => photo.id !== photoId);
         onPhotosChange?.({
           has_photo: remaining.length > 0,
@@ -366,7 +403,7 @@ export default function LinePhotoCapture({
         תמונות לשורה
       </p>
       <p className="text-xs text-zinc-500">
-        עד {MAX_LINE_PHOTOS} תמונות — נשמרות במכשיר ומסתנכרנות לשרת כשיש רשת.
+        עד {MAX_LINE_PHOTOS} תמונות — נשמרות במכשיר ומועלות לשרת כשהמערכת מחוברת.
       </p>
       {androidEmulator ? (
         <p className="text-xs text-amber-800 dark:text-amber-300">
@@ -417,7 +454,13 @@ export default function LinePhotoCapture({
                   className="h-24 w-24 rounded-lg border border-zinc-200 object-cover"
                 />
                 {preview.pendingLocal ? (
-                  <p className="text-[10px] text-amber-700">ממתין לרשת</p>
+                  <p className="text-[10px] text-amber-700">
+                    {syncingPending || uploading
+                      ? "מעלה לשרת..."
+                      : canSync
+                        ? "ממתין להעלאה"
+                        : "ממתין לרשת"}
+                  </p>
                 ) : null}
                 {!disabled ? (
                   <button

@@ -21,6 +21,7 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { toast } from "sonner";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { apiFetch } from "@/lib/api/client";
+import { catalogFamilyLabelHe } from "@/lib/field-reports/catalog-labels";
 import {
   loadOfflineCatalogForPicker,
   OFFLINE_CATALOG_UNAVAILABLE_MESSAGE,
@@ -144,6 +145,8 @@ export default function VisitReportEditor({
   >([]);
   const [catalogIssues, setCatalogIssues] = useState<CatalogIssue[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
+  const catalogPickerRef = useRef<HTMLDivElement | null>(null);
 
   const [newLine, setNewLine] = useState({
     location: "",
@@ -344,9 +347,30 @@ export default function VisitReportEditor({
     }
   }
 
+  function scrollCatalogPickerIntoView() {
+    requestAnimationFrame(() => {
+      catalogPickerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+  }
+
+  function openCatalogPicker() {
+    setCatalogOpen(true);
+    scrollCatalogPickerIntoView();
+  }
+
   async function loadCatalog() {
+    if (catalogIssues.length > 0) {
+      setCatalogError("");
+      openCatalogPicker();
+      return;
+    }
+
     try {
       setCatalogLoading(true);
+      setCatalogError("");
       setError("");
 
       if (organizationId) {
@@ -357,7 +381,7 @@ export default function VisitReportEditor({
 
         if (offlineCatalog) {
           applyCatalogPayload(offlineCatalog);
-          setCatalogOpen(true);
+          openCatalogPicker();
           return;
         }
       }
@@ -374,12 +398,20 @@ export default function VisitReportEditor({
         throw new Error("טעינת המפרט נכשלה");
       }
 
-      applyCatalogPayload(await response.json());
-      setCatalogOpen(true);
+      const payload = await response.json();
+      applyCatalogPayload(payload);
+
+      if (!payload.issues?.length) {
+        throw new Error("המפרט ריק — בצע «הכנה לא מקוון» מחדש כשיש רשת.");
+      }
+
+      openCatalogPicker();
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "טעינת המפרט נכשלה"
-      );
+      const message =
+        err instanceof Error ? err.message : "טעינת המפרט נכשלה";
+      setCatalogError(message);
+      setError(message);
+      toast.error(message);
     } finally {
       setCatalogLoading(false);
     }
@@ -390,7 +422,15 @@ export default function VisitReportEditor({
     categories?: CatalogCategory[];
     issues?: CatalogIssue[];
   }) {
-    setCatalogFamilies(payload.families || []);
+    setCatalogFamilies(
+      (payload.families || []).map((family) => ({
+        ...family,
+        label_he: catalogFamilyLabelHe(
+          family.top_family,
+          family.label_he
+        ),
+      }))
+    );
     setCatalogCategories(payload.categories || []);
     setCatalogIssues(payload.issues || []);
   }
@@ -806,18 +846,20 @@ export default function VisitReportEditor({
       </section>
 
       <section className="space-y-4" id="field-report-finding-lines">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">
-              שורות ממצאים ({report.lines.length})
-            </h2>
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">
+            שורות ממצאים ({report.lines.length})
+          </h2>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              צילום וצירוף תמונות
+            </p>
             <p className="text-sm text-zinc-500">
-              צילום וצירוף תמונות — לכל שורת ממצא בנפרד (לא בטבלת
-              ההתקדמות למטה).
+              לכל שורת ממצא בנפרד (לא בטבלת ההתקדמות למטה).
             </p>
           </div>
           {report.is_editable ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
               <Button
                 variant="secondary"
                 size="lg"
@@ -827,6 +869,11 @@ export default function VisitReportEditor({
               >
                 {catalogLoading ? "טוען מפרט..." : "בחר ממצא מהמפרט"}
               </Button>
+              {catalogError ? (
+                <p className="text-sm text-red-600" role="alert">
+                  {catalogError}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -845,14 +892,19 @@ export default function VisitReportEditor({
         ) : null}
 
         {catalogOpen ? (
-          <CatalogIssuePicker
-            families={catalogFamilies}
-            categories={catalogCategories}
-            issues={catalogIssues}
-            disabled={lineSaving}
-            onClose={() => setCatalogOpen(false)}
-            onConfirm={(issue) => void addCatalogLine(issue)}
-          />
+          <div ref={catalogPickerRef} id="catalog-issue-picker">
+            <CatalogIssuePicker
+              families={catalogFamilies}
+              categories={catalogCategories}
+              issues={catalogIssues}
+              disabled={lineSaving}
+              onClose={() => {
+                setCatalogOpen(false);
+                setCatalogError("");
+              }}
+              onConfirm={(issue) => void addCatalogLine(issue)}
+            />
+          </div>
         ) : null}
 
         {report.lines.length === 0 ? (

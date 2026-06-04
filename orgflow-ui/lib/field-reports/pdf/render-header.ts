@@ -1,6 +1,9 @@
 import type { Content } from "pdfmake/interfaces";
 
 import { normalizeHeaderFields } from "../header-fields";
+import { buildCoverNumberedEntries } from "./render-header-boilerplate";
+import { formatPdfVisitDateHe } from "./render-page-banner";
+import { pdfText } from "./pdf-styles";
 import { projectSchemeLabelHe } from "../project-scheme-labels";
 import { stakeholderRoleLabelHe } from "../stakeholder-role-labels";
 import type { ProjectMetadata, Stakeholder, StakeholderRole } from "../schema/types";
@@ -16,6 +19,17 @@ export const PDF_REPORT_TITLE_HE =
 
 /** נמען ברירת מחדל כשאין addressee_label_he. */
 export const PDF_DEFAULT_ADDRESSEE_HE = "בעלי הקרקע / בעלי הדירות";
+
+/** תוויות stakeholders ב-PDF — כמו בדוחות example_reports. */
+const PDF_STAKEHOLDER_LABELS_HE: Record<StakeholderRole, string> = {
+  developer: "שם החברה היזמית",
+  project_manager: "מנהל הפרויקט מטעם היזם",
+  site_manager: "מנהל עבודה",
+  contractor: "קבלן מבצע",
+  lawyer_tenants: 'עו"ד ב"כ הדיירים',
+  lawyer_accompanying: 'עו"ד מלווה',
+  architect: "אדריכל הפרויקט",
+};
 
 /** סדר תצוגת stakeholders בכותרת PDF. */
 const STAKEHOLDER_RENDER_ORDER: readonly StakeholderRole[] = [
@@ -76,201 +90,154 @@ export function renderVisitReportHeader(
   const metadata = normalized.project_metadata;
   const schemeLine = resolveSchemeLabelHe(metadata, headerFields);
   const addressee = resolveAddresseeLabel(metadata, headerFields);
-  const projectUpdates = resolveStringList(headerFields.project_updates);
+  const coverNumberedEntries = buildCoverNumberedEntries(
+    headerFields,
+    report.visit_date
+  );
 
   const content: Content[] = [];
 
   if (logoDataUrl) {
     content.push({
       image: logoDataUrl,
-      width: 80,
-      alignment: "right",
-      margin: [0, 0, 0, 8],
+      width: 72,
+      alignment: "center",
+      margin: [0, 0, 0, 10],
     });
   }
 
-  const contactLine = formatHeaderContact(profile);
-  if (contactLine) {
-    content.push({
-      text: contactLine,
-      style: "headerBar",
-      alignment: "right",
-    });
+  for (const line of buildCoverMetadataLines(metadata, headerFields, report)) {
+    content.push(pdfText(line, { fontSize: 10, margin: [0, 0, 0, 2] }));
+  }
+
+  const developerLine = resolveDeveloperDisplayLine(normalized, report);
+  if (developerLine) {
+    content.push(pdfText(developerLine, { margin: [0, 4, 0, 4] }));
   }
 
   content.push(
-    {
-      text: PDF_SUPERVISION_BANNER_HE,
-      style: "supervisionBanner",
-      alignment: "center",
-      margin: [0, 8, 0, 4],
-    },
-    {
-      text: PDF_REPORT_TITLE_HE,
+    pdfText(`לכבוד: ${addressee}`, { margin: [0, 0, 0, 6] }),
+    pdfText(PDF_REPORT_TITLE_HE, {
       style: "reportTitle",
       alignment: "center",
-      margin: [0, 0, 0, 4],
-    }
+      margin: [0, 6, 0, 4],
+    })
   );
 
   if (schemeLine) {
-    content.push({
-      text: schemeLine,
+    content.push(
+      pdfText(schemeLine, {
+        style: "subTitle",
+        alignment: "center",
+        margin: [0, 0, 0, 4],
+      })
+    );
+  }
+
+  content.push(
+    pdfText(report.visit_type_label_he, {
       style: "subTitle",
       alignment: "center",
+      margin: [0, 0, 0, 10],
+    })
+  );
+
+  const stakeholderLines = buildStakeholderLines(
+    normalized.stakeholders,
+    normalized
+  );
+  content.push(
+    pdfText("פרטים כללים:", {
+      style: "sectionTitle",
       margin: [0, 0, 0, 4],
-    });
+    })
+  );
+  for (const line of stakeholderLines) {
+    content.push(pdfText(line, { margin: [0, 0, 0, 2] }));
   }
 
-  content.push({
-    text: report.visit_type_label_he,
-    style: "subTitle",
-    alignment: "center",
-    margin: [0, 0, 0, 8],
-  });
+  const tenantChanges =
+    stringField(metadata.tenant_changes_notes) ||
+    stringField(headerFields.tenant_changes_notes);
+  if (tenantChanges) {
+    content.push(pdfText(`שינויי דיירים: ${tenantChanges}`, { margin: [0, 4, 0, 4] }));
+  }
 
-  content.push({
-    text: `לכבוד: ${addressee}`,
-    alignment: "right",
-    margin: [0, 0, 0, 8],
-  });
-
-  content.push({
-    columns: [
-      {
-        width: "*",
-        stack: buildVisitContextLines(report),
-      },
-    ],
-  });
-
-  const metadataLines = buildProjectMetadataLines(metadata, headerFields);
-  if (metadataLines.length) {
+  if (coverNumberedEntries.length) {
+    content.push(
+      pdfText("עדכונים לפרויקט:", {
+        style: "sectionTitle",
+        margin: [0, 8, 0, 4],
+      })
+    );
     content.push({
-      ul: metadataLines,
-      alignment: "right",
-      margin: [0, 8, 0, 8],
+      ol: coverNumberedEntries.map((item) => pdfText(item) as Content),
+      margin: [0, 0, 0, 8],
     });
   }
-
-  const stakeholderLines = buildStakeholderLines(normalized.stakeholders, normalized);
-  content.push({
-    text: "פרטים כלליים",
-    style: "sectionTitle",
-    margin: [0, 8, 0, 6],
-  });
-  content.push({
-    ul: stakeholderLines,
-    alignment: "right",
-    margin: [0, 0, 0, 8],
-  });
 
   const supplierLines = buildSupplierLines(normalized.main_suppliers);
   if (supplierLines.length) {
-    content.push({
-      text: "ספקים עיקריים",
-      style: "sectionTitle",
-      margin: [0, 4, 0, 4],
-    });
-    content.push({
-      ul: supplierLines,
-      alignment: "right",
-      margin: [0, 0, 0, 8],
-    });
+    content.push(
+      pdfText("ספקים עיקריים לפרויקט:", {
+        style: "sectionTitle",
+        margin: [0, 4, 0, 4],
+      })
+    );
+    for (const line of supplierLines) {
+      content.push(pdfText(line, { margin: [0, 0, 0, 2] }));
+    }
   }
 
-  if (projectUpdates.length) {
-    content.push({
-      text: "עדכונים לפרויקט",
-      style: "sectionTitle",
-      margin: [0, 8, 0, 4],
-    });
-    content.push({
-      ol: projectUpdates.map((item) => String(item)),
-      alignment: "right",
-      margin: [0, 0, 0, 8],
-    });
+  content.push(...renderProjectIllustrationSection(metadata, normalized.stakeholders));
+
+  const structureDocSection = renderStructureDocumentationSection(
+    metadata,
+    headerFields
+  );
+  if (structureDocSection.length) {
+    content.push({ text: "", pageBreak: "before" });
+    content.push(...structureDocSection);
   }
 
   return content;
 }
 
-/** סגנונות pdfmake לכותרת — merge ל-buildVisitReportDocDefinition. */
-export const PDF_HEADER_STYLES = {
-  headerBar: {
-    fontSize: 8,
-    color: "#444444",
-  },
-  supervisionBanner: {
-    fontSize: 11,
-    bold: true,
-  },
-  reportTitle: {
-    fontSize: 16,
-    bold: true,
-  },
-  subTitle: {
-    fontSize: 12,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    bold: true,
-  },
-} as const;
+/** @deprecated — השתמשו ב-PDF_DOCUMENT_STYLES מ-pdf-styles (נשמר לתאימות בדיקות). */
+export { PDF_DOCUMENT_STYLES as PDF_HEADER_STYLES } from "./pdf-styles";
 
-function buildVisitContextLines(
-  report: Pick<PdfVisitReport, "visit_date" | "project_name">
-): Content[] {
-  return [
-    {
-      text: `תאריך ביקור: ${report.visit_date}`,
-      alignment: "right",
-    },
-    {
-      text: `פרויקט: ${report.project_name || ""}`,
-      alignment: "right",
-    },
-  ];
-}
-
-function buildProjectMetadataLines(
+function buildCoverMetadataLines(
   metadata: ProjectMetadata,
-  headerFields: Record<string, unknown>
+  headerFields: Record<string, unknown>,
+  report: Pick<PdfVisitReport, "visit_date" | "project_name">
 ): string[] {
   const lines: string[] = [];
 
-  const startDate =
+  const startDate = formatPdfVisitDateHe(
     stringField(metadata.project_start_date) ||
-    stringField(headerFields.project_start_date);
-  const endDate =
+      stringField(headerFields.project_start_date)
+  );
+  const endDate = formatPdfVisitDateHe(
     stringField(metadata.project_end_date) ||
-    stringField(headerFields.project_end_date);
-  const graceDate =
+      stringField(headerFields.project_end_date)
+  );
+  const graceDate = formatPdfVisitDateHe(
     stringField(metadata.project_grace_end_date) ||
-    stringField(headerFields.project_grace_end_date);
+      stringField(headerFields.project_grace_end_date)
+  );
+  const visitDate = formatPdfVisitDateHe(report.visit_date);
 
   if (startDate) {
-    lines.push(`תאריך התחלת פרויקט: ${startDate}`);
+    lines.push(`תאריך התחלת הפרויקט: ${startDate}`);
   }
   if (endDate) {
-    lines.push(`תאריך סיום פרויקט: ${endDate}`);
+    lines.push(`תאריך סיום הפרויקט: ${endDate}`);
   }
   if (graceDate) {
-    lines.push(`תאריך גרייס: ${graceDate}`);
+    lines.push(`תאריך סיום הפרויקט (גרייס): ${graceDate}`);
   }
-
-  const housingUnits =
-    metadata.housing_units_count ??
-    parseOptionalNumber(headerFields.housing_units_count);
-  if (housingUnits !== null) {
-    lines.push(`מספר יחידות דיור: ${housingUnits}`);
-  }
-
-  const structureDocDate =
-    stringField(metadata.structure_documentation_date) ||
-    stringField(headerFields.structure_documentation_date);
-  if (structureDocDate) {
-    lines.push(`תיעוד המבנה מיום: ${structureDocDate}`);
+  if (visitDate) {
+    lines.push(`תאריך ביקור באתר: ${visitDate}`);
   }
 
   const ganttForecast =
@@ -280,14 +247,79 @@ function buildProjectMetadataLines(
     lines.push(`צפי לוחות זמנים (גנט): ${ganttForecast}`);
   }
 
-  const tenantChanges =
-    stringField(metadata.tenant_changes_notes) ||
-    stringField(headerFields.tenant_changes_notes);
-  if (tenantChanges) {
-    lines.push(`שינויי דיירים: ${tenantChanges}`);
+  if (report.project_name?.trim()) {
+    lines.push(report.project_name.trim());
   }
 
   return lines;
+}
+
+function resolveDeveloperDisplayLine(
+  normalized: ReturnType<typeof normalizeHeaderFields>,
+  report: Pick<PdfVisitReport, "project_name">
+): string {
+  const developer = normalized.developer_name.trim();
+  if (developer) {
+    return developer;
+  }
+  return report.project_name?.trim() || "";
+}
+
+function renderProjectIllustrationSection(
+  metadata: ProjectMetadata,
+  stakeholders: Stakeholder[]
+): Content[] {
+  const content: Content[] = [];
+  const caption =
+    stringField(metadata.illustration_caption_he) ||
+    "הדמיית הפרויקט (להמחשה בלבד)";
+  const architect = stakeholders.find((item) => item.role === "architect");
+  const architectName = architect?.name?.trim();
+  const housingUnits = metadata.housing_units_count;
+
+  content.push(
+    pdfText(caption, {
+      style: "sectionTitle",
+      margin: [0, 12, 0, 4],
+    })
+  );
+
+  if (architectName) {
+    content.push(
+      pdfText(`אדריכל הפרויקט: ${architectName}`, { margin: [0, 0, 0, 4] })
+    );
+  }
+
+  if (housingUnits !== null && housingUnits !== undefined) {
+    content.push(
+      pdfText(`בפרויקט ייבנו סה"כ ${housingUnits} יחידות דיור`, {
+        margin: [0, 0, 0, 8],
+      })
+    );
+  }
+
+  return content;
+}
+
+function renderStructureDocumentationSection(
+  metadata: ProjectMetadata,
+  headerFields: Record<string, unknown>
+): Content[] {
+  const structureDocDate = formatPdfVisitDateHe(
+    stringField(metadata.structure_documentation_date) ||
+      stringField(headerFields.structure_documentation_date)
+  );
+
+  if (!structureDocDate) {
+    return [];
+  }
+
+  return [
+    pdfText(`תיעוד המבנה מיום ${structureDocDate}`, {
+      alignment: "center",
+      margin: [0, 24, 0, 12],
+    }),
+  ];
 }
 
 function buildStakeholderLines(
@@ -304,7 +336,9 @@ function buildStakeholderLines(
       continue;
     }
     const label =
-      stakeholder?.label_he?.trim() || stakeholderRoleLabelHe(role);
+      stakeholder?.label_he?.trim()
+      || PDF_STAKEHOLDER_LABELS_HE[role]
+      || stakeholderRoleLabelHe(role);
     lines.push(`${label}: ${name}`);
   }
 
@@ -346,7 +380,7 @@ function buildSupplierLines(
         return "";
       }
       if (category && vendor) {
-        return `${category}: ${vendor}`;
+        return `-${vendor}.${category}`;
       }
       return category || vendor;
     })

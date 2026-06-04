@@ -4,6 +4,7 @@ import {
   loadVisitReportPdfLocally,
 } from "@/lib/field-reports/pdf/visit-report-pdf-store";
 import { processPendingSendRequest } from "@/lib/field-reports/process-send-queue";
+import { purgeFieldReportAfterCoreSend } from "@/lib/field-reports/purge-field-report-after-core-send";
 import {
   getLocalReport,
   saveLocalReport,
@@ -262,37 +263,10 @@ async function markSyncCompleted(
   clientReportUuid: string,
   serverReportId: string
 ): Promise<void> {
-  await saveLocalReport({
-    client_report_uuid: record.client_report_uuid,
-    organization_id: record.organization_id,
-    server_report_id: serverReportId,
-    user_id: record.user_id,
-    project_id: record.project_id,
-    project_name: record.project_name,
-    visit_type: record.visit_type,
-    visit_type_label_he: record.visit_type_label_he,
-    visit_date: record.visit_date,
-    header_fields: record.header_fields,
-    lines: record.lines,
-    local_status: record.local_status,
-    sync_status: "done",
-    catalog_version: record.catalog_version,
-    organization_profile_snapshot: record.organization_profile_snapshot,
-    closed_at: record.closed_at,
+  await purgeFieldReportAfterCoreSend({
+    organizationId: record.organization_id,
+    serverReportId,
   });
-
-  await updateSyncQueueRecord(clientReportUuid, {
-    server_report_id: serverReportId,
-    sync_status: "done",
-    sync_phase: "request_send",
-    last_error: null,
-  });
-  await removeSyncQueueRecord(clientReportUuid);
-
-  clearFieldReportSyncErrorsForReport(
-    record.organization_id,
-    clientReportUuid
-  );
 }
 
 async function processOfflineSyncQueueRecord(

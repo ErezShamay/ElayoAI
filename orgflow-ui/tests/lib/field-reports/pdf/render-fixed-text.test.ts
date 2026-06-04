@@ -34,7 +34,7 @@ function collectTexts(content: unknown): string[] {
 }
 
 describe("renderFixedTextBlocks in PDF", () => {
-  it("renders enabled disclaimers from fixed_text_blocks", () => {
+  it("renders cover disclaimers in header and winter at end", () => {
     const definition = buildVisitReportDocDefinition({
       report: {
         id: "r1",
@@ -52,9 +52,13 @@ describe("renderFixedTextBlocks in PDF", () => {
       inspector: { full_name: "מפקח" },
     });
 
-    const texts = collectTexts(definition.content);
-    expect(texts).toContain(DEFAULT_NON_CONFORMANCE_DISCLAIMER_HE);
-    expect(texts).toContain(DEFAULT_SAFETY_DISCLAIMER_HE);
+    const serialized = JSON.stringify(definition.content);
+    expect(serialized).toContain(
+      "מלאכות שנמצאה לגביהן אי התאמה/הסתייגות מדווחות בגוף הדו"
+    );
+    expect(serialized).toContain(DEFAULT_SAFETY_DISCLAIMER_HE.slice(0, 24));
+    expect(serialized).toContain("עדכונים לפרויקט:");
+    expect(serialized).not.toContain("הסתייגות אי-התאמה");
   });
 
   it("skips legacy winter section when structured blocks exist", () => {

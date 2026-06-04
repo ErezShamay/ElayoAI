@@ -18,10 +18,20 @@ import {
 import {
   formatHeaderContact,
   formatOrgAddress,
-  PDF_HEADER_STYLES,
   renderVisitReportHeader,
   resolveStringList,
 } from "./render-header";
+import {
+  PDF_PAGE_MARGINS,
+  renderRepeatingPageHeader,
+} from "./render-page-banner";
+import {
+  buildRtlTableBody,
+  PDF_DEFAULT_STYLE,
+  PDF_DOCUMENT_STYLES,
+  PDF_HEBREW_FONT,
+  pdfText,
+} from "./pdf-styles";
 import type {
   PdfReportLine,
   VisitReportPdfInput,
@@ -29,10 +39,6 @@ import type {
 
 export { formatHeaderContact, formatOrgAddress, resolveStringList };
 
-const FONT = "NotoSansHebrew";
-const PAGE_MARGIN: [number, number, number, number] = [
-  40, 80, 40, 60,
-];
 
 const LINE_STATUS_LABELS: Record<string, string> = {
   IN_PROGRESS: "בתהליך",
@@ -182,6 +188,7 @@ export function buildVisitReportDocDefinition(
   ];
 
   if (hasExplicitBlocksInHeader(headerFields)) {
+    content.push({ text: "", pageBreak: "before" });
     content.push(
       ...renderExplicitBlocksFromHeader(headerFields, {
         visitType: report.visit_type,
@@ -190,6 +197,7 @@ export function buildVisitReportDocDefinition(
       })
     );
   } else {
+    content.push({ text: "", pageBreak: "before" });
     appendLegacyReportBody(content, {
       headerFields,
       visitType: report.visit_type,
@@ -203,41 +211,40 @@ export function buildVisitReportDocDefinition(
   );
 
   if (shouldRenderLegacyWinterSection(headerFields)) {
-    content.push({
-      text: "המלצות חורף / עונת גשמים",
-      style: "sectionTitle",
-      margin: [0, 12, 0, 6],
-    });
-    content.push({
-      text: winterRecommendations,
-      alignment: "right",
-      margin: [0, 0, 0, 12],
-    });
+    content.push(
+      pdfText("המלצות חורף / עונת גשמים", {
+        style: "sectionTitle",
+        margin: [0, 12, 0, 6],
+      })
+    );
+    content.push(
+      pdfText(winterRecommendations, { margin: [0, 0, 0, 12] })
+    );
   }
 
   if (
     contractorNotes.length
     && shouldRenderLegacyContractorNotes(headerFields)
   ) {
+    content.push(
+      pdfText("הערות נוספות לקבלן", {
+        style: "sectionTitle",
+        margin: [0, 0, 0, 4],
+      })
+    );
     content.push({
-      text: "הערות נוספות לקבלן",
-      style: "sectionTitle",
-      margin: [0, 0, 0, 4],
-    });
-    content.push({
-      ol: contractorNotes,
-      alignment: "right",
+      ol: contractorNotes.map((item) => pdfText(item) as Content),
       margin: [0, 0, 0, 12],
     });
   }
 
   for (const photo of appendixLinePhotos) {
-    content.push({
-      text: `תמונה — שורה ${photo.lineId.slice(0, 8)}`,
-      style: "photoCaption",
-      alignment: "right",
-      margin: [0, 8, 0, 4],
-    });
+    content.push(
+      pdfText(`תמונה — שורה ${photo.lineId.slice(0, 8)}`, {
+        style: "photoCaption",
+        margin: [0, 8, 0, 4],
+      })
+    );
     content.push({
       image: photo.dataUrl,
       width: 220,
@@ -246,11 +253,12 @@ export function buildVisitReportDocDefinition(
     });
   }
 
-  content.push({
-    text: "חתימה",
-    style: "sectionTitle",
-    margin: [0, 16, 0, 6],
-  });
+  content.push(
+    pdfText("חתימה", {
+      style: "sectionTitle",
+      margin: [0, 16, 0, 6],
+    })
+  );
   const signatureLines = [
     inspector?.full_name || "מפקח",
     inspectorTitle,
@@ -261,10 +269,7 @@ export function buildVisitReportDocDefinition(
   ].filter((line) => line && line !== "—");
 
   content.push({
-    stack: signatureLines.map((line) => ({
-      text: line,
-      alignment: "right",
-    })),
+    stack: signatureLines.map((line) => pdfText(line)),
     margin: [0, 0, 0, 12],
   });
 
@@ -272,30 +277,28 @@ export function buildVisitReportDocDefinition(
     info: {
       title: buildPdfFilename(report),
     },
-    pageMargins: PAGE_MARGIN,
-    defaultStyle: {
-      font: FONT,
-      fontSize: 10,
-      alignment: "right",
-    },
-    styles: {
-      ...PDF_HEADER_STYLES,
-      photoCaption: {
-        fontSize: 9,
-        color: "#555555",
-      },
-    },
+    pageMargins: PDF_PAGE_MARGINS,
+    defaultStyle: PDF_DEFAULT_STYLE,
+    styles: PDF_DOCUMENT_STYLES,
+    header: renderRepeatingPageHeader({
+      visitDate: report.visit_date,
+      profile,
+    }),
     footer: (currentPage: number, pageCount: number) => ({
       columns: [
         {
-          text: `${generatedLabel} · ${orgName}`,
-          alignment: "right",
+          text: `עמוד ${currentPage} מתוך ${pageCount}`,
+          font: PDF_HEBREW_FONT,
+          alignment: "left",
+          direction: "rtl",
           fontSize: 8,
           margin: [40, 0, 0, 0],
         },
         {
-          text: `עמוד ${currentPage} מתוך ${pageCount}`,
-          alignment: "left",
+          text: `${generatedLabel} · ${orgName}`,
+          font: PDF_HEBREW_FONT,
+          alignment: "right",
+          direction: "rtl",
           fontSize: 8,
           margin: [0, 0, 40, 0],
         },
@@ -361,46 +364,51 @@ function appendLegacyReportBody(
   const progressRows = resolveConstructionProgressRows(headerFields);
   if (progressRows.length) {
     const progressTitle = constructionProgressTitleHe(visitType);
-    content.push({
-      text: progressTitle,
-      style: "sectionTitle",
-      margin: [0, 12, 0, 6],
-    });
+    content.push(
+      pdfText(progressTitle, {
+        style: "sectionTitle",
+        margin: [0, 12, 0, 6],
+      })
+    );
+    const progressHeaders = [
+      "תיאור עבודה",
+      "סטטוס",
+      "תאריך ביצוע / סיום",
+    ];
     content.push({
       table: {
         headerRows: 1,
-        widths: ["*", "auto", "auto"],
-        body: [
-          ["תיאור עבודה", "סטטוס", "תאריך ביצוע / סיום"],
-          ...buildConstructionProgressTableBody(progressRows),
-        ],
+        widths: ["*", "auto", "auto"].reverse(),
+        body: buildRtlTableBody(
+          progressHeaders,
+          buildConstructionProgressTableBody(progressRows)
+        ),
       },
       layout: "lightHorizontalLines",
       margin: [0, 0, 0, 12],
     });
   }
 
-  content.push({
-    text: "ממצאים / עבודות",
-    style: "sectionTitle",
-    margin: [0, 12, 0, 6],
-  });
+  content.push(
+    pdfText("ממצאים / עבודות", {
+      style: "sectionTitle",
+      margin: [0, 12, 0, 6],
+    })
+  );
 
   if (tableBody.length) {
     content.push({
       table: {
         headerRows: 1,
-        widths: tableColumns.map(() => "*"),
-        body: [tableColumns, ...tableBody],
+        widths: tableColumns.map(() => "*").reverse(),
+        body: buildRtlTableBody(tableColumns, tableBody),
       },
       layout: "lightHorizontalLines",
       margin: [0, 0, 0, 12],
     });
   } else {
-    content.push({
-      text: "אין שורות ממצאים בדוח.",
-      alignment: "right",
-      margin: [0, 0, 0, 12],
-    });
+    content.push(
+      pdfText("אין שורות ממצאים בדוח.", { margin: [0, 0, 0, 12] })
+    );
   }
 }

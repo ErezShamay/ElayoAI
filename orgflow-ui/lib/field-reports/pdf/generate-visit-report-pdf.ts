@@ -10,6 +10,7 @@ import type { VisitReportPdfInput } from "./types";
 import {
   loadVisitReportPdfLocally,
   saveVisitReportPdfLocally,
+  visitReportPdfStorageKey,
 } from "./visit-report-pdf-store";
 
 export type VisitReportPdfDownloadSource = "cache" | "generated";
@@ -22,9 +23,10 @@ export async function generateVisitReportPdf(
     input.logoDataUrl
       ?? input.report.organization_profile_snapshot?.logo_url
   );
+  const storageKey = visitReportPdfStorageKey(input.report);
   const linePhotos =
     input.linePhotos
-    ?? (await resolveLinePhotos(input.report.id, input.report.lines));
+    ?? (await resolveLinePhotos(storageKey, input.report.lines));
 
   const docDefinition = buildVisitReportDocDefinition({
     ...input,
@@ -32,16 +34,13 @@ export async function generateVisitReportPdf(
     linePhotos,
   });
 
-  return new Promise((resolve, reject) => {
-    try {
-      const pdf = pdfMake.createPdf(docDefinition);
-      pdf.getBlob((blob: Blob) => {
-        resolve(blob);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
+  try {
+    const pdf = pdfMake.createPdf(docDefinition);
+    // pdfmake 0.3+ returns a Promise; legacy callback style never resolves.
+    return await pdf.getBlob();
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("הפקת PDF נכשלה");
+  }
 }
 
 export async function triggerVisitReportPdfDownload(
@@ -72,12 +71,13 @@ export async function downloadVisitReportPdf(
   options?: { forceRegenerate?: boolean }
 ): Promise<VisitReportPdfDownloadSource> {
   const filename = buildPdfFilename(input.report);
+  const storageKey = visitReportPdfStorageKey(input.report);
 
   if (!options?.forceRegenerate) {
-    const cached = await loadVisitReportPdfLocally(input.report.id);
+    const cached = await loadVisitReportPdfLocally(storageKey);
     if (cached?.blob) {
       await triggerVisitReportPdfDownload(
-        input.report.id,
+        storageKey,
         cached.blob,
         cached.filename || filename
       );
@@ -87,12 +87,12 @@ export async function downloadVisitReportPdf(
 
   const blob = await generateVisitReportPdf(input);
   await saveVisitReportPdfLocally(
-    input.report.id,
+    storageKey,
     blob,
     filename,
     input.generatedAt ?? new Date()
   );
-  await triggerVisitReportPdfDownload(input.report.id, blob, filename);
+  await triggerVisitReportPdfDownload(storageKey, blob, filename);
   return "generated";
 }
 

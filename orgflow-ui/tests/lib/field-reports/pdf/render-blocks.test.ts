@@ -286,8 +286,7 @@ describe("renderChecklist", () => {
     const texts = collectTexts(renderChecklist(block));
     expect(texts).toContain("צ'קליסט גמר");
     expect(texts).toContain("בעלים");
-    expect(texts).toContain("בוצע");
-    expect(texts).toContain("תקין");
+    expect(texts).toContain("בוצע — תקין");
     expect(texts).toContain("לא בוצע");
   });
 });

@@ -3,6 +3,11 @@ import {
   type SupabaseClient,
 } from "@supabase/supabase-js";
 
+import {
+  clearLegacySupabaseAuthFromLocalStorage,
+  getSupabaseAuthStorage,
+  shouldPersistAuthAcrossBrowserRestarts,
+} from "@/lib/auth/persistence";
 import { getSupabasePublicConfig } from "@/lib/env/public-env";
 
 const PLACEHOLDER_URL = "https://placeholder.supabase.co";
@@ -44,7 +49,26 @@ let singleton: SupabaseClient | null = null;
 export function getSupabaseClient(): SupabaseClient {
   if (!singleton) {
     const { url, anonKey } = resolveCredentials();
-    singleton = createClient(url, anonKey);
+
+    if (
+      typeof window !== "undefined"
+      && !shouldPersistAuthAcrossBrowserRestarts()
+    ) {
+      clearLegacySupabaseAuthFromLocalStorage();
+    }
+
+    const authStorage = getSupabaseAuthStorage();
+
+    singleton = createClient(url, anonKey, {
+      auth: authStorage
+        ? {
+            storage: authStorage,
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+          }
+        : undefined,
+    });
   }
 
   return singleton;

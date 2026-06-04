@@ -1,9 +1,13 @@
 import type { Content } from "pdfmake/interfaces";
 
-/** תא בטבלת pdfmake — מחרוזת או אובייקט תוכן. */
-type PdfTableCell = string | Content;
-
 import { getColumnPreset, getColumnPresetHeaders } from "../schema/column-presets";
+import {
+  buildRtlTableBody,
+  buildRtlTableBodyFromCells,
+  pdfText,
+  pdfTableCell,
+  type PdfTableCell,
+} from "./pdf-styles";
 import { normalizeReportBlocks } from "../schema/normalize";
 import type {
   BlockColumnDef,
@@ -115,16 +119,15 @@ export function renderProgressTable(block: ProgressTableBlock): Content[] {
     .map((row) => progressRowToCells(row, columns));
 
   return [
-    {
-      text: block.title_he,
+    pdfText(block.title_he, {
       style: "sectionTitle",
       margin: [0, 12, 0, 6],
-    },
+    }),
     {
       table: {
         headerRows: 1,
-        widths: headers.map(() => "*"),
-        body: [headers, ...body],
+        widths: headers.map(() => "*").reverse(),
+        body: buildRtlTableBody(headers, body),
       },
       layout: "lightHorizontalLines",
       margin: [0, 0, 0, 12],
@@ -215,44 +218,39 @@ export function renderFindingsTable(
   const widths = tableWidthsForColumns(columns, includeCatalogColumns);
 
   const content: Content[] = [
-    {
-      text: block.title_he,
+    pdfText(block.title_he, {
       style: "sectionTitle",
       margin: [0, 12, 0, 6],
-    },
+    }),
   ];
 
   if (rows.length === 0) {
-    content.push({
-      text: "אין שורות ממצאים בדוח.",
-      alignment: "right",
-      margin: [0, 0, 0, 12],
-    });
+    content.push(
+      pdfText("אין שורות ממצאים בדוח.", { margin: [0, 0, 0, 12] })
+    );
     return content;
   }
 
   for (const segment of segmentFindingsRowsByGroup(rows)) {
     if (segment.groupLabelHe) {
-      content.push({
-        text: segment.groupLabelHe,
-        bold: true,
-        fontSize: 11,
-        alignment: "right",
-        margin: [0, 8, 0, 4],
-      });
+      content.push(
+        pdfText(segment.groupLabelHe, {
+          bold: true,
+          fontSize: 11,
+          margin: [0, 8, 0, 4],
+        })
+      );
     }
 
     const body = segment.rows.map((row) =>
       findingRowToCells(row, columns, includeCatalogColumns, photoLookup)
     );
 
-    const tableBody: PdfTableCell[][] = [headers, ...body];
-
     content.push({
       table: {
         headerRows: 1,
-        widths,
-        body: tableBody,
+        widths: [...widths].reverse(),
+        body: buildRtlTableBodyFromCells(headers, body),
       },
       layout: "lightHorizontalLines",
       margin: [0, 0, 0, segment.groupLabelHe ? 8 : 12],
@@ -309,26 +307,23 @@ export function renderChecklist(block: ChecklistBlock): Content[] {
     return [];
   }
 
-  const body: string[][] = [
-    ["פריט", "סטטוס", "הערות"],
-    ...items.map((item) => [
-      item.label_he,
-      item.checked ? "בוצע" : "לא בוצע",
-      item.notes?.trim() || "",
-    ]),
-  ];
+  const labelRow = items.map((item) => item.label_he);
+  const statusRow = items.map((item) => {
+    const status = item.checked ? "בוצע" : "לא בוצע";
+    const notes = item.notes?.trim();
+    return notes ? `${status} — ${notes}` : status;
+  });
 
   return [
-    {
-      text: block.title_he,
+    pdfText(block.title_he, {
       style: "sectionTitle",
       margin: [0, 12, 0, 6],
-    },
+    }),
     {
       table: {
         headerRows: 1,
-        widths: ["*", "auto", "*"],
-        body,
+        widths: labelRow.map(() => "*").reverse(),
+        body: buildRtlTableBody(labelRow, [statusRow]),
       },
       layout: "lightHorizontalLines",
       margin: [0, 0, 0, 12],
@@ -343,16 +338,11 @@ export function renderFreeText(block: FreeTextBlock): Content[] {
   }
 
   return [
-    {
-      text: block.title_he,
+    pdfText(block.title_he, {
       style: "sectionTitle",
       margin: [0, 12, 0, 6],
-    },
-    {
-      text: body,
-      alignment: "right",
-      margin: [0, 0, 0, 12],
-    },
+    }),
+    pdfText(body, { margin: [0, 0, 0, 12] }),
   ];
 }
 
@@ -361,11 +351,12 @@ export function renderImageBlock(block: ImageBlock): Content[] {
   const caption = block.caption_he?.trim() || block.title_he;
 
   if (caption) {
-    content.push({
-      text: caption,
-      style: "sectionTitle",
-      margin: [0, 12, 0, 6],
-    });
+    content.push(
+      pdfText(caption, {
+        style: "sectionTitle",
+        margin: [0, 12, 0, 6],
+      })
+    );
   }
 
   if (block.image_url) {
@@ -439,25 +430,25 @@ function findingRowToCells(
   const cells: PdfTableCell[] = columns.map((column) => {
     switch (column.id as BlockColumnId) {
       case "location":
-        return row.location || "";
+        return pdfTableCell(row.location || "");
       case "trade":
-        return row.trade || "";
+        return pdfTableCell(row.trade || "");
       case "status":
-        return statusNotes;
+        return pdfTableCell(statusNotes);
       case "description":
-        return row.description || "";
+        return pdfTableCell(row.description || "");
       case "notes":
-        return row.notes || "";
+        return pdfTableCell(row.notes || "");
       case "photos":
         return renderInlinePhotoCell(row, photoLookup);
       default:
-        return "";
+        return pdfTableCell("");
     }
   });
 
   if (includeCatalogColumns) {
-    cells.push(row.issue_id ? row.standard_ref || "" : "");
-    cells.push(row.issue_id ? row.severity || "" : "");
+    cells.push(pdfTableCell(row.issue_id ? row.standard_ref || "" : ""));
+    cells.push(pdfTableCell(row.issue_id ? row.severity || "" : ""));
   }
 
   return cells;

@@ -12,10 +12,13 @@ declare module "pdfmake/interfaces" {
     text: string;
     style?: string;
     alignment?: Alignment;
+    direction?: "ltr" | "rtl";
     margin?: number | [number, number, number, number];
     fontSize?: number;
+    font?: string;
     color?: string;
     bold?: boolean;
+    fillColor?: string;
   }
 
   export interface ContentColumn {
@@ -79,6 +82,8 @@ declare module "pdfmake/interfaces" {
       font?: string;
       fontSize?: number;
       alignment?: Alignment;
+      direction?: "ltr" | "rtl";
+      lineHeight?: number;
     };
     styles?: StyleDictionary;
     footer?:
@@ -95,7 +100,7 @@ declare module "pdfmake/build/pdfmake" {
   import type { TDocumentDefinitions } from "pdfmake/interfaces";
 
   interface PdfDocument {
-    getBlob(callback: (blob: Blob) => void): void;
+    getBlob(): Promise<Blob>;
     download(filename?: string): void;
   }
 

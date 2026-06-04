@@ -7,9 +7,15 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api/client";
 import { fieldReportDetailPath } from "@/lib/field-reports/routes";
+import { isFieldReportVisibleInList } from "@/lib/field-reports/field-report-list";
 import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { useFieldReportOfflinePrep } from "@/hooks/useFieldReportOfflinePrep";
+import {
+  clearOfflinePrepUiDismiss,
+  isOfflinePrepUiDismissed,
+  saveOfflinePrepUiDismiss,
+} from "@/lib/field-reports/offline-prep-ui-dismiss";
 import { useCallback, useEffect, useState } from "react";
 
 type VisitReport = {
@@ -26,13 +32,13 @@ const STATUS_FILTERS = [
   { value: "IN_PROGRESS", label: "בעבודה" },
   { value: "CLOSED", label: "סגור" },
   { value: "PENDING_UPLOAD", label: "ממתין לשליחה" },
-  { value: "LOCKED", label: "נעול" },
 ] as const;
 
 export default function FieldReportsPage() {
   const { status, isEnabled, loading, error, reload } =
     useFieldReportModule();
   const offlinePrep = useFieldReportOfflinePrep();
+  const organizationId = status?.organization_id || "";
   const [reports, setReports] = useState<VisitReport[]>([]);
   const [inProgressCount, setInProgressCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState("");
@@ -43,9 +49,55 @@ export default function FieldReportsPage() {
     ? offlinePrep.importSummary.imported + offlinePrep.importSummary.updated
     : 0;
 
+  const offlinePrepFingerprint = {
+    expiresAt: offlinePrep.expiresAt,
+    catalogVersion: offlinePrep.catalogVersion,
+  };
+
+  useEffect(() => {
+    if (!organizationId || !offlinePrep.isReady) {
+      setShowOfflineGuide(true);
+      return;
+    }
+
+    setShowOfflineGuide(
+      !isOfflinePrepUiDismissed(
+        organizationId,
+        "guide",
+        offlinePrepFingerprint
+      )
+    );
+  }, [
+    organizationId,
+    offlinePrep.isReady,
+    offlinePrep.expiresAt,
+    offlinePrep.catalogVersion,
+  ]);
+
+  function dismissOfflineGuide() {
+    if (!organizationId) {
+      return;
+    }
+
+    saveOfflinePrepUiDismiss(
+      organizationId,
+      "guide",
+      offlinePrepFingerprint
+    );
+    setShowOfflineGuide(false);
+  }
+
+  async function handleCancelOfflinePrep() {
+    await offlinePrep.cancel();
+    setShowOfflineGuide(true);
+  }
+
   async function handleOfflinePrep() {
     const saved = await offlinePrep.prepare();
     if (saved) {
+      if (organizationId) {
+        clearOfflinePrepUiDismiss(organizationId);
+      }
       setShowOfflineGuide(true);
     }
   }
@@ -87,7 +139,10 @@ export default function FieldReportsPage() {
       }
 
       const payload = await response.json();
-      const nextReports = payload.reports || [];
+      const nextReports = (payload.reports || []).filter(
+        (report: VisitReport) =>
+          isFieldReportVisibleInList(report.status)
+      );
       setReports(nextReports);
       if (status === "IN_PROGRESS") {
         setInProgressCount(nextReports.length);
@@ -214,15 +269,28 @@ export default function FieldReportsPage() {
       </header>
 
       {offlinePrep.isReady ? (
-        <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
-          מוכן לעבודה ללא רשת עד{" "}
-          {offlinePrep.expiresAt
-            ? new Date(offlinePrep.expiresAt).toLocaleString("he-IL")
-            : "—"}
-          {offlinePrep.catalogVersion
-            ? ` · קטלוג ${offlinePrep.catalogVersion}`
-            : ""}
-        </p>
+        <div
+          role="status"
+          className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+        >
+          <p>
+            מוכן לעבודה ללא רשת עד{" "}
+            {offlinePrep.expiresAt
+              ? new Date(offlinePrep.expiresAt).toLocaleString("he-IL")
+              : "—"}
+            {offlinePrep.catalogVersion
+              ? ` · קטלוג ${offlinePrep.catalogVersion}`
+              : ""}
+          </p>
+          <button
+            type="button"
+            className="shrink-0 text-xs font-medium text-emerald-800 underline-offset-2 hover:underline disabled:opacity-50 dark:text-emerald-300"
+            disabled={offlinePrep.cancelling}
+            onClick={() => void handleCancelOfflinePrep()}
+          >
+            {offlinePrep.cancelling ? "מבטל..." : "בטל הכנה לא מקוון"}
+          </button>
+        </div>
       ) : null}
 
       {offlinePrep.isReady && showOfflineGuide ? (
@@ -231,7 +299,7 @@ export default function FieldReportsPage() {
           catalogVersion={offlinePrep.catalogVersion}
           importedInProgressCount={importedInProgressCount}
           dismissible
-          onDismiss={() => setShowOfflineGuide(false)}
+          onDismiss={dismissOfflineGuide}
         />
       ) : null}
 

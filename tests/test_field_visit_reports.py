@@ -994,6 +994,26 @@ def test_request_send_to_core_from_closed_report(monkeypatch):
     )
     assert reopen_response.status_code == 409
 
+    list_response = client.get(
+        "/field-reports/visits",
+        headers=_headers(token),
+    )
+    assert list_response.status_code == 200
+    listed_ids = {
+        item["id"] for item in list_response.json()["reports"]
+    }
+    assert report_id not in listed_ids
+
+    locked_only_response = client.get(
+        "/field-reports/visits?status=LOCKED",
+        headers=_headers(token),
+    )
+    assert locked_only_response.status_code == 200
+    locked_ids = {
+        item["id"] for item in locked_only_response.json()["reports"]
+    }
+    assert report_id in locked_ids
+
 
 def test_request_send_to_core_returns_conflict_when_core_pipeline_fails(monkeypatch):
     fake_processing = FakeReportProcessingService(should_succeed=False)

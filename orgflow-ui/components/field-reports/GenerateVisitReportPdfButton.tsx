@@ -9,7 +9,10 @@ import {
   type VisitReportPdfDownloadSource,
 } from "@/lib/field-reports/pdf/generate-visit-report-pdf";
 import type { PdfVisitReport } from "@/lib/field-reports/pdf/types";
-import { hasVisitReportPdfLocally } from "@/lib/field-reports/pdf/visit-report-pdf-store";
+import {
+  hasVisitReportPdfLocally,
+  visitReportPdfStorageKey,
+} from "@/lib/field-reports/pdf/visit-report-pdf-store";
 
 type GenerateVisitReportPdfButtonProps = {
   report: PdfVisitReport;
@@ -36,11 +39,12 @@ export default function GenerateVisitReportPdfButton({
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [hasCachedPdf, setHasCachedPdf] = useState(false);
+  const pdfStorageKey = visitReportPdfStorageKey(report);
 
   useEffect(() => {
     let active = true;
 
-    void hasVisitReportPdfLocally(report.id).then((exists) => {
+    void hasVisitReportPdfLocally(pdfStorageKey).then((exists) => {
       if (active) {
         setHasCachedPdf(exists);
         onCacheChange?.(exists);
@@ -50,7 +54,7 @@ export default function GenerateVisitReportPdfButton({
     return () => {
       active = false;
     };
-  }, [report.id, onCacheChange]);
+  }, [pdfStorageKey, onCacheChange]);
 
   const buttonLabel =
     label

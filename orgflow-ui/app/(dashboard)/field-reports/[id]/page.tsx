@@ -476,6 +476,9 @@ export default function FieldVisitReportPage() {
         setSendOpen(false);
         setSendError("");
         setSendNotice("הדוח נשלח לליבה וננעל בהצלחה.");
+        window.dispatchEvent(
+          new CustomEvent("field-report-sync-complete")
+        );
       } else {
         setSendOpen(false);
         setSendError("");

@@ -475,7 +475,6 @@ describe("phase D gate acceptance (FR-035)", () => {
     expect(pendingAfter).toHaveLength(0);
 
     const local = await getLocalReport(clientReportUuid);
-    expect(local?.sync_status).toBe("done");
-    expect(local?.server_report_id).toBe(SERVER_ID);
+    expect(local).toBeNull();
   });
 });

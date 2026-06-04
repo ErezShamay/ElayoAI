@@ -202,7 +202,7 @@ describe("buildVisitReportDocDefinition", () => {
     });
 
     const texts = collectContentTexts(definition.content);
-    expect(texts).toContain("עדכונים לפרויקט");
+    expect(texts).toContain("עדכונים לפרויקט:");
     expect(texts).toContain("עדכון 1");
     expect(texts).toContain("המלצות חורף / עונת גשמים");
     expect(texts).toContain("חורף מותאם");

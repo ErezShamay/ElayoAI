@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { buildCoverNumberedEntries } from "@/lib/field-reports/pdf/render-header-boilerplate";
 import {
   PDF_DEFAULT_ADDRESSEE_HE,
   PDF_REPORT_TITLE_HE,
@@ -26,22 +27,38 @@ describe("renderVisitReportHeader", () => {
           lawyer_name: "עו״ד כהן",
           site_address: "רחוב הרצל 1",
           project_updates: ["עדכון לפרויקט"],
+          fixed_text_blocks: [],
+          include_fixed_text_blocks: true,
         },
       },
     });
 
     const texts = collectContentTexts(content);
-    expect(texts).toContain(PDF_SUPERVISION_BANNER_HE);
+    expect(texts).not.toContain(PDF_SUPERVISION_BANNER_HE);
     expect(texts).toContain(PDF_REPORT_TITLE_HE);
     expect(texts).toContain('התחדשות עירונית - פרויקט חיזוק תמ"א');
     expect(texts).toContain(`לכבוד: ${PDF_DEFAULT_ADDRESSEE_HE}`);
-    expect(texts).toContain("תאריך התחלת פרויקט: 2024-01-01");
-    expect(texts).toContain("מספר יחידות דיור: 42");
-    expect(texts).toContain("יזם: יזם בע״מ");
-    expect(texts).toContain("עו״ד ב״כ דיירים: עו״ד כהן");
+    expect(texts).toContain("תאריך התחלת הפרויקט: 01.01.2024");
+    expect(texts).toContain("תאריך ביקור באתר: 01.06.2026");
+    expect(texts).toContain('בפרויקט ייבנו סה"כ 42 יחידות דיור');
+    expect(texts).toContain("שם החברה היזמית: יזם בע״מ");
+    expect(texts).toContain('עו"ד ב"כ הדיירים: עו״ד כהן');
     expect(texts).toContain("כתובת אתר: רחוב הרצל 1");
-    expect(texts).toContain("עדכונים לפרויקט");
+    expect(texts).toContain("עדכונים לפרויקט:");
     expect(texts).toContain("עדכון לפרויקט");
+
+    const coverEntries = buildCoverNumberedEntries(
+      {
+        project_updates: ["עדכון לפרויקט"],
+        fixed_text_blocks: [],
+        include_fixed_text_blocks: true,
+      },
+      "2026-06-01"
+    );
+    expect(coverEntries.length).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(content)).toContain(
+      "מלאכות שנמצאה לגביהן אי התאמה"
+    );
   });
 
   it("falls back to legacy header fields when metadata is missing", () => {
@@ -61,9 +78,9 @@ describe("renderVisitReportHeader", () => {
     });
 
     const texts = collectContentTexts(content);
-    expect(texts).toContain("יזם: Legacy Dev");
-    expect(texts).toContain("מנהל פרויקט מטעם יזם: Legacy PM");
-    expect(texts).toContain("עו״ד ב״כ דיירים: Legacy Lawyer");
+    expect(texts).toContain("שם החברה היזמית: Legacy Dev");
+    expect(texts).toContain("מנהל הפרויקט מטעם היזם: Legacy PM");
+    expect(texts).toContain('עו"ד ב"כ הדיירים: Legacy Lawyer');
     expect(texts).toContain("כתובת אתר: Legacy Site");
     expect(texts).not.toContain("תאריך התחלת פרויקט:");
   });
@@ -102,10 +119,24 @@ describe("renderVisitReportHeader", () => {
     const texts = collectContentTexts(content);
     expect(texts).toContain("אדריכל הפרויקט: אדריכלית לוי");
     expect(texts).toContain("קבלן מבצע: קבלן א'");
-    expect(texts).toContain("ספקים עיקריים");
-    expect(texts).toContain("מטבחים: איקאה");
+    expect(texts).toContain("ספקים עיקריים לפרויקט:");
+    expect(texts).toContain("-איקאה.מטבחים");
   });
 });
+
+const PDF_CONTENT_SKIP_KEYS = new Set([
+  "margin",
+  "width",
+  "height",
+  "fontSize",
+  "alignment",
+  "direction",
+  "font",
+  "style",
+  "fillColor",
+  "color",
+  "pageBreak",
+]);
 
 function collectContentTexts(content: unknown): string[] {
   if (!content) {
@@ -126,12 +157,15 @@ function collectContentTexts(content: unknown): string[] {
 
     if (typeof node.text === "string") {
       texts.push(node.text);
+    } else if (node.text !== undefined) {
+      texts.push(...collectContentTexts(node.text));
     }
 
-    for (const key of ["stack", "ul", "ol", "columns", "content"]) {
-      if (key in node) {
-        texts.push(...collectContentTexts(node[key]));
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "text" || PDF_CONTENT_SKIP_KEYS.has(key)) {
+        continue;
       }
+      texts.push(...collectContentTexts(value));
     }
 
     return texts;

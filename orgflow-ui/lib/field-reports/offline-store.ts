@@ -69,12 +69,12 @@ export function isOfflinePrepValid(
   return new Date(bundle.expires_at).getTime() > Date.now();
 }
 
-export function clearOfflinePrepBundle(organizationId: string) {
-  if (typeof window === "undefined" || !organizationId) {
+export async function clearOfflinePrepBundle(organizationId: string) {
+  if (!organizationId || typeof localStorage === "undefined") {
     return;
   }
 
   clearLegacyOfflinePrepBundle(organizationId);
   setCachedOfflinePrepBundle(organizationId, null);
-  void clearCatalogBundle(organizationId);
+  await clearCatalogBundle(organizationId);
 }

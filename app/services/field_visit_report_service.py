@@ -61,6 +61,7 @@ SYNCABLE_STATUSES = frozenset({
     "PENDING_UPLOAD",
 })
 OFFLINE_MAX_DAYS = 7
+LIST_HIDDEN_STATUSES = frozenset({"LOCKED"})
 REQUEST_SEND_ERROR_CODE_INVALID_STATUS = (
     "FIELD_VISIT_REPORT_SEND_INVALID_STATUS"
 )
@@ -227,6 +228,13 @@ class FieldVisitReportService:
             organization_id,
             status=status,
         )
+        if status is None:
+            records = [
+                record
+                for record in records
+                if str(record.get("status") or "")
+                not in LIST_HIDDEN_STATUSES
+            ]
 
         return {
             "reports": [

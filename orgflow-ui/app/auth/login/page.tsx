@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Eye } from "lucide-react";
 
 import {
   useEffect,
@@ -35,6 +36,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordRevealed, setPasswordRevealed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
@@ -192,13 +194,50 @@ export default function LoginPage() {
               סיסמה
             </label>
 
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="of-input of-focus-ring"
-            />
+            <div className="relative">
+              <input
+                type={passwordRevealed ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="of-input of-focus-ring pe-12"
+                autoComplete="current-password"
+              />
+
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label="הצג סיסמה בזמן לחיצה"
+                className="
+                  absolute
+                  end-3
+                  top-1/2
+                  -translate-y-1/2
+                  rounded-lg
+                  p-1.5
+                  text-zinc-400
+                  transition-colors
+                  select-none
+                  touch-none
+                  hover:text-zinc-600
+                  active:text-brand
+                  dark:hover:text-zinc-300
+                  dark:active:text-brand-light
+                "
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  setPasswordRevealed(true);
+                }}
+                onPointerUp={() => setPasswordRevealed(false)}
+                onPointerLeave={() => setPasswordRevealed(false)}
+                onPointerCancel={() => setPasswordRevealed(false)}
+              >
+                <Eye
+                  className="h-5 w-5"
+                  aria-hidden
+                />
+              </button>
+            </div>
           </div>
 
           {error || authBootstrapError ? (

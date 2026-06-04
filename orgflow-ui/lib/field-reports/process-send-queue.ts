@@ -10,6 +10,7 @@ import {
   type PendingSendRequest,
   type PendingSendSyncPhase,
 } from "@/lib/field-reports/send-queue";
+import { purgeFieldReportAfterCoreSend } from "@/lib/field-reports/purge-field-report-after-core-send";
 import { syncPendingLinePhotosForReport } from "@/lib/field-reports/sync-pending-line-photos";
 
 export type SendQueueItemResult = {
@@ -120,7 +121,10 @@ export async function processPendingSendRequest(
       filename: storedPdf.filename || `${reportId}.pdf`,
     });
 
-    await removePendingSendRequest(organizationId, reportId);
+    await purgeFieldReportAfterCoreSend({
+      organizationId,
+      serverReportId: reportId,
+    });
 
     return { reportId, success: true };
   } catch (err: unknown) {

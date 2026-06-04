@@ -1,5 +1,7 @@
 import type { Content } from "pdfmake/interfaces";
 
+import { pdfText } from "./pdf-styles";
+import { isCoverNumberedFixedTextKind } from "./render-header-boilerplate";
 import {
   FIXED_TEXT_BLOCK_KIND_LABELS,
   resolveFixedTextBlocksFromHeader,
@@ -56,7 +58,7 @@ export function renderFixedTextBlocksFromHeader(
   }
 
   const blocks = resolveFixedTextBlocksFromHeader(headerFields, visitDate).filter(
-    (block) => block.enabled
+    (block) => block.enabled && !isCoverNumberedFixedTextKind(block.kind)
   );
   if (!blocks.length) {
     return [];
@@ -82,18 +84,17 @@ function renderSingleFixedTextBlock(block: FixedTextBlock): Content[] {
     && block.kind !== "non_conformance_disclaimer"
     && block.kind !== "safety_disclaimer"
   ) {
-    content.push({
-      text: title,
-      style: "sectionTitle",
-      margin: [0, 12, 0, 6],
-    });
+    content.push(
+      pdfText(title, {
+        style: "sectionTitle",
+        margin: [0, 12, 0, 6],
+      })
+    );
   }
 
-  content.push({
-    text: block.body_he,
-    alignment: "right",
-    margin: [0, 0, 0, 12],
-  });
+  content.push(
+    pdfText(block.body_he, { margin: [0, 0, 0, 12] })
+  );
 
   return content;
 }

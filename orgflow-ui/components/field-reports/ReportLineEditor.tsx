@@ -15,6 +15,7 @@ import {
   lineGroupFieldsFromSelection,
   selectionFromLineGroupFields,
 } from "@/lib/field-reports/line-grouping";
+import { catalogSeverityLabelHe } from "@/lib/field-reports/catalog-labels";
 import {
   FR_TOUCH_BUTTON,
   FR_TOUCH_INPUT,
@@ -320,7 +321,9 @@ export default function ReportLineEditor({
             <p className="text-xs text-zinc-500">
               {line.issue_id}
               {line.standard_ref ? ` · תקן: ${line.standard_ref}` : ""}
-              {line.severity ? ` · חומרה: ${line.severity}` : ""}
+              {line.severity
+                ? ` · חומרה: ${catalogSeverityLabelHe(line.severity)}`
+                : ""}
             </p>
           ) : (
             <p className="text-xs text-zinc-500">תיאור חופשי</p>

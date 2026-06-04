@@ -51,6 +51,7 @@ vi.mock("@/lib/field-reports/pdf/visit-report-pdf-store", () => ({
     filename: "report-a.pdf",
     generatedAt: new Date().toISOString(),
   })),
+  deleteVisitReportPdfLocally: vi.fn(async () => undefined),
 }));
 
 describe("process-send-queue", () => {

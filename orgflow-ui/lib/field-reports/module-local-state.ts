@@ -12,7 +12,7 @@ export function clearFieldReportLocalState(organizationId: string) {
     return;
   }
 
-  clearOfflinePrepBundle(organizationId);
+  void clearOfflinePrepBundle(organizationId);
   clearAllReportMetadataDrafts(organizationId);
   void clearAllPendingSendRequests(organizationId);
   clearEditSession(organizationId);

@@ -8,7 +8,9 @@ import {
   importInProgressReportsFromOfflinePrep,
   type ImportInProgressReportsResult,
 } from "@/lib/field-reports/import-in-progress-reports";
+import { clearOfflinePrepUiDismiss } from "@/lib/field-reports/offline-prep-ui-dismiss";
 import {
+  clearOfflinePrepBundle,
   hydrateOfflinePrepBundle,
   isOfflinePrepValid,
   saveOfflinePrepBundle,
@@ -30,6 +32,7 @@ export function useFieldReportOfflinePrep() {
     bundle: OfflinePrepBundle;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const [importSummary, setImportSummary] =
     useState<ImportInProgressReportsResult | null>(null);
@@ -112,6 +115,30 @@ export function useFieldReportOfflinePrep() {
     }
   }, [organizationId, isModuleEnabled, profile?.id]);
 
+  const cancel = useCallback(async () => {
+    if (!organizationId || !isModuleEnabled) {
+      return;
+    }
+
+    try {
+      setCancelling(true);
+      setError("");
+      await clearOfflinePrepBundle(organizationId);
+      setPreparedBundle(null);
+      setStoredBundle(null);
+      setImportSummary(null);
+      clearOfflinePrepUiDismiss(organizationId);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "ביטול הכנה לא מקוון נכשל"
+      );
+    } finally {
+      setCancelling(false);
+    }
+  }, [organizationId, isModuleEnabled]);
+
   return {
     bundle,
     isReady: isOfflinePrepValid(bundle),
@@ -119,7 +146,9 @@ export function useFieldReportOfflinePrep() {
     catalogVersion: bundle?.catalog_version || null,
     importSummary,
     loading: loading || hydrating,
+    cancelling,
     error,
     prepare,
+    cancel,
   };
 }

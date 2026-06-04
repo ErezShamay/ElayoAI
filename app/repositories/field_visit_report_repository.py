@@ -13,6 +13,7 @@ from app.repositories.postgrest_errors import (
 class FieldVisitReportRepository:
     TABLE = "field_visit_reports"
     STATUS_IN_PROGRESS = "IN_PROGRESS"
+    LIST_HIDDEN_STATUSES = frozenset({"LOCKED"})
 
     def __init__(self) -> None:
         self.client = supabase
@@ -44,6 +45,7 @@ class FieldVisitReportRepository:
         organization_id: str,
         *,
         status: str | None = None,
+        include_hidden: bool = False,
     ) -> list[dict]:
         if not self.is_storage_available():
             return []
@@ -58,6 +60,9 @@ class FieldVisitReportRepository:
 
         if status:
             query = query.eq("status", status)
+        elif not include_hidden:
+            for hidden_status in self.LIST_HIDDEN_STATUSES:
+                query = query.neq("status", hidden_status)
 
         response = query.execute()
         return response.data or []

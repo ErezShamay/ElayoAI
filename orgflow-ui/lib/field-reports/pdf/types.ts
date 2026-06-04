@@ -29,6 +29,7 @@ export type PdfReportLine = {
 
 export type PdfVisitReport = {
   id: string;
+  client_report_uuid?: string;
   project_name?: string | null;
   visit_type: string;
   visit_type_label_he: string;

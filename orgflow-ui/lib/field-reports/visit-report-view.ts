@@ -3,7 +3,6 @@ import {
   type FieldReportDataSource,
   type FieldReportNetworkSnapshot,
 } from "@/lib/field-reports/data-source";
-import { isClientUuid } from "@/lib/field-reports/ids";
 import type {
   LocalVisitReportLine,
   LocalVisitReportRecord,
@@ -168,21 +167,48 @@ export async function resolveLocalVisitReport(
     return byClient;
   }
 
-  if (!isClientUuid(routeId)) {
-    return getLocalReportByServerId(routeId);
+  return getLocalReportByServerId(routeId);
+}
+
+/**
+ * מזהה שרת לקריאות API — גם כש-`routeId` הוא UUID (מפתח Supabase).
+ * לא משתמשים ב-`isClientUuid`: מזהה מקומי ומזהה שרת יכולים להיות באותו פורמט.
+ */
+export function resolveVisitReportApiId(
+  routeId: string,
+  localRecord: LocalVisitReportRecord | null
+): string | null {
+  if (localRecord?.server_report_id) {
+    return localRecord.server_report_id;
   }
 
-  return null;
+  if (!routeId) {
+    return null;
+  }
+
+  if (
+    localRecord
+    && localRecord.client_report_uuid === routeId
+  ) {
+    return null;
+  }
+
+  return routeId;
 }
 
 export function serverVisitReportId(
-  report: Pick<VisitReportView, "id" | "server_report_id">
+  report: Pick<VisitReportView, "id" | "server_report_id" | "client_report_uuid">
 ): string | null {
   if (report.server_report_id) {
     return report.server_report_id;
   }
 
-  return isClientUuid(report.id) ? null : report.id;
+  const clientUuid = report.client_report_uuid;
+  if (clientUuid && report.id === clientUuid) {
+    return null;
+  }
+
+  return report.id || null;
 }
 
 export function clientVisitReportUuid(
@@ -203,9 +229,10 @@ export async function loadVisitReportForPage(
   network: FieldReportNetworkSnapshot
 ): Promise<LoadVisitReportResult> {
   const localRecord = await resolveLocalVisitReport(routeId);
-  const serverReportIdForContext =
-    localRecord?.server_report_id
-    ?? (routeId && !isClientUuid(routeId) ? routeId : null);
+  const serverReportIdForContext = resolveVisitReportApiId(
+    routeId,
+    localRecord
+  );
 
   const dataSource = resolveFieldReportDataSource(network, {
     hasLocalReport: Boolean(localRecord),
@@ -224,9 +251,7 @@ export async function loadVisitReportForPage(
     };
   }
 
-  const apiReportId =
-    localRecord?.server_report_id
-    ?? (routeId && !isClientUuid(routeId) ? routeId : null);
+  const apiReportId = resolveVisitReportApiId(routeId, localRecord);
 
   if (apiReportId && dataSource.canCallVisitReportApi) {
     const response = await apiFetch(`/field-reports/visits/${apiReportId}`);
@@ -242,7 +267,7 @@ export async function loadVisitReportForPage(
         client_report_uuid:
           localRecord?.client_report_uuid
           ?? remote.client_report_uuid
-          ?? (isClientUuid(routeId) ? routeId : remote.id),
+          ?? clientVisitReportUuid(remote),
         server_report_id: apiReportId,
       },
       source: "remote",

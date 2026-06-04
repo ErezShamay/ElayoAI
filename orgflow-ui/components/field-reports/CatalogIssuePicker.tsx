@@ -6,6 +6,10 @@ import { createPortal } from "react-dom";
 import Button from "@/components/ui/Button";
 import { useLockBackgroundScrollWhileOverlay } from "@/hooks/useLockBodyScroll";
 import {
+  catalogFamilyLabelHe,
+  catalogSeverityLabelHe,
+} from "@/lib/field-reports/catalog-labels";
+import {
   FR_TOUCH_BUTTON,
   FR_TOUCH_INPUT,
   FR_TOUCH_LIST_BUTTON,
@@ -77,6 +81,8 @@ export default function CatalogIssuePicker({
           issue.issue_name_he,
           issue.category_name_he,
           issue.standard_ref || "",
+          catalogSeverityLabelHe(issue.severity),
+          issue.severity || "",
         ]
           .join(" ")
           .toLowerCase();
@@ -168,7 +174,10 @@ export default function CatalogIssuePicker({
                     onClick={() => selectFamily(family.top_family)}
                     disabled={disabled}
                   >
-                    {family.label_he || family.top_family}
+                    {catalogFamilyLabelHe(
+                      family.top_family,
+                      family.label_he
+                    )}
                     {family.issue_count != null ? (
                       <span className="block text-xs opacity-80">
                         {family.issue_count} ממצאים
@@ -245,7 +254,7 @@ export default function CatalogIssuePicker({
           {selectedIssue.severity ? (
             <p>
               <span className="font-medium">חומרה: </span>
-              {selectedIssue.severity}
+              {catalogSeverityLabelHe(selectedIssue.severity)}
             </p>
           ) : null}
           {selectedIssue.description ? (
@@ -369,8 +378,11 @@ function IssueListButton({
     >
       <div className="font-medium">{issue.issue_name_he}</div>
       <div className="text-zinc-500">
-        {issue.issue_id}
-        {issue.standard_ref ? ` · ${issue.standard_ref}` : ""}
+        {issue.category_name_he}
+        {issue.severity
+          ? ` · חומרה: ${catalogSeverityLabelHe(issue.severity)}`
+          : ""}
+        {issue.standard_ref ? ` · תקן: ${issue.standard_ref}` : ""}
       </div>
     </button>
   );

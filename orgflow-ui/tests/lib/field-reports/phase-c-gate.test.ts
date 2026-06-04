@@ -54,6 +54,7 @@ vi.mock("@/lib/field-reports/pdf/visit-report-pdf-store", () => ({
     filename: "report.pdf",
     generatedAt: new Date().toISOString(),
   })),
+  deleteVisitReportPdfLocally: vi.fn(async () => undefined),
 }));
 
 function createLocalStorageMock() {
@@ -251,8 +252,7 @@ describe("phase C gate acceptance (FR-028)", () => {
     );
 
     const local = await getLocalReport(clientReportUuid);
-    expect(local?.server_report_id).toBe(SERVER_ID);
-    expect(local?.sync_status).toBe("done");
+    expect(local).toBeNull();
     expect(await loadPendingSendRequests(ORG_ID)).toHaveLength(0);
   });
 
