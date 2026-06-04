@@ -18,6 +18,7 @@ import {
   listLinePhotosForLine,
   saveLinePhotoLocally,
 } from "@/lib/field-reports/line-photo-store";
+import { persistCapacitorRouteNow } from "@/components/capacitor/CapacitorRoutePersistence";
 import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
 import { useOffline } from "@/providers/OfflineProvider";
 
@@ -297,6 +298,7 @@ export default function LinePhotoCapture({
     setCameraBlocked(false);
 
     if (nativeLinePhotoPicker) {
+      persistCapacitorRouteNow();
       try {
         const file = await takeLinePhotoWithNativeCamera();
         if (file) {
@@ -330,6 +332,7 @@ export default function LinePhotoCapture({
     setError("");
 
     if (nativeLinePhotoPicker) {
+      persistCapacitorRouteNow();
       try {
         const file = await pickLinePhotoFromNativeGallery();
         if (file) {

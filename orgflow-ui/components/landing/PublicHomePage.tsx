@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  ArrowLeft,
   Bot,
   Building2,
   FileSearch,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 
 import HeroDashboardPreview from "@/components/landing/HeroDashboardPreview";
+import LandingSystemCtaLink from "@/components/landing/LandingSystemCtaLink";
 import PublicNavBar from "@/components/landing/PublicNavBar";
 import BrandLogo from "@/components/ui/BrandLogo";
 
@@ -215,33 +215,7 @@ export default function PublicHomePage() {
                 gap-4
               "
             >
-              <Link
-                href="/auth/login"
-                className="
-                  of-focus-ring
-                  inline-flex
-                  items-center
-                  gap-2
-                  rounded-2xl
-                  bg-gradient-to-l
-                  from-brand
-                  to-brand-gold
-                  px-8
-                  py-4
-                  text-base
-                  font-semibold
-                  text-white
-                  shadow-lg
-                  shadow-brand/25
-                  transition-all
-                  hover:shadow-xl
-                  hover:shadow-brand/30
-                  hover:brightness-110
-                "
-              >
-                התחברות למערכת
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
+              <LandingSystemCtaLink variant="hero" />
 
               <a
                 href="#features"
@@ -857,28 +831,7 @@ export default function PublicHomePage() {
             לסביבת העבודה התפעולית.
           </p>
 
-          <Link
-            href="/auth/login"
-            className="
-              of-focus-ring
-              mt-8
-              inline-flex
-              items-center
-              gap-2
-              rounded-2xl
-              bg-white
-              px-8
-              py-4
-              text-base
-              font-semibold
-              text-zinc-900
-              transition-all
-              hover:bg-zinc-100
-            "
-          >
-            התחברות למערכת
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
+          <LandingSystemCtaLink variant="footer" />
         </div>
       </section>
 

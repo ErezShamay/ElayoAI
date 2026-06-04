@@ -29,6 +29,7 @@ import {
   hydrateOfflinePrepBundle,
   isOfflinePrepValid,
 } from "@/lib/field-reports/offline-store";
+import { fieldReportDetailPath } from "@/lib/field-reports/routes";
 import { isExpired } from "@/lib/field-reports/repositories/catalog-repository";
 
 export default function NewFieldVisitReportPage() {
@@ -208,7 +209,7 @@ export default function NewFieldVisitReportPage() {
         }
       }
 
-      router.push(`/field-reports/${localReport.client_report_uuid}`);
+      router.push(fieldReportDetailPath(localReport.client_report_uuid));
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "יצירת הדוח נכשלה"

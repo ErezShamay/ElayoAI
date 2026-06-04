@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   startTransition,
   useCallback,
@@ -48,6 +48,10 @@ import {
   removePendingSendRequest,
   type PendingSendRequest,
 } from "@/lib/field-reports/send-queue";
+import {
+  fieldReportDetailPath,
+  resolveFieldReportRouteId,
+} from "@/lib/field-reports/routes";
 import { useOffline } from "@/providers/OfflineProvider";
 
 type VisitReport = VisitReportView & {
@@ -56,7 +60,9 @@ type VisitReport = VisitReportView & {
 
 export default function FieldVisitReportPage() {
   const params = useParams();
-  const reportId = typeof params.id === "string" ? params.id : "";
+  const searchParams = useSearchParams();
+  const paramId = typeof params.id === "string" ? params.id : "";
+  const reportId = resolveFieldReportRouteId(paramId, searchParams);
   const { status: moduleStatus } = useFieldReportModule();
   const organizationId = moduleStatus?.organization_id || "";
   const { isOnline } = useOffline();
@@ -70,6 +76,7 @@ export default function FieldVisitReportPage() {
     hasLocalReport: false,
     serverReportId: null as string | null,
   });
+  const [hasLocalRecord, setHasLocalRecord] = useState(false);
   const {
     mode: dataSourceMode,
     pinging,
@@ -114,6 +121,9 @@ export default function FieldVisitReportPage() {
 
   const loadReport = useCallback(async () => {
     if (!reportId) {
+      setLoading(false);
+      setError("מזהה דוח חסר");
+      setReport(null);
       return;
     }
 
@@ -124,6 +134,7 @@ export default function FieldVisitReportPage() {
       const loaded = await loadVisitReportForPage(reportId, network);
 
       setReport(loaded.report as VisitReport);
+      setHasLocalRecord(Boolean(loaded.localRecord));
       setDataSourceContext({
         hasLocalReport: Boolean(loaded.localRecord),
         serverReportId: loaded.report.server_report_id ?? null,
@@ -646,7 +657,9 @@ export default function FieldVisitReportPage() {
           </p>
           <div className="flex flex-wrap gap-2.5">
             <Link
-              href={`/field-reports/${editSession.blockingSession.reportId}`}
+              href={fieldReportDetailPath(
+                editSession.blockingSession.reportId
+              )}
               className="of-focus-ring inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-400 px-5 py-2.5 text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40"
             >
               חזור לדוח הפעיל
@@ -667,6 +680,7 @@ export default function FieldVisitReportPage() {
         <VisitReportEditor
           key={`${report.id}:${report.visit_type}`}
           report={report}
+          hasLocalRecord={hasLocalRecord}
           onReportChange={setReport}
         />
       ) : null}

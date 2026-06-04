@@ -5,6 +5,7 @@ import Link from "next/link";
 import Button from "@/components/ui/Button";
 import Spinner from "@/components/ui/Spinner";
 import { useFieldReportSyncContext } from "@/contexts/FieldReportSyncContext";
+import { fieldReportDetailPath } from "@/lib/field-reports/routes";
 import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
 import { pendingSendPhaseLabelHe } from "@/lib/field-reports/send-queue";
 import { fieldReportNetworkStatusLabelHe } from "@/lib/field-reports/sync/network-status";
@@ -156,7 +157,7 @@ export default function SyncPanel() {
                   <p className="mt-1 text-sm">{entry.lastError}</p>
                 ) : null}
                 <Link
-                  href={`/field-reports/${entry.reportId}`}
+                  href={fieldReportDetailPath(entry.reportId)}
                   className="mt-1 inline-block text-xs font-medium text-brand hover:underline"
                 >
                   פתח דוח

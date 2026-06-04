@@ -49,7 +49,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k="elayoai-theme",o="orgflow-theme";var s=localStorage.getItem(k);if(s===null){var l=localStorage.getItem(o);if(l!==null){localStorage.setItem(k,l);s=l;}}var d=window.matchMedia("(prefers-color-scheme: dark)").matches;var dark=s==="dark"||(s!=="light"&&(!s||d));document.documentElement.classList.toggle("dark",dark);}catch(e){}})();`,
+            __html: `(function(){try{var k="elayoai-theme",o="orgflow-theme";var s=localStorage.getItem(k);if(s===null){var l=localStorage.getItem(o);if(l!==null){localStorage.setItem(k,l);s=l;}}var d=window.matchMedia("(prefers-color-scheme: dark)").matches;var dark=s==="dark"||(s==="system"&&d);document.documentElement.classList.toggle("dark",dark);}catch(e){}})();`,
           }}
         />
       </head>

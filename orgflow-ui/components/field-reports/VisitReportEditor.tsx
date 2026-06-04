@@ -18,6 +18,7 @@ import LineGroupSelector from "@/components/field-reports/LineGroupSelector";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { toast } from "sonner";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { apiFetch } from "@/lib/api/client";
 import {
@@ -96,21 +97,26 @@ const LINE_STATUS_OPTIONS = [
 type VisitReportEditorProps = {
   report: VisitReport;
   onReportChange: (report: VisitReport) => void;
+  /** דוח נטען מ-IndexedDB — מכריח שמירת שורות/כותרת מקומית גם כשה-ping ל-API מצליח. */
+  hasLocalRecord?: boolean;
 };
 
 export default function VisitReportEditor({
   report,
   onReportChange,
+  hasLocalRecord = false,
 }: VisitReportEditorProps) {
+  const clientReportUuid = clientVisitReportUuid(report);
   const {
     useLocalReports,
     canCallVisitReportApi,
     mode: dataSourceMode,
   } = useFieldReportDataSource({
-    hasLocalReport: isClientUuid(clientVisitReportUuid(report)),
+    hasLocalReport:
+      hasLocalRecord
+      || isClientUuid(clientReportUuid),
     serverReportId: report.server_report_id ?? null,
   });
-  const clientReportUuid = clientVisitReportUuid(report);
   const { status: moduleStatus } = useFieldReportModule();
   const organizationId = moduleStatus?.organization_id || "";
   const [saving, setSaving] = useState(false);
@@ -400,15 +406,26 @@ export default function VisitReportEditor({
     return Array.isArray(raw) && raw.length > 0;
   }, [report.header_fields]);
 
+  async function shouldSaveLinesLocally(): Promise<boolean> {
+    if (useLocalReports) {
+      return true;
+    }
+
+    return Boolean(await getLocalReport(clientReportUuid));
+  }
+
   async function addFreeLine(event: FormEvent) {
     event.preventDefault();
 
     if (!report.is_editable) {
+      toast.warning("הדוח אינו בעריכה — לא ניתן להוסיף שורה");
       return;
     }
 
     if (!newLine.description.trim()) {
-      setError("יש למלא תיאור לשורה");
+      const message = "יש למלא תיאור לשורה";
+      setError(message);
+      toast.error(message);
       return;
     }
 
@@ -416,7 +433,7 @@ export default function VisitReportEditor({
       setLineSaving(true);
       setError("");
 
-      if (useLocalReports) {
+      if (await shouldSaveLinesLocally()) {
         const updated = await upsertLine(clientReportUuid, {
           location: newLine.location || null,
           trade: newLine.trade || null,
@@ -478,9 +495,10 @@ export default function VisitReportEditor({
       });
       setPendingLineGroup(defaultLineGroupSelection());
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "הוספת שורה נכשלה"
-      );
+      const message =
+        err instanceof Error ? err.message : "הוספת שורה נכשלה";
+      setError(message);
+      toast.error(message);
     } finally {
       setLineSaving(false);
     }
@@ -488,6 +506,7 @@ export default function VisitReportEditor({
 
   async function addCatalogLine(issue: CatalogIssue) {
     if (!report.is_editable) {
+      toast.warning("הדוח אינו בעריכה — לא ניתן להוסיף שורה");
       return;
     }
 
@@ -495,7 +514,7 @@ export default function VisitReportEditor({
       setLineSaving(true);
       setError("");
 
-      if (useLocalReports) {
+      if (await shouldSaveLinesLocally()) {
         const updated = await upsertLine(clientReportUuid, {
           issue_id: issue.issue_id,
           description: issue.issue_name_he,
@@ -574,7 +593,7 @@ export default function VisitReportEditor({
       }
       setError("");
 
-      if (useLocalReports) {
+      if (await shouldSaveLinesLocally()) {
         const updated = await upsertLine(clientReportUuid, {
           client_line_uuid: lineId,
           ...payload,
@@ -643,7 +662,7 @@ export default function VisitReportEditor({
       setLineSaving(true);
       setError("");
 
-      if (useLocalReports) {
+      if (await shouldSaveLinesLocally()) {
         const updated = await deleteLocalLine(clientReportUuid, lineId);
 
         if (!updated) {
@@ -857,7 +876,7 @@ export default function VisitReportEditor({
             {report.lines.map((line) => (
               <ReportLineEditor
                 key={line.id}
-                reportId={report.id}
+                reportId={clientReportUuid}
                 line={line}
                 editable={report.is_editable}
                 saving={lineSaving}

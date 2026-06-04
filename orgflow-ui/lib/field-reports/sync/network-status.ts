@@ -16,7 +16,7 @@ export const FIELD_REPORTS_PING_PATH = "/field-reports/module-status";
 export const DEFAULT_FIELD_REPORT_PING_TIMEOUT_MS = 5000;
 
 /** מרווח בדיקה תקופית (PWA + ping; native — גם Capacitor Network events). */
-export const DEFAULT_FIELD_REPORT_NETWORK_POLL_MS = 30_000;
+export const DEFAULT_FIELD_REPORT_NETWORK_POLL_MS = 120_000;
 
 export type FieldReportNetworkConnectivity =
   | "offline"

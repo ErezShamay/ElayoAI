@@ -6,6 +6,7 @@ import FieldReportsOfflineGuide from "@/components/field-reports/FieldReportsOff
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api/client";
+import { fieldReportDetailPath } from "@/lib/field-reports/routes";
 import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { useFieldReportOfflinePrep } from "@/hooks/useFieldReportOfflinePrep";
@@ -306,7 +307,7 @@ export default function FieldReportsPage() {
           {reports.map((report) => (
             <li key={report.id}>
               <Link
-                href={`/field-reports/${report.id}`}
+                href={fieldReportDetailPath(report.id)}
                 className="flex min-h-14 touch-manipulation flex-wrap items-center justify-between gap-3 px-4 py-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               >
                 <div>
