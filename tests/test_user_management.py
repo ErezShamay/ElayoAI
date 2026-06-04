@@ -210,3 +210,34 @@ def test_set_password_validates_policy():
             actor_user_id="admin-1",
         )
 
+
+def test_set_password_confirms_email_in_supabase():
+    auth_admin = MagicMock()
+    service = UserManagementService(
+        profile_repository=MagicMock(
+            get_profile_by_id=MagicMock(
+                return_value={
+                    "id": "user-1",
+                    "email": "user@example.com",
+                    "organization_id": "org-1",
+                }
+            ),
+        )
+    )
+    service.auth_client = MagicMock(auth=MagicMock(admin=auth_admin))
+
+    service.set_password(
+        organization_id="org-1",
+        profile_id="user-1",
+        password="Secure1!",
+        actor_user_id="admin-1",
+    )
+
+    auth_admin.update_user_by_id.assert_called_once_with(
+        "user-1",
+        {
+            "password": "Secure1!",
+            "email_confirm": True,
+        },
+    )
+

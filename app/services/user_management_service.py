@@ -227,7 +227,10 @@ class UserManagementService:
         try:
             self.auth_client.auth.admin.update_user_by_id(
                 profile_id,
-                {"password": password},
+                {
+                    "password": password,
+                    "email_confirm": True,
+                },
             )
         except AuthApiError as error:
             raise self._auth_admin_error(error) from error
@@ -345,6 +348,8 @@ class UserManagementService:
 
         if not user_id:
             raise ValidationError(message="Failed to create invited user")
+
+        self._confirm_auth_user_email(user_id)
 
         profile = self.profile_repository.create_profile(
             {
@@ -624,6 +629,20 @@ class UserManagementService:
             return "active"
 
         return "pending"
+
+    def _confirm_auth_user_email(self, profile_id: str) -> None:
+        try:
+            self.auth_client.auth.admin.update_user_by_id(
+                profile_id,
+                {"email_confirm": True},
+            )
+        except AuthApiError as error:
+            raise self._auth_admin_error(error) from error
+        except Exception as error:
+            raise ValidationError(
+                message="Failed to confirm user email",
+                details={"error": str(error)},
+            ) from error
 
     def _get_auth_user(
         self,
