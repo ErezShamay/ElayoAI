@@ -2,12 +2,11 @@
 
 import { useEffect, useRef } from "react";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { canUseCapacitorWebStorage } from "@/lib/capacitor/platform";
 import {
-  resolveCapacitorRestoreTarget,
-  shouldRestoreCapacitorRoute,
+  restoreCapacitorRouteIfNeeded,
   writeCapacitorPersistedRoute,
 } from "@/lib/capacitor/route-persistence";
 
@@ -20,48 +19,56 @@ function buildPersistedPath(
 }
 
 /**
- * שומר נתיב ב-APK (למקרה נדיר של reload). שחזור יחיד בלי reload מלא.
+ * שומר נתיב דוח ב-localStorage; שחזור אחרי מצלמה נעשה בסקריפט לפני React
+ * או ב-visibilitychange (ניווט יחיד).
  */
 export default function CapacitorRoutePersistence() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const restoredRef = useRef(false);
+  const resumeRestoreAttempted = useRef(false);
 
   useEffect(() => {
     if (!canUseCapacitorWebStorage() || !pathname) {
       return;
     }
 
-    writeCapacitorPersistedRoute(
-      buildPersistedPath(pathname, searchParams)
-    );
+    if (pathname.startsWith("/field-reports")) {
+      writeCapacitorPersistedRoute(
+        buildPersistedPath(pathname, searchParams)
+      );
+    }
   }, [pathname, searchParams]);
 
   useEffect(() => {
-    if (!canUseCapacitorWebStorage() || restoredRef.current) {
+    if (!canUseCapacitorWebStorage()) {
       return;
     }
 
-    if (!shouldRestoreCapacitorRoute(pathname)) {
-      return;
-    }
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
 
-    const target = resolveCapacitorRestoreTarget();
-    if (!target) {
-      return;
-    }
+      if (resumeRestoreAttempted.current) {
+        return;
+      }
 
-    restoredRef.current = true;
-    router.replace(target);
-  }, [pathname, router]);
+      resumeRestoreAttempted.current = true;
+      restoreCapacitorRouteIfNeeded();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   return null;
 }
 
-/** לפני פתיחת גלריה native — שמירת נתיב לשחזור אם נדרש. */
+/** לפני מצלמה / גלריה — חובה לשמור נתיב לשחזור אחרי יציאה לאפליקציית המצלמה. */
 export function persistCapacitorRouteNow(): void {
-  if (!canUseCapacitorWebStorage() || typeof window === "undefined") {
+  if (typeof window === "undefined") {
     return;
   }
 

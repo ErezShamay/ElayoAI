@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import Button from "@/components/ui/Button";
 import {
@@ -18,6 +18,9 @@ import {
   saveLinePhotoLocally,
 } from "@/lib/field-reports/line-photo-store";
 import { persistCapacitorRouteNow } from "@/components/capacitor/CapacitorRoutePersistence";
+import { isLikelyAndroidEmulator } from "@/lib/capacitor/android-emulator";
+import { writeLinePhotoCaptureContext } from "@/lib/capacitor/line-photo-capture-context";
+import { currentDocumentPath } from "@/lib/capacitor/route-persistence";
 import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
 import { useOffline } from "@/providers/OfflineProvider";
 
@@ -60,6 +63,8 @@ export default function LinePhotoCapture({
 }: LinePhotoCaptureProps) {
   const { isOnline } = useOffline();
   const nativeGalleryPicker = useNativeLinePhotoGallery();
+  const androidEmulator = useMemo(() => isLikelyAndroidEmulator(), []);
+  const useDeviceCameraCapture = !androidEmulator;
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
@@ -288,6 +293,15 @@ export default function LinePhotoCapture({
     }
   }
 
+  function persistRouteBeforeExternalPicker() {
+    persistCapacitorRouteNow();
+    writeLinePhotoCaptureContext({
+      returnPath: currentDocumentPath(),
+      reportId,
+      lineId,
+    });
+  }
+
   async function openCameraPicker() {
     if (disabled || uploading) {
       return;
@@ -295,6 +309,12 @@ export default function LinePhotoCapture({
 
     setError("");
     setCameraBlocked(false);
+    persistRouteBeforeExternalPicker();
+
+    if (androidEmulator) {
+      galleryInputRef.current?.click();
+      return;
+    }
 
     const permissionState = await checkCameraPermission();
 
@@ -315,9 +335,9 @@ export default function LinePhotoCapture({
     }
 
     setError("");
+    persistRouteBeforeExternalPicker();
 
     if (nativeGalleryPicker) {
-      persistCapacitorRouteNow();
       try {
         const file = await pickLinePhotoFromNativeGallery();
         if (file) {
@@ -348,11 +368,19 @@ export default function LinePhotoCapture({
       <p className="text-xs text-zinc-500">
         עד {MAX_LINE_PHOTOS} תמונות — נשמרות במכשיר ומסתנכרנות לשרת כשיש רשת.
       </p>
+      {androidEmulator ? (
+        <p className="text-xs text-amber-800 dark:text-amber-300">
+          באמולטור: &quot;צלם תמונה&quot; פותח גלריה. אפשר גם להוסיף תמונות ב-Extended
+          Controls של המכשיר הווירטואלי.
+        </p>
+      ) : null}
       <input
         ref={cameraInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
+        {...(useDeviceCameraCapture
+          ? { capture: "environment" as const }
+          : {})}
         className="hidden"
         disabled={disabled || uploading || !canAddMore}
         onChange={(event) => {

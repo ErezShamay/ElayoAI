@@ -24,13 +24,17 @@ export function isCapacitorAndroid(): boolean {
   return Capacitor.getPlatform() === "android";
 }
 
-/** WebView של APK (static export) — `https://localhost` / `http://localhost`. */
+/** WebView של APK — `https://localhost`, `http://localhost`, או `capacitor://`. */
 export function isCapacitorWebViewShell(): boolean {
   if (typeof window === "undefined") {
     return false;
   }
 
   const { hostname, protocol } = window.location;
+  if (protocol === "capacitor:") {
+    return true;
+  }
+
   if (hostname !== "localhost") {
     return false;
   }

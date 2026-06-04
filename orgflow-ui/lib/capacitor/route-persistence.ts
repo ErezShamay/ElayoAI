@@ -1,10 +1,17 @@
 import { readLinePhotoCaptureContext } from "@/lib/capacitor/line-photo-capture-context";
-import { canUseCapacitorWebStorage } from "@/lib/capacitor/platform";
+import {
+  canUseCapacitorWebStorage,
+  isCapacitorNativePlatform,
+} from "@/lib/capacitor/platform";
 
 export const CAPACITOR_LAST_ROUTE_STORAGE_KEY = "elayoai-capacitor-last-route";
 
 function routeStorage(): Storage | null {
-  if (!canUseCapacitorWebStorage()) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (!canUseCapacitorWebStorage() && !isCapacitorNativePlatform()) {
     return null;
   }
 
@@ -27,8 +34,7 @@ export function readCapacitorPersistedRoute(): string | null {
 }
 
 export function writeCapacitorPersistedRoute(path: string): void {
-  const storage = routeStorage();
-  if (!storage) {
+  if (typeof window === "undefined") {
     return;
   }
 
@@ -37,7 +43,11 @@ export function writeCapacitorPersistedRoute(path: string): void {
     return;
   }
 
-  storage.setItem(CAPACITOR_LAST_ROUTE_STORAGE_KEY, normalized);
+  try {
+    window.localStorage.setItem(CAPACITOR_LAST_ROUTE_STORAGE_KEY, normalized);
+  } catch {
+    // WebView private mode / quota
+  }
 }
 
 export function clearCapacitorPersistedRoute(): void {
@@ -63,11 +73,7 @@ export function isBootstrapCapacitorPath(pathname: string): boolean {
 }
 
 function isRestorableCapacitorTarget(target: string): boolean {
-  return (
-    target.startsWith("/field-reports")
-    || target.startsWith("/portfolio")
-    || target.startsWith("/projects")
-  );
+  return target.startsWith("/field-reports");
 }
 
 export function resolveCapacitorRestoreTarget(): string | null {
@@ -80,16 +86,30 @@ export function resolveCapacitorRestoreTarget(): string | null {
   return pendingPhoto?.returnPath?.trim() || null;
 }
 
-/** האם לשחזר נתיב שמור במקום להישאר בדף הבית הציבורי. */
 export function shouldRestoreCapacitorRoute(pathname: string): boolean {
-  if (!routeStorage()) {
-    return false;
-  }
-
   const target = resolveCapacitorRestoreTarget();
   if (!target || !isRestorableCapacitorTarget(target)) {
     return false;
   }
 
   return isBootstrapCapacitorPath(pathname);
+}
+
+/** ניווט חזרה לדוח — `location.replace` עובד אחרי reload ב-static export. */
+export function restoreCapacitorRouteIfNeeded(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (!shouldRestoreCapacitorRoute(window.location.pathname)) {
+    return false;
+  }
+
+  const target = resolveCapacitorRestoreTarget();
+  if (!target || currentDocumentPath() === target) {
+    return false;
+  }
+
+  window.location.replace(target);
+  return true;
 }
