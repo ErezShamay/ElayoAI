@@ -43,7 +43,7 @@ export default function ReportProjectMetadataSection({
       <div>
         <h2 className="text-lg font-semibold">פרטי פרויקט</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          סוג פרויקט, לוחות זמנים ויחידות דיור — יופיעו בכותרת ה-PDF.
+          נטען מפרטי הפרויקט — ניתן לערוך לפני שליחת הדוח.
         </p>
       </div>
 

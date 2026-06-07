@@ -194,9 +194,29 @@ class FieldVisitReportService:
                     "id": str(project["id"]),
                     "project_name": project.get("project_name"),
                     "city": project.get("city"),
+                    "scheme": project.get("scheme"),
                     "developer_name": project.get("developer_name"),
+                    "developer_pm_name": project.get("developer_pm_name"),
                     "contractor_name": project.get("contractor_name"),
                     "lawyer_name": project.get("lawyer_name"),
+                    "accompanying_lawyer": project.get(
+                        "accompanying_lawyer"
+                    ),
+                    "architect_name": project.get("architect_name"),
+                    "site_manager_name": project.get("site_manager_name"),
+                    "housing_units_count": project.get(
+                        "housing_units_count"
+                    ),
+                    "project_start_date": project.get(
+                        "project_start_date"
+                    ),
+                    "project_end_date": project.get("project_end_date"),
+                    "project_grace_end_date": project.get(
+                        "project_grace_end_date"
+                    ),
+                    "structure_documentation_date": project.get(
+                        "structure_documentation_date"
+                    ),
                     "project_type": project.get("project_type"),
                 }
                 for project in projects

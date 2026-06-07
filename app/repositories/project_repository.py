@@ -23,6 +23,12 @@ OPTIONAL_PROJECT_WRITE_COLUMNS = (
     "accompanying_lawyer",
     "architect_name",
     "site_manager_name",
+    "city",
+    "housing_units_count",
+    "project_start_date",
+    "project_end_date",
+    "project_grace_end_date",
+    "structure_documentation_date",
 )
 
 
@@ -76,6 +82,16 @@ class ProjectRepository:
         tags: list[str] | None = None,
         lifecycle_phase: str | None = None,
         scheme: str | None = None,
+        developer_pm_name: str | None = None,
+        accompanying_lawyer: str | None = None,
+        architect_name: str | None = None,
+        site_manager_name: str | None = None,
+        city: str | None = None,
+        housing_units_count: int | None = None,
+        project_start_date: str | None = None,
+        project_end_date: str | None = None,
+        project_grace_end_date: str | None = None,
+        structure_documentation_date: str | None = None,
         status: str = "ACTIVE",
     ):
 
@@ -155,6 +171,77 @@ class ProjectRepository:
                     project.scheme
                     if project and hasattr(project, "scheme")
                     else scheme
+                ),
+
+            "developer_pm_name":
+                (
+                    project.developer_pm_name
+                    if project and hasattr(project, "developer_pm_name")
+                    else developer_pm_name
+                ),
+
+            "accompanying_lawyer":
+                (
+                    project.accompanying_lawyer
+                    if project and hasattr(project, "accompanying_lawyer")
+                    else accompanying_lawyer
+                ),
+
+            "architect_name":
+                (
+                    project.architect_name
+                    if project and hasattr(project, "architect_name")
+                    else architect_name
+                ),
+
+            "site_manager_name":
+                (
+                    project.site_manager_name
+                    if project and hasattr(project, "site_manager_name")
+                    else site_manager_name
+                ),
+
+            "city":
+                (
+                    project.city
+                    if project and hasattr(project, "city")
+                    else city
+                ),
+
+            "housing_units_count":
+                (
+                    project.housing_units_count
+                    if project and hasattr(project, "housing_units_count")
+                    else housing_units_count
+                ),
+
+            "project_start_date":
+                (
+                    project.project_start_date
+                    if project and hasattr(project, "project_start_date")
+                    else project_start_date
+                ),
+
+            "project_end_date":
+                (
+                    project.project_end_date
+                    if project and hasattr(project, "project_end_date")
+                    else project_end_date
+                ),
+
+            "project_grace_end_date":
+                (
+                    project.project_grace_end_date
+                    if project and hasattr(project, "project_grace_end_date")
+                    else project_grace_end_date
+                ),
+
+            "structure_documentation_date":
+                (
+                    project.structure_documentation_date
+                    if project
+                    and hasattr(project, "structure_documentation_date")
+                    else structure_documentation_date
                 ),
 
             "status":
@@ -347,18 +434,63 @@ class ProjectRepository:
         if not payload:
             return self.get_project_by_id(project_id)
 
-        response = (
-            self.client
-            .table("projects")
-            .update(payload)
-            .eq("id", project_id)
-            .execute()
-        )
+        response = self._update_project(project_id, payload)
 
         if not response.data:
             return None
 
         return response.data[0]
+
+    def _update_project(
+        self,
+        project_id: str,
+        payload: dict,
+    ):
+        current_payload = dict(payload)
+        optional_columns = set(OPTIONAL_PROJECT_WRITE_COLUMNS)
+
+        while True:
+            try:
+                return (
+                    self.client
+                    .table("projects")
+                    .update(current_payload)
+                    .eq("id", project_id)
+                    .execute()
+                )
+
+            except APIError as error:
+                missing_column = next(
+                    (
+                        column
+                        for column in optional_columns
+                        if column in current_payload
+                        and _is_missing_column_error(
+                            error,
+                            column,
+                        )
+                    ),
+                    None,
+                )
+
+                if missing_column:
+                    optional_columns.discard(missing_column)
+                    current_payload.pop(missing_column, None)
+                    if not current_payload:
+                        raise APIError(
+                            {
+                                "message": (
+                                    "No project columns available for update. "
+                                    "Run deploy/sql/"
+                                    "2026060701_project_field_report_metadata_columns.sql "
+                                    "in Supabase SQL Editor."
+                                ),
+                                "code": "PGRST204",
+                            }
+                        ) from error
+                    continue
+
+                raise
 
     def delete_project(
         self,

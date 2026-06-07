@@ -851,6 +851,16 @@ class CreateProjectRequest(
     owner_id: str | None = None
     tags: list[str] = Field(default_factory=list)
     scheme: str | None = None
+    developer_pm_name: str | None = None
+    accompanying_lawyer: str | None = None
+    architect_name: str | None = None
+    site_manager_name: str | None = None
+    city: str | None = None
+    housing_units_count: int | None = None
+    project_start_date: str | None = None
+    project_end_date: str | None = None
+    project_grace_end_date: str | None = None
+    structure_documentation_date: str | None = None
 
 
 class EditProjectRequest(
@@ -863,6 +873,16 @@ class EditProjectRequest(
     supervisor_name: str | None = None
     supervisor_email: str | None = None
     scheme: str | None = None
+    developer_pm_name: str | None = None
+    accompanying_lawyer: str | None = None
+    architect_name: str | None = None
+    site_manager_name: str | None = None
+    city: str | None = None
+    housing_units_count: int | None = None
+    project_start_date: str | None = None
+    project_end_date: str | None = None
+    project_grace_end_date: str | None = None
+    structure_documentation_date: str | None = None
 
 
 class ProjectTagsRequest(
@@ -2708,6 +2728,16 @@ def create_project(
         owner_id=request.owner_id or auth.user_id,
         tags=request.tags,
         scheme=request.scheme,
+        developer_pm_name=request.developer_pm_name,
+        accompanying_lawyer=request.accompanying_lawyer,
+        architect_name=request.architect_name,
+        site_manager_name=request.site_manager_name,
+        city=request.city,
+        housing_units_count=request.housing_units_count,
+        project_start_date=request.project_start_date,
+        project_end_date=request.project_end_date,
+        project_grace_end_date=request.project_grace_end_date,
+        structure_documentation_date=request.structure_documentation_date,
     )
 
 
@@ -2722,6 +2752,16 @@ def edit_project(project_id: str, request: EditProjectRequest):
         supervisor_name=request.supervisor_name,
         supervisor_email=request.supervisor_email,
         scheme=request.scheme,
+        developer_pm_name=request.developer_pm_name,
+        accompanying_lawyer=request.accompanying_lawyer,
+        architect_name=request.architect_name,
+        site_manager_name=request.site_manager_name,
+        city=request.city,
+        housing_units_count=request.housing_units_count,
+        project_start_date=request.project_start_date,
+        project_end_date=request.project_end_date,
+        project_grace_end_date=request.project_grace_end_date,
+        structure_documentation_date=request.structure_documentation_date,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")

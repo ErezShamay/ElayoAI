@@ -37,6 +37,16 @@ class ProjectService:
         owner_id: str | None = None,
         tags: list[str] | None = None,
         scheme: str | None = None,
+        developer_pm_name: str | None = None,
+        accompanying_lawyer: str | None = None,
+        architect_name: str | None = None,
+        site_manager_name: str | None = None,
+        city: str | None = None,
+        housing_units_count: int | None = None,
+        project_start_date: str | None = None,
+        project_end_date: str | None = None,
+        project_grace_end_date: str | None = None,
+        structure_documentation_date: str | None = None,
     ):
         normalized_tags = self._normalize_tags(tags)
         return (
@@ -72,6 +82,36 @@ class ProjectService:
                 scheme=
                     _normalized_project_scheme(scheme),
 
+                developer_pm_name=
+                    developer_pm_name,
+
+                accompanying_lawyer=
+                    accompanying_lawyer,
+
+                architect_name=
+                    architect_name,
+
+                site_manager_name=
+                    site_manager_name,
+
+                city=
+                    city,
+
+                housing_units_count=
+                    housing_units_count,
+
+                project_start_date=
+                    project_start_date,
+
+                project_end_date=
+                    project_end_date,
+
+                project_grace_end_date=
+                    project_grace_end_date,
+
+                structure_documentation_date=
+                    structure_documentation_date,
+
                 status=
                     "ACTIVE",
             )
@@ -88,6 +128,16 @@ class ProjectService:
         supervisor_name: str | None = None,
         supervisor_email: str | None = None,
         scheme: str | None = None,
+        developer_pm_name: str | None = None,
+        accompanying_lawyer: str | None = None,
+        architect_name: str | None = None,
+        site_manager_name: str | None = None,
+        city: str | None = None,
+        housing_units_count: int | None = None,
+        project_start_date: str | None = None,
+        project_end_date: str | None = None,
+        project_grace_end_date: str | None = None,
+        structure_documentation_date: str | None = None,
     ):
         updates = {
             "project_name": project_name,
@@ -97,6 +147,16 @@ class ProjectService:
             "supervisor_name": supervisor_name,
             "supervisor_email": supervisor_email,
             "scheme": _normalized_project_scheme(scheme),
+            "developer_pm_name": developer_pm_name,
+            "accompanying_lawyer": accompanying_lawyer,
+            "architect_name": architect_name,
+            "site_manager_name": site_manager_name,
+            "city": city,
+            "housing_units_count": housing_units_count,
+            "project_start_date": project_start_date,
+            "project_end_date": project_end_date,
+            "project_grace_end_date": project_grace_end_date,
+            "structure_documentation_date": structure_documentation_date,
         }
         return self.project_repository.update_project(project_id, updates)
 

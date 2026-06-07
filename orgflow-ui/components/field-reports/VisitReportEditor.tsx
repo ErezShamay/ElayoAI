@@ -36,6 +36,11 @@ import {
   patchHeaderFieldsStakeholders,
   serializeHeaderFieldsForApi,
 } from "@/lib/field-reports/header-fields";
+import { fetchProjectPrefill } from "@/lib/field-reports/new-report-form";
+import {
+  applyProjectPrefillToHeaderFields,
+  headerNeedsProjectPrefill,
+} from "@/lib/field-reports/project-header-prefill";
 import { saveReportMetadataDraft } from "@/lib/field-reports/report-metadata-draft";
 import {
   defaultLineGroupSelection,
@@ -136,6 +141,7 @@ export default function VisitReportEditor({
     })
   );
   const headerInitialized = useRef(false);
+  const projectPrefillAttempted = useRef(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogFamilies, setCatalogFamilies] = useState<CatalogFamily[]>(
     []
@@ -260,6 +266,41 @@ export default function VisitReportEditor({
 
     void saveHeaderFields();
   }, headerAutosaveMs);
+
+  useEffect(() => {
+    projectPrefillAttempted.current = false;
+  }, [clientReportUuid]);
+
+  useEffect(() => {
+    if (
+      !report.is_editable
+      || !report.project_id
+      || projectPrefillAttempted.current
+    ) {
+      return;
+    }
+
+    if (!headerNeedsProjectPrefill(headerFields)) {
+      projectPrefillAttempted.current = true;
+      return;
+    }
+
+    projectPrefillAttempted.current = true;
+
+    void fetchProjectPrefill(report.project_id).then((prefill) => {
+      if (!prefill) {
+        return;
+      }
+
+      setHeaderFields((current) => {
+        if (!headerNeedsProjectPrefill(current)) {
+          return current;
+        }
+
+        return applyProjectPrefillToHeaderFields(current, prefill);
+      });
+    });
+  }, [report.is_editable, report.project_id]);
 
   useEffect(() => {
     if (!report.is_editable) {

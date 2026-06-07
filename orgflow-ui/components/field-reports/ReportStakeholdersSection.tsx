@@ -191,11 +191,11 @@ export default function ReportStakeholdersSection({
         <div>
           <h2 className="text-lg font-semibold">בעלי עניין</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            יזם, עו״ד, קבלן וכו׳ — נטענים גם משדות כותרת ישנים אם קיימים.
+            נטען אוטומטית מפרטי הפרויקט — ניתן לערוך לפני שליחת הדוח.
           </p>
           {showEmptyLegacyHint ? (
             <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
-              הוסף תפקיד או מלא מפרויקט — שדות ישנים בכותרת יסונכרנו אוטומטית.
+              טוען פרטים מהפרויקט… אם לא מולאו, לחץ «רענן מפרויקט».
             </p>
           ) : null}
         </div>
@@ -208,7 +208,7 @@ export default function ReportStakeholdersSection({
             disabled={prefillLoading}
             onClick={() => void prefillFromProject()}
           >
-            {prefillLoading ? "טוען..." : "מלא מפרויקט"}
+            {prefillLoading ? "טוען..." : "רענן מפרויקט"}
           </Button>
         ) : null}
       </div>

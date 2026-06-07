@@ -19,6 +19,7 @@ import {
 } from "@/lib/field-reports/data-source";
 import {
   createLocalVisitReport,
+  fetchProjectPrefill,
   parseNewReportFormFromApi,
   parseNewReportFormFromCatalog,
   syncNewVisitReportToServer,
@@ -188,6 +189,11 @@ export default function NewFieldVisitReportPage() {
       setError("");
       setNotice("");
 
+      let projectPrefill = selectedProject?.prefill ?? null;
+      if (!projectPrefill && canCallVisitReportApi) {
+        projectPrefill = await fetchProjectPrefill(projectId);
+      }
+
       const localReport = await createLocalVisitReport({
         organizationId,
         userId: profile?.id ?? null,
@@ -198,6 +204,7 @@ export default function NewFieldVisitReportPage() {
         visitDate,
         catalogVersion,
         organizationProfileSnapshot,
+        projectPrefill,
       });
 
       if (canCallVisitReportApi) {

@@ -2,6 +2,11 @@ import {
   normalizeHeaderFields,
   serializeHeaderFieldsForApi,
 } from "@/lib/field-reports/header-fields";
+import {
+  applyProjectPrefillToHeaderFields,
+  projectPrefillSourceFromRecord,
+  type ProjectPrefillSource,
+} from "@/lib/field-reports/project-header-prefill";
 import type { OfflinePrepBundle } from "@/lib/field-reports/offline-store-types";
 import {
   saveLocalReport,
@@ -12,6 +17,7 @@ import { apiFetch } from "@/lib/api/client";
 export type NewReportProject = {
   id: string;
   project_name: string;
+  prefill?: ProjectPrefillSource | null;
 };
 
 export type NewReportVisitType = {
@@ -33,6 +39,7 @@ export function parseNewReportFormFromCatalog(
       project_name: String(
         project.project_name ?? project.id ?? "פרויקט"
       ),
+      prefill: projectPrefillSourceFromRecord(project),
     }))
     .filter((project) => project.id);
 
@@ -56,17 +63,25 @@ export type CreateLocalVisitReportParams = {
   visitDate: string;
   catalogVersion?: string | null;
   organizationProfileSnapshot?: Record<string, unknown> | null;
+  projectPrefill?: ProjectPrefillSource | null;
 };
 
 /** יוצר דוח מקומי עם UUID — מקור אמת בשטח (FR-011). */
 export async function createLocalVisitReport(
   params: CreateLocalVisitReportParams
 ): Promise<LocalVisitReportRecord> {
-  const headerFields = serializeHeaderFieldsForApi(
-    normalizeHeaderFields({}, params.visitType, {
-      visitDate: params.visitDate,
-    })
-  );
+  let normalized = normalizeHeaderFields({}, params.visitType, {
+    visitDate: params.visitDate,
+  });
+
+  if (params.projectPrefill) {
+    normalized = applyProjectPrefillToHeaderFields(
+      normalized,
+      params.projectPrefill
+    );
+  }
+
+  const headerFields = serializeHeaderFieldsForApi(normalized);
 
   return saveLocalReport({
     organization_id: params.organizationId,
@@ -115,16 +130,24 @@ export async function syncNewVisitReportToServer(
     return { ok: false, message: String(message) };
   }
 
-  const report = (await response.json()) as { id?: string };
+  const report = (await response.json()) as {
+    id?: string;
+    header_fields?: Record<string, unknown>;
+  };
   const serverReportId = report.id ? String(report.id) : "";
 
   if (!serverReportId) {
     return { ok: false, message: "תשובת השרת חסרה מזהה דוח" };
   }
 
+  const serverHeaderFields = report.header_fields;
   await saveLocalReport({
     ...localReport,
     server_report_id: serverReportId,
+    header_fields:
+      serverHeaderFields && Object.keys(serverHeaderFields).length > 0
+        ? serverHeaderFields
+        : localReport.header_fields,
   });
 
   return { ok: true, serverReportId };
@@ -151,6 +174,7 @@ export async function parseNewReportFormFromApi(): Promise<NewReportFormData> {
     .map((project) => ({
       id: String(project.id ?? ""),
       project_name: String(project.project_name ?? project.id ?? "פרויקט"),
+      prefill: projectPrefillSourceFromRecord(project),
     }))
     .filter((project) => project.id);
 
@@ -164,4 +188,19 @@ export async function parseNewReportFormFromApi(): Promise<NewReportFormData> {
     .filter((visitType) => visitType.code);
 
   return { projects, visitTypes };
+}
+
+/** טוען פרטי prefill מ-workspace כשאין בחבילה המקומית. */
+export async function fetchProjectPrefill(
+  projectId: string
+): Promise<ProjectPrefillSource | null> {
+  const response = await apiFetch(`/projects/${projectId}/workspace`);
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as {
+    project?: Record<string, unknown>;
+  };
+  return projectPrefillSourceFromRecord(payload.project);
 }

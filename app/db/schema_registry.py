@@ -42,7 +42,7 @@ class TableSchema:
     audited: bool = True
 
 
-SCHEMA_VERSION = "2026060401"
+SCHEMA_VERSION = "2026060701"
 
 # Matches deploy/sql/20260604_enable_rls_best_practice.sql (authenticated SELECT + service_role bypass).
 ORGFLOW_TENANT_ISOLATION = (
@@ -555,6 +555,15 @@ MIGRATION_SCRIPTS: list[dict] = [
             "service_role backend unchanged"
         ),
         "tables": list(TABLES.keys()),
+    },
+    {
+        "version": "2026060701",
+        "name": "project_field_report_metadata_columns",
+        "description": (
+            "Extended project metadata for field-report prefill "
+            "(scheme, stakeholders, dates, city, housing units)"
+        ),
+        "tables": ["projects"],
     },
 ]
 
