@@ -154,6 +154,10 @@ from app.services.field_report_organization_profile_service import (
     FieldReportOrganizationProfileService,
 )
 
+from app.services.field_visit_report_export_service import (
+    FieldVisitReportExportService,
+)
+
 from app.services.field_visit_report_service import (
     FieldVisitReportService,
 )
@@ -679,6 +683,8 @@ field_visit_report_service = FieldVisitReportService(
         field_report_organization_profile_service
     ),
 )
+
+field_visit_report_export_service = FieldVisitReportExportService()
 
 tenant_migration_service = TenantMigrationService()
 
@@ -1530,6 +1536,33 @@ def get_admin_field_report_organization_profile(
     return field_report_organization_profile_service.get_profile(
         organization_id,
         require_module=False,
+    )
+
+
+@app.get(
+    "/admin/field-reports/organizations/{organization_id}/export"
+)
+def export_admin_field_report_pdfs(
+    organization_id: str,
+    _: object = Depends(
+        require_permission("field_reports:admin")
+    ),
+):
+    content, filename = (
+        field_visit_report_export_service.export_organization_pdfs_zip(
+            organization_id
+        )
+    )
+    safe_filename = quote(filename)
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{safe_filename}"; '
+                f"filename*=UTF-8''{safe_filename}"
+            ),
+        },
     )
 
 

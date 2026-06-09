@@ -101,6 +101,9 @@ function AdminUsersContent() {
   const [togglingModuleOrgId, setTogglingModuleOrgId] = useState<
     string | null
   >(null);
+  const [exportingReportsOrgId, setExportingReportsOrgId] = useState<
+    string | null
+  >(null);
   const [editingProfileOrgId, setEditingProfileOrgId] = useState<
     string | null
   >(null);
@@ -339,6 +342,57 @@ function AdminUsersContent() {
       toast.error(message);
     } finally {
       setTogglingModuleOrgId(null);
+    }
+  }
+
+  async function handleExportFieldReports(
+    organizationId: string,
+    organizationName: string
+  ) {
+    try {
+      setExportingReportsOrgId(organizationId);
+      setError("");
+
+      const response = await apiFetch(
+        `/admin/field-reports/organizations/${organizationId}/export`
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(
+          data?.error?.message
+          || data?.detail
+          || "ייצוא הדוחות נכשל"
+        );
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition");
+      const filenameMatch = disposition?.match(
+        /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i
+      );
+      const encodedFilename = filenameMatch?.[1] || filenameMatch?.[2];
+      const downloadName = encodedFilename
+        ? decodeURIComponent(encodedFilename)
+        : `field-reports_${organizationName}.zip`;
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = downloadName;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+
+      toast.success("הורדת הדוחות החלה");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "ייצוא הדוחות נכשל";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setExportingReportsOrgId(null);
     }
   }
 
@@ -1117,6 +1171,25 @@ function AdminUsersContent() {
                         {loadingProfileOrgId === row.organization_id
                           ? "טוען..."
                           : "פרופיל דוח"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={
+                          !fieldReportStorageAvailable
+                          || exportingReportsOrgId === row.organization_id
+                        }
+                        onClick={() =>
+                          void handleExportFieldReports(
+                            row.organization_id,
+                            row.organization_name
+                          )
+                        }
+                      >
+                        {exportingReportsOrgId === row.organization_id
+                          ? "מוריד..."
+                          : "הורדת כל הדוחות"}
                       </Button>
                     </div>
                   </div>

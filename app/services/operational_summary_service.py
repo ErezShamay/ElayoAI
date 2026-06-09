@@ -12,6 +12,10 @@ from app.repositories.ai_interpretation_repository import (
     AIInterpretationRepository
 )
 
+from app.repositories.project_repository import (
+    ProjectRepository
+)
+
 _SUMMARY_CACHE_TTL_SECONDS = 300
 _summary_cache: dict[str, tuple[float, dict]] = {}
 
@@ -26,6 +30,10 @@ class OperationalSummaryService:
 
         self.review_repository = (
             AIInterpretationRepository()
+        )
+
+        self.project_repository = (
+            ProjectRepository()
         )
 
     def generate_project_summary(
@@ -94,13 +102,25 @@ class OperationalSummaryService:
 4. המלצת ניהול
 """
 
+        project = (
+            self.project_repository
+            .get_project_by_id(project_id)
+        )
+        organization_id = (
+            project.get("organization_id")
+            if project
+            else None
+        )
+
         try:
             summary = (
                 AIClient()
                 .generate(
                     prompt,
                     prompt_name=
-                        "project_operational_summary"
+                        "project_operational_summary",
+                    organization_id=organization_id,
+                    project_id=project_id,
                 )
             )
         except Exception:

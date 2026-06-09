@@ -16,12 +16,21 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MIGRATION_FILE = (
+DEFAULT_MIGRATION_FILE = (
     REPO_ROOT
     / "deploy"
     / "sql"
     / "2026060701_project_field_report_metadata_columns.sql"
 )
+
+
+def _resolve_migration_file() -> Path:
+    if len(sys.argv) > 1:
+        candidate = Path(sys.argv[1])
+        if not candidate.is_absolute():
+            candidate = REPO_ROOT / "deploy" / "sql" / candidate.name
+        return candidate
+    return DEFAULT_MIGRATION_FILE
 
 POOLER_REGIONS = (
     "eu-central-1",
@@ -86,8 +95,10 @@ def _apply_sql(conninfo: str, sql: str) -> None:
 def main() -> int:
     load_dotenv(REPO_ROOT / ".env")
 
-    if not MIGRATION_FILE.is_file():
-        print(f"Missing migration file: {MIGRATION_FILE}", file=sys.stderr)
+    migration_file = _resolve_migration_file()
+
+    if not migration_file.is_file():
+        print(f"Missing migration file: {migration_file}", file=sys.stderr)
         return 1
 
     supabase_url = os.getenv("SUPABASE_URL", "").strip()
@@ -105,7 +116,7 @@ def main() -> int:
         )
         return 1
 
-    sql = MIGRATION_FILE.read_text(encoding="utf-8")
+    sql = migration_file.read_text(encoding="utf-8")
     candidates = _connection_candidates(
         supabase_url=supabase_url,
         password=password or "unused",
@@ -119,7 +130,7 @@ def main() -> int:
             _apply_sql(conninfo, sql)
             print(
                 "Applied migration:",
-                MIGRATION_FILE.name,
+                migration_file.name,
             )
             return 0
         except Exception as error:

@@ -59,6 +59,8 @@ class AIClient:
         prompt: str,
         prompt_name: str | None = None,
         use_cache: bool = True,
+        organization_id: str | None = None,
+        project_id: str | None = None,
     ) -> str:
         self.safety_guard.check_prompt_injection(prompt)
         replay_token = str(uuid4())
@@ -79,6 +81,8 @@ class AIClient:
                     hallucination_risk=0.0,
                     governance={"allowed": True, "reasons": []},
                     replay_token=replay_token,
+                    organization_id=organization_id,
+                    project_id=project_id,
                 )
                 return cached_response
 
@@ -128,6 +132,8 @@ class AIClient:
                         hallucination_risk=hallucination_risk,
                         governance=governance,
                         replay_token=replay_token,
+                        organization_id=organization_id,
+                        project_id=project_id,
                     )
                     return provider_response.content
                 except Exception as e:
@@ -141,6 +147,8 @@ class AIClient:
                         error=e,
                         duration_ms=duration_ms,
                         replay_token=replay_token,
+                        organization_id=organization_id,
+                        project_id=project_id,
                     )
                     continue
 
@@ -159,25 +167,30 @@ class AIClient:
         hallucination_risk: float,
         governance: dict,
         replay_token: str,
+        organization_id: str | None = None,
+        project_id: str | None = None,
     ) -> None:
-        AILogRepository.create_log(
-            {
-                "provider": provider_name,
-                "model_name": provider_response.model_name or DEFAULT_AI_MODEL,
-                "prompt_name": prompt_name,
-                "prompt": prompt,
-                "response": provider_response.content,
-                "success": True,
-                "duration_ms": duration_ms,
-                "prompt_tokens": provider_response.prompt_tokens,
-                "completion_tokens": provider_response.completion_tokens,
-                "cache_hit": cache_hit,
-                "confidence_score": confidence_score,
-                "hallucination_risk": hallucination_risk,
-                "governance": governance,
-                "replay_token": replay_token,
-            }
-        )
+        payload = {
+            "provider": provider_name,
+            "model_name": provider_response.model_name or DEFAULT_AI_MODEL,
+            "prompt_name": prompt_name,
+            "prompt": prompt,
+            "response": provider_response.content,
+            "success": True,
+            "duration_ms": duration_ms,
+            "prompt_tokens": provider_response.prompt_tokens,
+            "completion_tokens": provider_response.completion_tokens,
+            "cache_hit": cache_hit,
+            "confidence_score": confidence_score,
+            "hallucination_risk": hallucination_risk,
+            "governance": governance,
+            "replay_token": replay_token,
+        }
+        if organization_id:
+            payload["organization_id"] = organization_id
+        if project_id:
+            payload["project_id"] = project_id
+        AILogRepository.create_log(payload)
 
     def _log_failure(
         self,
@@ -188,20 +201,25 @@ class AIClient:
         error: Exception,
         duration_ms: int,
         replay_token: str,
+        organization_id: str | None = None,
+        project_id: str | None = None,
     ) -> None:
-        AILogRepository.create_log(
-            {
-                "provider": provider_name,
-                "model_name": DEFAULT_AI_MODEL,
-                "prompt_name": prompt_name,
-                "prompt": prompt,
-                "response": None,
-                "success": False,
-                "error_message": str(error),
-                "duration_ms": duration_ms,
-                "replay_token": replay_token,
-            }
-        )
+        payload = {
+            "provider": provider_name,
+            "model_name": DEFAULT_AI_MODEL,
+            "prompt_name": prompt_name,
+            "prompt": prompt,
+            "response": None,
+            "success": False,
+            "error_message": str(error),
+            "duration_ms": duration_ms,
+            "replay_token": replay_token,
+        }
+        if organization_id:
+            payload["organization_id"] = organization_id
+        if project_id:
+            payload["project_id"] = project_id
+        AILogRepository.create_log(payload)
 
     def generate_structured(
         self,

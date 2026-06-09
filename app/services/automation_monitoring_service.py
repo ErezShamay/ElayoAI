@@ -1,9 +1,19 @@
+from postgrest.exceptions import APIError
+
 from app.db.supabase_client import (
     supabase
 )
 
 from app.repositories.ai_execution_log_repository import (
     AIExecutionLogRepository
+)
+
+from app.repositories.ai_log_repository import (
+    AILogRepository,
+)
+
+from app.repositories.postgrest_errors import (
+    is_missing_column_error,
 )
 
 from app.services.tenant_scope_service import (
@@ -28,9 +38,15 @@ class AutomationMonitoringService:
             AIExecutionLogRepository()
         )
 
+        self.ai_log_repository = (
+            AILogRepository()
+        )
+
         self.tenant_scope_service = (
             TenantScopeService()
         )
+
+        self._supports_automation_runs_org_column: bool | None = None
 
     def _organization_project_ids(
         self,
@@ -44,6 +60,27 @@ class AutomationMonitoringService:
             )
         )
 
+    def _supports_automation_runs_org_scope(self) -> bool:
+        if self._supports_automation_runs_org_column is not None:
+            return self._supports_automation_runs_org_column
+
+        try:
+            (
+                self.client
+                .table("automation_runs")
+                .select("organization_id")
+                .limit(1)
+                .execute()
+            )
+            self._supports_automation_runs_org_column = True
+        except APIError as error:
+            if is_missing_column_error(error, "organization_id"):
+                self._supports_automation_runs_org_column = False
+            else:
+                raise
+
+        return self._supports_automation_runs_org_column
+
     def _scoped_automation_runs_query(
         self,
         organization_id: str | None,
@@ -56,10 +93,16 @@ class AutomationMonitoringService:
         )
 
         if organization_id:
-            request = request.eq(
-                "organization_id",
-                organization_id,
-            )
+            if self._supports_automation_runs_org_scope():
+                request = request.eq(
+                    "organization_id",
+                    organization_id,
+                )
+            else:
+                request = request.eq(
+                    "id",
+                    "00000000-0000-0000-0000-000000000000",
+                )
 
         return request
 
@@ -73,17 +116,20 @@ class AutomationMonitoringService:
         organization_id: str | None = None,
     ):
 
-        response = (
-            self._scoped_automation_runs_query(
-                organization_id
+        try:
+            response = (
+                self._scoped_automation_runs_query(
+                    organization_id
+                )
+                .order(
+                    "started_at",
+                    desc=True
+                )
+                .limit(limit)
+                .execute()
             )
-            .order(
-                "started_at",
-                desc=True
-            )
-            .limit(limit)
-            .execute()
-        )
+        except APIError:
+            return []
 
         return response.data or []
 
@@ -248,12 +294,24 @@ class AutomationMonitoringService:
             )
         )
 
+        ai_runtime_summary = (
+            self.build_ai_runtime_summary(
+                organization_id=organization_id,
+            )
+        )
+
         has_activity = (
             self._has_observed_automation_activity(
                 summary,
                 ai_recovery,
+                ai_runtime_summary,
             )
         )
+
+        if health == "NO_DATA" and has_activity:
+            health = self.resolve_ai_runtime_health(
+                ai_runtime_summary
+            )
 
         return {
 
@@ -602,6 +660,7 @@ class AutomationMonitoringService:
         self,
         summary: dict,
         ai_recovery: dict,
+        ai_runtime_summary: dict | None = None,
     ) -> bool:
 
         return (
@@ -629,7 +688,95 @@ class AutomationMonitoringService:
                 "dead_letter_count",
                 0,
             ) > 0
+            or (ai_runtime_summary or {}).get(
+                "total",
+                0,
+            ) > 0
         )
+
+    def _map_ai_log_to_execution(
+        self,
+        row: dict,
+    ) -> dict:
+
+        return {
+            "id": row.get("id"),
+            "execution_type": row.get("prompt_name") or "AI_RUNTIME",
+            "status": (
+                "SUCCESS"
+                if row.get("success")
+                else "FAILED"
+            ),
+            "confidence_score": row.get("confidence_score"),
+            "failure_type": (
+                None
+                if row.get("success")
+                else "AI_RUNTIME_FAILURE"
+            ),
+            "severity": None,
+            "created_at": row.get("created_at"),
+            "project_id": row.get("project_id"),
+            "provider": row.get("provider"),
+            "model_name": row.get("model_name"),
+        }
+
+    def build_ai_runtime_summary(
+        self,
+        organization_id: str | None = None,
+    ) -> dict:
+
+        project_ids = None
+        if organization_id:
+            project_ids = (
+                self._organization_project_ids(
+                    organization_id
+                )
+            )
+
+        rows = (
+            self.ai_log_repository
+            .list_recent_for_scope(
+                limit=100,
+                organization_id=organization_id,
+                project_ids=project_ids,
+            )
+        )
+
+        total = len(rows)
+        failed = len([
+            row for row in rows
+            if not row.get("success")
+        ])
+        successful = total - failed
+
+        success_rate = (
+            round(
+                successful / total * 100,
+                1,
+            )
+            if total
+            else None
+        )
+
+        return {
+            "total": total,
+            "successful": successful,
+            "failed": failed,
+            "success_rate": success_rate,
+        }
+
+    def resolve_ai_runtime_health(
+        self,
+        ai_runtime_summary: dict,
+    ) -> str:
+
+        if ai_runtime_summary.get("failed", 0) > 0:
+            return "DEGRADED"
+
+        if ai_runtime_summary.get("total", 0) > 0:
+            return "HEALTHY"
+
+        return "NO_DATA"
 
     def resolve_dashboard_health(
         self,
@@ -821,6 +968,35 @@ class AutomationMonitoringService:
                 project_ids=project_ids,
             )
         )
+
+        runtime_logs = (
+            self.ai_log_repository
+            .list_recent_for_scope(
+                limit=100,
+                organization_id=organization_id,
+                project_ids=project_ids,
+            )
+        )
+        runtime_executions = [
+            self._map_ai_log_to_execution(row)
+            for row in runtime_logs
+        ]
+
+        merged_by_id = {
+            execution["id"]: execution
+            for execution in executions
+            if execution.get("id")
+        }
+        for execution in runtime_executions:
+            execution_id = execution.get("id")
+            if execution_id and execution_id not in merged_by_id:
+                merged_by_id[execution_id] = execution
+
+        executions = sorted(
+            merged_by_id.values(),
+            key=lambda item: item.get("created_at") or "",
+            reverse=True,
+        )[:100]
 
         status_counts = (
             self.count_by_key(

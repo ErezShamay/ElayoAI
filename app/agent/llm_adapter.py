@@ -1,7 +1,26 @@
 import json
+import re
 
 from app.agent.intent_detector import IntentDetector
 from app.config.settings import settings
+
+
+def _parse_json_output(text: str) -> dict:
+    cleaned = (text or "").strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(
+            r"^```(?:json)?\s*|\s*```$",
+            "",
+            cleaned,
+            flags=re.IGNORECASE | re.DOTALL,
+        ).strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        raise ValueError("No JSON object found in model response")
+
+    return json.loads(cleaned[start : end + 1])
 
 
 class LLMAdapter:
@@ -118,7 +137,7 @@ class LLMAdapter:
                 input=prompt
             )
 
-            data = json.loads(response.output_text)
+            data = _parse_json_output(response.output_text)
             data["source"] = "OPENAI"
             return data
 
@@ -157,7 +176,7 @@ class LLMAdapter:
                 input=prompt
             )
 
-            data = json.loads(response.output_text)
+            data = _parse_json_output(response.output_text)
             data["source"] = "OPENAI"
             return data
 

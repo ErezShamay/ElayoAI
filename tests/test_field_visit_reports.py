@@ -208,6 +208,24 @@ class FakeVisitReportRepository:
             reverse=True,
         )
 
+    def list_archived_by_organization(
+        self,
+        *,
+        organization_id: str,
+    ) -> list[dict]:
+        items = [
+            record
+            for record in self.records.values()
+            if record["organization_id"] == organization_id
+            and record.get("status") == "LOCKED"
+            and record.get("pdf_storage_path")
+        ]
+        return sorted(
+            items,
+            key=lambda record: record.get("visit_date") or "",
+            reverse=True,
+        )
+
     def get_open_for_project(
         self,
         *,
