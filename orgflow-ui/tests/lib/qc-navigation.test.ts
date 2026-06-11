@@ -13,10 +13,11 @@ import {
 } from "@/lib/qc-navigation";
 
 describe("qc navigation (spec 0.4)", () => {
-  it("defines exactly four primary nav items", () => {
-    expect(QC_PRIMARY_NAV_ITEMS).toHaveLength(4);
+  it("defines primary nav items including operational review", () => {
+    expect(QC_PRIMARY_NAV_ITEMS).toHaveLength(5);
     expect(QC_PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
       "תיק QC",
+      "סקירה תפעולית",
       "פרויקטים",
       "דוחות שטח",
       "ליקויים",
@@ -33,9 +34,10 @@ describe("qc navigation (spec 0.4)", () => {
 
   it("shows full primary nav for supervisor", () => {
     const links = getQCPrimaryNavLinks({ role: "SUPERVISOR" });
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(5);
     expect(links.map((link) => link.href)).toEqual([
       "/portfolio",
+      "/operational-review",
       "/projects",
       "/field-reports",
       "/issues",
@@ -51,6 +53,7 @@ describe("qc navigation (spec 0.4)", () => {
     const links = getQCPrimaryNavLinks({ role: "DEVELOPER" });
     expect(links.map((link) => link.label)).toEqual([
       "תיק QC",
+      "סקירה תפעולית",
       "פרויקטים",
       "דוחות שטח",
       "ליקויים",
@@ -63,7 +66,7 @@ describe("qc navigation (spec 0.4)", () => {
       fieldReportsEnabled: false,
     });
     expect(links.map((link) => link.href)).not.toContain("/field-reports");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(4);
   });
 
   it("builds project nav without operational actions", () => {

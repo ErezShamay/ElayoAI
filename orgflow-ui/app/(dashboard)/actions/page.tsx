@@ -102,7 +102,7 @@ export default function ActionsPage() {
         return "חסום";
 
       case "ESCALATED":
-        return "הוסלם";
+        return "נקודת סיכון";
 
       case "COMPLETED":
         return "הושלם";
@@ -505,7 +505,7 @@ export default function ActionsPage() {
                           transition
                         "
                       >
-                        הסלם
+                        סמן כנקודת סיכון
                       </button>
 
                     )

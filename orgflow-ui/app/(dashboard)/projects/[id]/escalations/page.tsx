@@ -75,7 +75,7 @@ export default function ProjectEscalationsPage({
                   text-white
                 "
               >
-                הסלמה
+                סמן כנקודת סיכון
               </button>
             </div>
           </div>

@@ -767,7 +767,7 @@ export function useProjectWorkspace(
       await loadWorkspace({ silent: true });
 
       toast.success(
-        "הפעולה הוסלמה"
+        "נוצרה נקודת סיכון"
       );
 
     } catch (error) {
@@ -778,7 +778,7 @@ export function useProjectWorkspace(
       );
 
       toast.error(
-        "שגיאה בהסלמת הפעולה"
+        "שגיאה ביצירת נקודת סיכון"
       );
     }
   }

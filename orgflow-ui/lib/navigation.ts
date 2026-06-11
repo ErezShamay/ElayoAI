@@ -192,9 +192,10 @@ export const FIELD_REPORTS_ROUTE = {
   label: "דוחות שטח",
 } as const;
 
-/** QC primary nav (spec 0.4 / stage 5.1) - max 4 items for dashboard sidebar. */
+/** QC primary nav (spec 0.4 / stage 5.1) for dashboard sidebar. */
 export const GLOBAL_NAV_LINKS: NavLink[] = filterPrimaryNavLinks([
   { href: "/portfolio", label: "תיק QC" },
+  { href: "/operational-review", label: "סקירה תפעולית" },
   { href: "/projects", label: "פרויקטים" },
   FIELD_REPORTS_ROUTE,
   { href: "/issues", label: "ליקויים" },

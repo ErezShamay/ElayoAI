@@ -36,6 +36,7 @@ type UploadedReport = {
   id: string;
   title: string;
   report_source: string;
+  visit_date?: string | null;
   created_at?: string | null;
   text_preview?: string | null;
   recommended_action?: string | null;
@@ -101,6 +102,18 @@ function parseTimestamp(value?: string | null) {
 
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function uploadReportSortDate(report: UploadedReport) {
+  return parseTimestamp(report.visit_date) || parseTimestamp(report.created_at);
+}
+
+function formatUploadedReportDate(report: UploadedReport) {
+  if (report.visit_date) {
+    return `תאריך ביקור: ${formatDate(report.visit_date)}`;
+  }
+
+  return `תאריך העלאה: ${formatDateTime(report.created_at)}`;
 }
 
 async function downloadArchivedReportPdf(
@@ -277,7 +290,7 @@ export default function ProjectDocumentsArchive({
       items.push({
         kind: "upload",
         id: report.id,
-        sortDate: parseTimestamp(report.created_at),
+        sortDate: uploadReportSortDate(report),
         report,
       });
     }
@@ -498,7 +511,7 @@ function UnifiedDocumentsList({
                 <div>
                   <p className="font-medium">{report.title}</p>
                   <p className="mt-1 text-sm text-zinc-500">
-                    {formatDateTime(report.created_at)}
+                    {formatUploadedReportDate(report)}
                     {" · "}
                     סיווג: {getReportSourceLabel(report.report_source)}
                   </p>
@@ -667,7 +680,7 @@ function UploadedReportsSection({
               <div>
                 <p className="font-medium">{report.title}</p>
                 <p className="mt-1 text-sm text-zinc-500">
-                  {formatDateTime(report.created_at)}
+                  {formatUploadedReportDate(report)}
                   {" · "}
                   סיווג: {getReportSourceLabel(report.report_source)}
                 </p>

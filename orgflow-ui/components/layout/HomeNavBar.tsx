@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import UserMenu from "@/components/auth/UserMenu";
-import OrgSwitcher from "@/components/admin/OrgSwitcher";
 import SystemNavDropdown from "@/components/layout/SystemNavDropdown";
 import BrandLogo from "@/components/ui/BrandLogo";
 import {
@@ -36,10 +35,7 @@ export default function HomeNavBar() {
         >
           <BrandLogo />
 
-          <div className="flex shrink-0 items-center gap-2">
-            <OrgSwitcher />
-            <UserMenu />
-          </div>
+          <UserMenu />
         </div>
 
         <nav

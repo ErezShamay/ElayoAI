@@ -120,3 +120,39 @@ def test_materialize_from_upload_finding_skips_empty_content() -> None:
     )
 
     assert result is None
+
+
+def test_materialize_from_upload_finding_accepts_lowercase_issue_severity() -> None:
+    issues = InMemoryQualityIssueRepository()
+    events = InMemoryQualityIssueEventRepository()
+
+    class LowercaseSeverityIssueRepository(InMemoryQualityIssueRepository):
+        def create(self, **kwargs):
+            issue = super().create(**kwargs)
+            issue["severity"] = str(issue.get("severity", "")).lower()
+            self.records[issue["id"]] = issue
+            return issue
+
+    service = QualityIssueUploadFindingService(
+        issue_repository=LowercaseSeverityIssueRepository(),
+        event_repository=events,
+        project_repository=FakeProjectRepository(),
+    )
+
+    result = service.materialize_from_upload_finding(
+        project_id="project-1",
+        report_id="weekly-report-1",
+        finding={
+            "id": "finding-1",
+            "summary": "ליקוי בגג",
+            "title": "weekly.pdf",
+            "finding_type": "QUALITY",
+            "severity": "medium",
+            "created_at": qc_now_iso(),
+        },
+    )
+
+    assert result is not None
+    assert result.created is True
+    detected = events.list_by_issue_id(str(result.issue_id))
+    assert detected[0]["payload"]["severity"] == "MEDIUM"

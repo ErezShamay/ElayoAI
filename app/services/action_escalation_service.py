@@ -78,10 +78,10 @@ class ActionEscalationService:
                         "AUTO_ESCALATION",
 
                     title=
-                        "הסלמה אוטומטית",
+                        "נקודת סיכון אוטומטית",
 
                     description=
-                        f"{action['title']} הוסלמה אוטומטית עקב חריגה מיעד",
+                        f"נוצרה נקודת סיכון אוטומטית עבור {action['title']} עקב חריגה מיעד",
                 )
 
                 escalated_count += 1

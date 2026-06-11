@@ -14,6 +14,7 @@ import {
 export type QCPrimaryNavId =
   | "field_reports"
   | "issues"
+  | "operational_review"
   | "qc_portfolio"
   | "projects";
 
@@ -45,6 +46,12 @@ export const QC_PORTFOLIO_ROUTE = {
   label: "תיק QC",
 };
 
+export const QC_OPERATIONAL_REVIEW_ROUTE = {
+  id: "operational_review" as const,
+  href: "/operational-review",
+  label: "סקירה תפעולית",
+};
+
 export const QC_PROJECTS_ROUTE = {
   id: "projects" as const,
   href: "/projects",
@@ -68,6 +75,10 @@ export const QC_PRIMARY_NAV_ITEMS: ReadonlyArray<
 > = [
   {
     ...QC_PORTFOLIO_ROUTE,
+    requiredPermission: "quality_portfolio:read",
+  },
+  {
+    ...QC_OPERATIONAL_REVIEW_ROUTE,
     requiredPermission: "quality_portfolio:read",
   },
   {
@@ -100,6 +111,7 @@ const PRIMARY_NAV_PERSONA_VISIBILITY: Record<
 > = {
   field_reports: new Set(["SUPERVISOR", "ADMIN", "DEVELOPER"]),
   issues: new Set(["SUPERVISOR", "CONTRACTOR", "DEVELOPER", "ADMIN"]),
+  operational_review: new Set(["SUPERVISOR", "DEVELOPER", "ADMIN"]),
   qc_portfolio: new Set(["SUPERVISOR", "DEVELOPER", "ADMIN"]),
   projects: new Set(["SUPERVISOR", "CONTRACTOR", "DEVELOPER", "ADMIN"]),
 };

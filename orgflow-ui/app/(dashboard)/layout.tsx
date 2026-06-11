@@ -2,8 +2,8 @@ import Sidebar from "@/app/components/sidebar";
 
 import ContractorRouteGuard from "@/components/auth/ContractorRouteGuard";
 import UserMenu from "@/components/auth/UserMenu";
-import OrgSwitcher from "@/components/admin/OrgSwitcher";
 import DashboardProviders from "@/components/dashboard/DashboardProviders";
+import WorkspaceContextBar from "@/components/layout/WorkspaceContextBar";
 
 export default function DashboardLayout({
   children,
@@ -25,17 +25,16 @@ export default function DashboardLayout({
             flex
             h-auto
             min-h-[4.5rem]
-            flex-wrap
             items-center
-            justify-end
+            justify-between
             gap-4
             px-4
             py-3
             md:px-8
           "
         >
-          <div className="flex flex-wrap items-center gap-2">
-            <OrgSwitcher />
+          <WorkspaceContextBar />
+          <div className="shrink-0">
             <UserMenu />
           </div>
         </header>

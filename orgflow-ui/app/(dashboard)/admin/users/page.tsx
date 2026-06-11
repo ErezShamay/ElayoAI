@@ -12,7 +12,7 @@ import { toast } from "sonner";
 
 import AdminGuard from "@/components/admin/AdminGuard";
 import DeleteOrganizationDialog from "@/components/admin/DeleteOrganizationDialog";
-import { TenantMigrationBanner } from "@/components/admin/OrgSwitcher";
+import { TenantMigrationBanner } from "@/components/admin/TenantMigrationBanner";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -373,7 +373,7 @@ function AdminUsersContent() {
 
       toast.success(
         nextEnabled
-          ? "מודול מנהל דיירים הופעל - ודא שבחרת את אותו לקוח בסוויצ'ר בראש הדף"
+          ? "מודול מנהל דיירים הופעל"
           : "מודול מנהל דיירים כובה"
       );
       dispatchTenantManagerModuleChanged(organizationId);

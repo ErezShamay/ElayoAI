@@ -228,7 +228,7 @@ class SLAMonitoringService:
             description=
                 (
                     "המערכת זיהתה חריגת SLA "
-                    "אוטומטית ונוצרה הסלמה."
+                    "אוטומטית ונוצרה נקודת סיכון."
                 ),
 
             action_type=
@@ -292,11 +292,11 @@ class SLAMonitoringService:
                 "AUTO_ESCALATION",
 
             title=
-                "נוצרה הסלמה אוטומטית",
+                "נוצרה נקודת סיכון אוטומטית",
 
             description=
                 (
-                    f"נוצרה הסלמה עבור "
+                    f"נוצרה נקודת סיכון עבור "
                     f"{action['title']}"
                 ),
         )

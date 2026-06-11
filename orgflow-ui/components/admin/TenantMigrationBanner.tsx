@@ -6,93 +6,9 @@ import {
 } from "react";
 
 import {
-  useAuth,
-} from "@/contexts/AuthContext";
-import {
   useCanManageOrganizations,
-  useIsPlatformAdmin,
 } from "@/hooks/useEffectiveRole";
 import { apiFetch } from "@/lib/api/client";
-
-type Organization = {
-  id: string;
-  organization_name?: string;
-  name?: string;
-  contact_email?: string;
-};
-
-export default function OrgSwitcher() {
-  const {
-    organizations,
-    currentOrgId,
-    switchOrganization,
-    loading,
-  } = useAuth();
-
-  const isPlatformAdminUser = useIsPlatformAdmin();
-  const [targetOrgId, setTargetOrgId] = useState<string | null>(null);
-  const switching = targetOrgId !== null && targetOrgId !== currentOrgId;
-  const hasMultipleOrganizations = organizations.length > 1;
-  const shouldShow =
-    !loading
-    && isPlatformAdminUser
-    && organizations.length > 0;
-
-  if (!shouldShow) {
-    return null;
-  }
-
-  const canSwitch = hasMultipleOrganizations;
-
-  const labelFor = (organization: Organization) =>
-    organization.organization_name
-    || organization.name
-    || organization.contact_email
-    || organization.id;
-
-  return (
-    <label className="inline-flex items-center gap-2">
-      <span className="text-xs font-medium text-zinc-500">
-        לקוח
-      </span>
-      <select
-        value={currentOrgId || ""}
-        disabled={switching || !canSwitch}
-        title={
-          canSwitch
-            ? undefined
-            : "יש לקוח אחד במערכת - הוסף לקוח נוסף כדי לעבור ביניהם"
-        }
-        onChange={(event) => {
-          const nextOrgId = event.target.value;
-
-          if (!canSwitch || !nextOrgId || nextOrgId === currentOrgId) {
-            return;
-          }
-
-          setTargetOrgId(nextOrgId);
-          void switchOrganization(nextOrgId).finally(() => {
-            setTargetOrgId(null);
-          });
-        }}
-        className="
-          of-input
-          of-focus-ring
-          min-w-[10rem]
-          px-3
-          py-2
-          text-sm
-        "
-      >
-        {organizations.map((organization) => (
-          <option key={organization.id} value={organization.id}>
-            {labelFor(organization)}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 export function TenantMigrationBanner() {
   const canManageOrganizations = useCanManageOrganizations();

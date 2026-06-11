@@ -43,9 +43,7 @@ export default function ProjectActivityTimeline({
       "
     >
 
-      {/* HEADER */}
-
-      <div className="mb-10">
+      <div className="mb-6">
 
         <h2
           className="
@@ -56,18 +54,7 @@ export default function ProjectActivityTimeline({
           ציר פעילות תפעולית
         </h2>
 
-        <p
-          className="
-            mt-2
-            text-zinc-500
-          "
-        >
-          אירועים אחרונים בפרויקט
-        </p>
-
       </div>
-
-      {/* EMPTY STATE */}
 
       {activities.length === 0 && (
 
@@ -90,13 +77,17 @@ export default function ProjectActivityTimeline({
 
       )}
 
-      {/* TIMELINE */}
-
       {activities.length > 0 && (
 
-        <div className="relative">
-
-          {/* LINE */}
+        <div
+          className="
+            relative
+            max-h-62
+            overflow-y-auto
+            overscroll-contain
+            pr-2
+          "
+        >
 
           <div
             className="
@@ -110,7 +101,11 @@ export default function ProjectActivityTimeline({
             "
           />
 
-          <div className="space-y-10">
+          <div
+            className="
+              space-y-3
+            "
+          >
 
             {activities.map((activity) => (
 
@@ -119,78 +114,55 @@ export default function ProjectActivityTimeline({
                 className="
                   relative
                   flex
-                  gap-6
+                  min-h-10
+                  items-center
+                  gap-4
                 "
               >
-
-                {/* DOT */}
 
                 <div
                   className="
                     relative
                     z-10
-                    mt-2
                     w-3
                     h-3
                     rounded-full
                     bg-brand
-                    flex-shrink-0
+                    shrink-0
                   "
                 />
 
-                {/* CONTENT */}
+                <div
+                  className="
+                    flex
+                    min-w-0
+                    flex-1
+                    items-center
+                    justify-between
+                    gap-4
+                  "
+                >
 
-                <div className="flex-1">
+                  <h3
+                    className="
+                      truncate
+                      font-semibold
+                    "
+                  >
+                    {activity.title}
+                  </h3>
 
                   <div
                     className="
-                      flex
-                      justify-between
-                      items-start
-                      gap-4
+                      shrink-0
+                      text-sm
+                      text-zinc-500
+                      whitespace-nowrap
                     "
                   >
-
-                    <div>
-
-                      <h3
-                        className="
-                          font-semibold
-                          text-lg
-                        "
-                      >
-                        {activity.title}
-                      </h3>
-
-                      {activity.description && (
-
-                        <p
-                          className="
-                            mt-2
-                            text-zinc-600
-                            dark:text-zinc-400
-                            leading-relaxed
-                          "
-                        >
-                          {activity.description}
-                        </p>
-
-                      )}
-
-                    </div>
-
-                    <div
-                      className="
-                        text-sm
-                        text-zinc-500
-                        whitespace-nowrap
-                      "
-                    >
-                      {formatDate(
-                        activity.created_at
-                      )}
-                    </div>
-
+                    {formatDate(
+                      activity.created_at
+                    )}
                   </div>
 
                 </div>

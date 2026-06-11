@@ -155,13 +155,16 @@ class QualityIssueUploadFindingService:
         finding_type: str | None,
         actor_id: str | None,
     ) -> None:
+        resolved_severity = resolve_issue_severity(
+            row_severity=str(issue.get("severity") or "").strip() or None,
+        )
         payload = validate_event_fields(
             event_type=QualityIssueEventType.DETECTED,
             report_id=str(issue.get("first_seen_report_id") or ""),
             actor_id=actor_id,
             payload={
                 "materialization_key": issue.get("materialization_key"),
-                "severity": issue.get("severity"),
+                "severity": resolved_severity.value,
                 "title": issue.get("title"),
                 "source": "ai_upload",
                 "finding_id": finding_id,

@@ -32,8 +32,8 @@ describe("stage 4.1.5 gate (QC project ranking)", () => {
       "components/quality-issues/PortfolioProjectRanking.tsx"
     );
     const portfolioPage = readSource("app/(dashboard)/portfolio/page.tsx");
-    const legacySection = readSource(
-      "components/quality-issues/PortfolioLegacySection.tsx"
+    const operationalReview = readSource(
+      "components/quality-issues/OperationalReviewPanel.tsx"
     );
     const helpers = readSource("lib/quality-issues/portfolio-summary.ts");
 
@@ -42,7 +42,8 @@ describe("stage 4.1.5 gate (QC project ranking)", () => {
     expect(ranking).toContain("open_critical");
     expect(ranking).toContain("open_total");
     expect(portfolioPage).toContain("PortfolioProjectRanking");
-    expect(legacySection).toContain("PORTFOLIO_LEGACY_RANKING_TITLE");
+    expect(portfolioPage).not.toContain("OperationalReviewPanel");
+    expect(operationalReview).toContain("OPERATIONAL_REVIEW_RANKING_TITLE");
     expect(helpers).toContain("rankProjectsByQcPressure");
   });
 });

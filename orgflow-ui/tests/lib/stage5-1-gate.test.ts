@@ -27,11 +27,12 @@ describe("stage 5.1 gate (QC primary navigation)", () => {
     expect(sidebar).not.toContain("FIELD_REPORTS_ROUTE");
   });
 
-  it("navigation.ts defines four QC routes without deprecated PM links", () => {
+  it("navigation.ts defines QC routes without deprecated PM links", () => {
     const navigation = readSource("lib/navigation.ts");
     const hrefs = GLOBAL_NAV_LINKS.map((link) => link.href);
 
-    expect(hrefs).toHaveLength(4);
+    expect(hrefs).toHaveLength(5);
+    expect(hrefs).toContain("/operational-review");
     expect(hrefs).not.toContain("/upload");
     expect(hrefs).not.toContain("/actions");
     expect(hrefs).not.toContain("/reviews");

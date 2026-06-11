@@ -1,6 +1,5 @@
 "use client";
 
-import PortfolioLegacySection from "@/components/quality-issues/PortfolioLegacySection";
 import PortfolioPeriodicReportExport from "@/components/quality-issues/PortfolioPeriodicReportExport";
 import PortfolioProjectRanking from "@/components/quality-issues/PortfolioProjectRanking";
 import PortfolioQualitySummaryPanel from "@/components/quality-issues/PortfolioQualitySummaryPanel";
@@ -28,7 +27,6 @@ export default function PortfolioPage() {
       <PortfolioRecurringRankingsPanel />
       <PortfolioPeriodicReportExport />
       <PortfolioProjectRanking />
-      <PortfolioLegacySection />
     </main>
   );
 }

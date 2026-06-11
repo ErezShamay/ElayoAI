@@ -10,30 +10,30 @@ function readSource(relativePath: string): string {
 }
 
 describe("stage 4.1.6 gate (portfolio page QC-first UI)", () => {
-  it("keeps portfolio page QC-first without blocking on legacy API", () => {
+  it("keeps portfolio page QC-first without legacy operational review", () => {
     const page = readSource("app/(dashboard)/portfolio/page.tsx");
-    const legacy = readSource(
-      "components/quality-issues/PortfolioLegacySection.tsx"
+    const operationalReview = readSource(
+      "components/quality-issues/OperationalReviewPanel.tsx"
     );
     const helpers = readSource("lib/quality-issues/portfolio-page.ts");
 
     expect(page).toContain("PortfolioQualitySummaryPanel");
     expect(page).toContain("PortfolioProjectRanking");
-    expect(page).toContain("PortfolioLegacySection");
+    expect(page).not.toContain("PortfolioLegacySection");
+    expect(page).not.toContain("OperationalReviewPanel");
     expect(page).not.toContain("useOrgQuery");
     expect(page).not.toContain("/portfolio/summary");
-    expect(legacy).toContain('enabled: expanded');
-    expect(legacy).toContain("PORTFOLIO_LEGACY_DEFAULT_EXPANDED");
+    expect(operationalReview).toContain("/portfolio/summary");
+    expect(operationalReview).toContain("OPERATIONAL_REVIEW_RANKING_TITLE");
     expect(helpers).toContain("PORTFOLIO_QC_PAGE_SUBTITLE");
   });
 
-  it("collapses legacy Health Score section by default", () => {
-    const legacy = readSource(
-      "components/quality-issues/PortfolioLegacySection.tsx"
+  it("hosts operational review on a dedicated page", () => {
+    const operationalPage = readSource(
+      "app/(dashboard)/operational-review/page.tsx"
     );
 
-    expect(legacy).toContain('useState(PORTFOLIO_LEGACY_DEFAULT_EXPANDED)');
-    expect(legacy).toContain("aria-expanded={expanded}");
-    expect(legacy).toContain("PORTFOLIO_LEGACY_RANKING_TITLE");
+    expect(operationalPage).toContain("OperationalReviewPanel");
+    expect(operationalPage).toContain("OPERATIONAL_REVIEW_PAGE_TITLE");
   });
 });

@@ -4,13 +4,16 @@ import Link from "next/link";
 
 import FieldReportsOfflineGuide from "@/components/field-reports/FieldReportsOfflineGuide";
 import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
 import LoadingState from "@/components/ui/LoadingState";
 import { apiFetch } from "@/lib/api/client";
 import { FIELD_REPORTS_UPLOAD_ROUTE } from "@/lib/qc-navigation";
 import { fieldReportDetailPath } from "@/lib/field-reports/routes";
 import { isFieldReportVisibleInList } from "@/lib/field-reports/field-report-list";
-import { FR_TOUCH_BUTTON } from "@/lib/field-reports/touch-input-class";
+import {
+  FR_FILTER_BUTTON_ACTIVE,
+  FR_FILTER_BUTTON_INACTIVE,
+  FR_PRIMARY_ACTION_BUTTON,
+} from "@/lib/field-reports/touch-input-class";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { useFieldReportOfflinePrep } from "@/hooks/useFieldReportOfflinePrep";
 import {
@@ -221,9 +224,13 @@ export default function FieldReportsPage() {
     return (
       <div className="of-container mx-auto max-w-3xl space-y-4 p-8">
         <p className="text-sm text-red-600">{error}</p>
-        <Button variant="secondary" onClick={() => void reload()}>
+        <button
+          type="button"
+          className={FR_PRIMARY_ACTION_BUTTON}
+          onClick={() => void reload()}
+        >
           נסה שוב
-        </Button>
+        </button>
       </div>
     );
   }
@@ -256,27 +263,25 @@ export default function FieldReportsPage() {
           <p className="of-page-desc text-sm">הדוחות שלי</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge>מודול פעיל</Badge>
           <Link
             href={FIELD_REPORTS_UPLOAD_ROUTE.href}
-            className="of-focus-ring inline-flex min-h-12 touch-manipulation items-center justify-center rounded-2xl border border-zinc-300 bg-white px-5 py-2.5 text-base font-semibold text-zinc-900 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 lg:min-h-0 lg:px-4 lg:py-2 lg:text-sm"
+            className={FR_PRIMARY_ACTION_BUTTON}
           >
             {FIELD_REPORTS_UPLOAD_ROUTE.label}
           </Link>
-          <Button
-            variant="secondary"
-            size="lg"
-            className={FR_TOUCH_BUTTON}
+          <button
+            type="button"
+            className={FR_PRIMARY_ACTION_BUTTON}
             disabled={offlinePrep.loading}
             onClick={() => void handleOfflinePrep()}
           >
             {offlinePrep.loading
               ? "מכין..."
               : "הכנה לא מקוון"}
-          </Button>
+          </button>
           <Link
             href="/field-reports/new"
-            className="of-focus-ring inline-flex min-h-12 touch-manipulation items-center justify-center rounded-2xl bg-brand px-5 py-2.5 text-base font-semibold text-white transition-all hover:bg-brand-dark dark:bg-brand-light dark:text-brand-dark lg:min-h-0 lg:px-4 lg:py-2 lg:text-sm"
+            className={FR_PRIMARY_ACTION_BUTTON}
           >
             דוח ביקור חדש
           </Link>
@@ -344,8 +349,8 @@ export default function FieldReportsPage() {
               type="button"
               className={
                 isActive
-                  ? "min-h-11 touch-manipulation rounded-full bg-brand px-4 py-2 text-sm font-medium text-white lg:min-h-0 lg:px-3 lg:py-1.5"
-                  : "min-h-11 touch-manipulation rounded-full border border-zinc-300 px-4 py-2 text-sm text-zinc-700 hover:border-brand dark:border-zinc-700 dark:text-zinc-200 lg:min-h-0 lg:px-3 lg:py-1.5"
+                  ? FR_FILTER_BUTTON_ACTIVE
+                  : FR_FILTER_BUTTON_INACTIVE
               }
               onClick={() => setStatusFilter(filter.value)}
             >
@@ -368,19 +373,20 @@ export default function FieldReportsPage() {
               </code>
             </p>
           ) : null}
-          <Button
-            variant="secondary"
+          <button
+            type="button"
+            className={FR_PRIMARY_ACTION_BUTTON}
             onClick={() => void loadReports(statusFilter)}
           >
             נסה שוב
-          </Button>
+          </button>
         </div>
       ) : reports.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center dark:border-zinc-700">
           <p className="text-sm text-zinc-600">אין דוחות עדיין.</p>
           <Link
             href="/field-reports/new"
-            className="of-focus-ring mt-4 inline-flex items-center justify-center rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
+            className={`${FR_PRIMARY_ACTION_BUTTON} mt-4`}
           >
             צור דוח ביקור ראשון
           </Link>

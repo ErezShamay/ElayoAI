@@ -1,16 +1,20 @@
 from pathlib import Path
 import json
+import logging
 import re
 from uuid import uuid4
 from datetime import UTC, datetime
 
 from app.db.supabase_client import supabase
+
+logger = logging.getLogger(__name__)
 from app.repositories.workspace_activity_repository import WorkspaceActivityRepository
 from app.repositories.weekly_report_repository import WeeklyReportRepository
 from app.services.quality_issue_upload_finding_service import (
     QualityIssueUploadFindingService,
 )
 from app.services.report_text_extraction_service import ReportTextExtractionService
+from app.services.report_visit_date_extraction import extract_visit_date
 
 
 class ReportProcessingService:
@@ -143,6 +147,7 @@ class ReportProcessingService:
             project_id=project_id,
             report_source=classification["category"],
             email_subject=versioned_subject,
+            reported_at=metadata.get("reported_at"),
         )
 
         upload_persist = self._persist_upload_interpretation(
@@ -170,7 +175,7 @@ class ReportProcessingService:
             ai_insights=ai_insights,
         )
 
-        WorkspaceActivityRepository.create_activity(
+        self._safe_create_activity(
             project_id=project_id,
             activity_type="REPORT_UPLOAD",
             title="Weekly report uploaded",
@@ -186,7 +191,7 @@ class ReportProcessingService:
                 "metadata": metadata,
             },
         )
-        WorkspaceActivityRepository.create_activity(
+        self._safe_create_activity(
             project_id=project_id,
             activity_type="AI_ANALYSIS",
             title="AI interpretation created",
@@ -265,13 +270,20 @@ class ReportProcessingService:
                     filename=filename,
                     file_path=file_path,
                 )
-            except Exception:
+            except Exception as exc:
+                logger.exception(
+                    "Bulk report upload processing failed",
+                    extra={
+                        "project_id": project_id,
+                        "filename": filename,
+                    },
+                )
                 result = {
                     "success": False,
                     "project_id": project_id,
                     "filename": filename,
                     "error_code": "REPORT_PROCESSING_FAILED",
-                    "error_message": "Unexpected error while processing uploaded report",
+                    "error_message": self._bulk_upload_error_message(exc),
                 }
             results.append(result)
             self._update_bulk_progress(job_id=job_id, total_files=total_files, processed_files=index, latest_result=result)
@@ -682,11 +694,17 @@ class ReportProcessingService:
             metadata = interpretation.get("metadata") or {}
             text_preview = (interpretation.get("business_impact") or "").strip()
 
+            visit_date = self._resolve_upload_visit_date(
+                report=report,
+                metadata=metadata,
+            )
+
             entries.append(
                 {
                     "id": report_id_str,
                     "title": report.get("email_subject") or "דוח ללא שם",
                     "report_source": report.get("report_source") or "UNKNOWN",
+                    "visit_date": visit_date,
                     "created_at": report.get("created_at"),
                     "text_preview": text_preview or None,
                     "recommended_action": interpretation.get("recommended_action"),
@@ -698,7 +716,11 @@ class ReportProcessingService:
             )
 
         entries.sort(
-            key=lambda item: item.get("created_at") or "",
+            key=lambda item: (
+                item.get("visit_date")
+                or item.get("created_at")
+                or ""
+            ),
             reverse=True,
         )
 
@@ -1295,16 +1317,10 @@ class ReportProcessingService:
             except ValueError:
                 report_week = None
 
-        reported_at = None
-        date_patterns = [
-            r"(\d{4}-\d{2}-\d{2})",
-            r"(\d{2}/\d{2}/\d{4})",
-        ]
-        for pattern in date_patterns:
-            match = re.search(pattern, f"{file_name} {extracted_text[:2000]}")
-            if match:
-                reported_at = match.group(1)
-                break
+        reported_at = extract_visit_date(
+            filename=file_name,
+            extracted_text=extracted_text,
+        )
 
         word_count = len([token for token in re.split(r"\s+", extracted_text.strip()) if token]) if extracted_text else 0
 
@@ -1344,6 +1360,41 @@ class ReportProcessingService:
                 if normalized and len(normalized) > 1:
                     tokens.add(normalized)
         return sorted(tokens)
+
+    def _resolve_upload_visit_date(
+        self,
+        *,
+        report: dict,
+        metadata: dict,
+    ) -> str | None:
+        for candidate in (
+            report.get("reported_at"),
+            metadata.get("reported_at"),
+        ):
+            normalized = self._normalize_visit_date_value(candidate)
+            if normalized:
+                return normalized
+
+        return None
+
+    def _normalize_visit_date_value(self, value: object) -> str | None:
+        if value is None:
+            return None
+
+        text = str(value).strip()
+        if not text:
+            return None
+
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+            return text
+
+        return extract_visit_date(filename=text, extracted_text="")
+
+    def _bulk_upload_error_message(self, exc: Exception) -> str:
+        message = str(exc).strip()
+        if message:
+            return f"שגיאה בעיבוד הדוח: {message}"
+        return "שגיאה לא צפויה בעיבוד הדוח שהועלה"
 
     def _safe_create_activity(
         self,

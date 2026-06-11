@@ -46,9 +46,9 @@ class AIExecutiveRecommendationsService:
             recommendations.append({
                 "priority": "MEDIUM",
                 "category": "OPERATIONS",
-                "title": "הפחתת לחץ הסלמות",
+                "title": "הפחתת לחץ נקודות הסיכון",
                 "message": (
-                    "עומס ההסלמות גבוה ביחס לתיק הפרויקטים. "
+                    "עומס נקודות הסיכון גבוה ביחס לתיק הפרויקטים. "
                     "מומלץ לבחון הקצאת בעלי תפקידים."
                 ),
             })

@@ -76,12 +76,12 @@ class AutomationNotificationService:
                 assigned_to,
 
             title=
-                "נוצרה הסלמה אוטומטית",
+                "נוצרה נקודת סיכון אוטומטית",
 
             message=
                 (
                     f"המערכת יצרה "
-                    f"הסלמה חדשה עבור "
+                    f"נקודת סיכון חדשה עבור "
                     f"'{escalation['title']}'"
                 ),
 

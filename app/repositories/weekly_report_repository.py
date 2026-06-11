@@ -1,6 +1,9 @@
+from postgrest.exceptions import APIError
+
 from app.db.supabase_client import (
     supabase
 )
+from app.repositories.postgrest_errors import is_missing_column_error
 
 
 class WeeklyReportRepository:
@@ -12,26 +15,38 @@ class WeeklyReportRepository:
         self,
         project_id,
         report_source,
-        email_subject
+        email_subject,
+        reported_at: str | None = None,
     ):
+        payload = {
+            "project_id": project_id,
+            "report_source": report_source,
+            "email_subject": email_subject,
+        }
+        if reported_at:
+            payload["reported_at"] = reported_at
 
-        response = (
-            self.client
-            .table(
-                "weekly_reports"
+        try:
+            response = (
+                self.client
+                .table("weekly_reports")
+                .insert(payload)
+                .execute()
             )
-            .insert({
-                "project_id":
-                    project_id,
-
-                "report_source":
-                    report_source,
-
-                "email_subject":
-                    email_subject
-            })
-            .execute()
-        )
+        except APIError as error:
+            if (
+                reported_at
+                and is_missing_column_error(error, "reported_at")
+            ):
+                payload.pop("reported_at", None)
+                response = (
+                    self.client
+                    .table("weekly_reports")
+                    .insert(payload)
+                    .execute()
+                )
+            else:
+                raise
 
         return response.data[0]
 

@@ -60,15 +60,18 @@ describe("stage 5 gate (PM cleanup + QC positioning)", () => {
     expect(cta).not.toContain("שלוט בפרויקט");
   });
 
-  it("primary navigation has at most four QC routes", () => {
+  it("primary navigation includes operational review for full-access personas", () => {
     const fullAccessRoles = ["SUPERVISOR", "DEVELOPER", "ADMIN"] as const;
     const personas = [...fullAccessRoles, "CONTRACTOR"] as const;
 
-    expect(GLOBAL_NAV_LINKS).toHaveLength(4);
+    expect(GLOBAL_NAV_LINKS).toHaveLength(5);
+    expect(GLOBAL_NAV_LINKS.map((link) => link.href)).toContain(
+      "/operational-review"
+    );
 
     for (const role of fullAccessRoles) {
       const links = getQCPrimaryNavLinks({ role });
-      expect(links).toHaveLength(4);
+      expect(links).toHaveLength(5);
       expect(links.map((link) => link.href)).toEqual(
         GLOBAL_NAV_LINKS.map((link) => link.href)
       );
@@ -76,7 +79,7 @@ describe("stage 5 gate (PM cleanup + QC positioning)", () => {
 
     for (const role of personas) {
       const links = getQCPrimaryNavLinks({ role });
-      expect(links.length).toBeLessThanOrEqual(4);
+      expect(links.length).toBeLessThanOrEqual(5);
     }
   });
 

@@ -25,16 +25,18 @@ import {
 import { shouldHideFromPrimaryNav } from "@/lib/qc-freeze";
 
 describe("navigation (stage 5.1 - QC primary nav)", () => {
-  it("defines exactly four QC items in GLOBAL_NAV_LINKS", () => {
-    expect(GLOBAL_NAV_LINKS).toHaveLength(4);
+  it("defines QC items in GLOBAL_NAV_LINKS including operational review", () => {
+    expect(GLOBAL_NAV_LINKS).toHaveLength(5);
     expect(GLOBAL_NAV_LINKS.map((link) => link.label)).toEqual([
       "תיק QC",
+      "סקירה תפעולית",
       "פרויקטים",
       "דוחות שטח",
       "ליקויים",
     ]);
     expect(GLOBAL_NAV_LINKS.map((link) => link.href)).toEqual([
       "/portfolio",
+      "/operational-review",
       "/projects",
       "/field-reports",
       "/issues",
@@ -43,7 +45,7 @@ describe("navigation (stage 5.1 - QC primary nav)", () => {
 
   it("uses QC field reports label", () => {
     expect(FIELD_REPORTS_ROUTE.label).toBe("דוחות שטח");
-    expect(GLOBAL_NAV_LINKS[2]).toEqual(FIELD_REPORTS_ROUTE);
+    expect(GLOBAL_NAV_LINKS[3]).toEqual(FIELD_REPORTS_ROUTE);
   });
 
   it("keeps remaining legacy PM links on public home navbar until stage 5.8", () => {

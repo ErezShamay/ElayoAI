@@ -27,7 +27,7 @@ class ExecutiveSummaryService:
 
         if executive_kpis.get("escalation_pressure", 0) > 0:
             highlights.append(
-                f"{executive_kpis['escalation_pressure']} הסלמות פתוחות בתיק"
+                f"{executive_kpis['escalation_pressure']} נקודות סיכון פתוחות בתיק"
             )
 
         return {
