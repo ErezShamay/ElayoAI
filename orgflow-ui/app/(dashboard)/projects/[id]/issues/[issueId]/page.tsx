@@ -121,7 +121,9 @@ export default function ProjectIssueDetailPage({ params }: Props) {
             events={events}
             catalogLink={detail?.catalog_link ?? null}
             actorRole={effectiveRole}
-            onIssueUpdated={() => reload()}
+            onIssueUpdated={async () => {
+              await reload();
+            }}
           />
         ) : null}
       </div>

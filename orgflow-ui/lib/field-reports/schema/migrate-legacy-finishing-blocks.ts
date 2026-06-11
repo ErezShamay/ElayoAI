@@ -171,25 +171,27 @@ function collectProgressRows(
     return [];
   }
 
-  return raw.construction_progress
-    .map((item, index) => {
-      if (!item || typeof item !== "object") {
-        return null;
-      }
-      const row = item as Record<string, unknown>;
-      return {
-        id: `legacy-progress-${index}`,
-        description: String(row.description ?? "").trim(),
-        status: String(row.status ?? "").trim(),
-        completion_date: String(row.completion_date ?? "").trim(),
-        sort_order: index,
-      } satisfies ProgressRow;
-    })
-    .filter(
-      (row): row is ProgressRow =>
-        row !== null
-        && Boolean(row.description || row.status || row.completion_date)
-    );
+  return raw.construction_progress.flatMap((item, index): ProgressRow[] => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+    const row = item as Record<string, unknown>;
+    const progressRow: ProgressRow = {
+      id: `legacy-progress-${index}`,
+      description: String(row.description ?? "").trim(),
+      status: String(row.status ?? "").trim(),
+      completion_date: String(row.completion_date ?? "").trim(),
+      sort_order: index,
+    };
+    if (
+      !progressRow.description
+      && !progressRow.status
+      && !progressRow.completion_date
+    ) {
+      return [];
+    }
+    return [progressRow];
+  });
 }
 
 function collectFindingRows(

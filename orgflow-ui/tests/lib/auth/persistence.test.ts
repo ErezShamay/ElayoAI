@@ -25,6 +25,9 @@ function createStorageMock(initial: Record<string, string> = {}) {
     removeItem(key: string) {
       store.delete(key);
     },
+    clear() {
+      store.clear();
+    },
   } satisfies Storage;
 }
 

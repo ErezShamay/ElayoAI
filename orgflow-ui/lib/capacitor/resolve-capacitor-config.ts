@@ -8,9 +8,10 @@ import {
   defaultCapacitorDevServerUrl,
   getCapacitorBuildMode,
   getCapacitorServerUrl,
+  type EnvReader,
 } from "./build-mode";
 
-function configuredApiUrl(env: NodeJS.ProcessEnv): string {
+function configuredApiUrl(env: EnvReader): string {
   return (
     env.NEXT_PUBLIC_API_URL_ANDROID?.trim()
     || env.NEXT_PUBLIC_API_URL?.trim()
@@ -19,7 +20,7 @@ function configuredApiUrl(env: NodeJS.ProcessEnv): string {
 }
 
 /** APK עם API ב-HTTP דורש WebView שמאפשר cleartext (לא https://localhost + http API). */
-export function capacitorUsesHttpApi(env: NodeJS.ProcessEnv = process.env): boolean {
+export function capacitorUsesHttpApi(env: EnvReader = process.env): boolean {
   if (
     env.ELAYOAI_CAPACITOR_ALLOW_CLEARTEXT === "1"
     || env.ORGFLOW_CAPACITOR_ALLOW_CLEARTEXT === "1"
@@ -39,7 +40,7 @@ export function capacitorUsesHttpApi(env: NodeJS.ProcessEnv = process.env): bool
  * בונה `capacitor.config` לפי מצב build (FR-030).
  */
 export function resolveCapacitorConfig(
-  env: NodeJS.ProcessEnv = process.env
+  env: EnvReader = process.env
 ): CapacitorConfig {
   const mode = getCapacitorBuildMode(env);
   const httpApi = capacitorUsesHttpApi(env);

@@ -24,8 +24,6 @@ export const CONTRACTOR_DENIED_PERMISSIONS = [
   "field_reports:read",
   "field_reports:write",
   "field_reports:admin",
-  "reports:read",
-  "reports:write",
   "users:read",
   "users:write",
   "audit:read",

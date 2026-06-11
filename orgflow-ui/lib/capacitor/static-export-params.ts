@@ -1,7 +1,10 @@
-import { capacitorStaticExportParams } from "@/lib/capacitor/build-mode";
+import {
+  capacitorStaticExportParams,
+  type EnvReader,
+} from "@/lib/capacitor/build-mode";
 
 function isExplicitCapacitorStaticExportBuild(
-  env: NodeJS.ProcessEnv = process.env,
+  env: EnvReader = process.env,
 ): boolean {
   return (
     env.ELAYOAI_CAPACITOR_BUILD === "static"
@@ -16,7 +19,7 @@ function isExplicitCapacitorStaticExportBuild(
  * ב-Vercel / `npm run build` רגיל מחזירים [] (דינמי ב-runtime).
  */
 export function dashboardDynamicSegmentParams(
-  env: NodeJS.ProcessEnv = process.env,
+  env: EnvReader = process.env,
 ): Array<{ id: string }> {
   if (env.VERCEL === "1") {
     return [];

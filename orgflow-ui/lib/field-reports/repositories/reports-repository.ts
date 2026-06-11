@@ -24,7 +24,7 @@ export type SaveLocalReportInput = {
   visit_type_label_he?: string | null;
   visit_date: string;
   header_fields: Record<string, unknown>;
-  lines?: LocalVisitReportLine[];
+  lines?: Array<UpsertLineInput & { client_line_uuid?: string }>;
   local_status?: LocalReportStatus;
   sync_status?: LocalSyncStatus;
   catalog_version?: string | null;

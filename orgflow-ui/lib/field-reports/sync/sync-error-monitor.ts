@@ -86,7 +86,7 @@ function writeStoredLog(entries: FieldReportSyncErrorEvent[]): void {
 }
 
 export function getFieldReportSentryConfig(
-  env: NodeJS.ProcessEnv = process.env
+  env: Record<string, string | undefined> = process.env
 ): FieldReportSentryConfig {
   const dsn = env.NEXT_PUBLIC_SENTRY_DSN?.trim() || null;
   const environment =

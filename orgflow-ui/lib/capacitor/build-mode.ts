@@ -8,6 +8,9 @@
 
 export type CapacitorBuildMode = "static" | "url";
 
+/** Subset of process env used by Capacitor build helpers (test-friendly). */
+export type EnvReader = Record<string, string | undefined>;
+
 export const CAPACITOR_STATIC_EXPORT_PLACEHOLDER_ID = "_";
 
 /** מזהה placeholder ל-`generateStaticParams` - ניווט ל-UUID אמיתי בצד לקוח. */
@@ -32,7 +35,7 @@ export function parseCapacitorBuildMode(
 }
 
 export function getCapacitorBuildMode(
-  env: NodeJS.ProcessEnv = process.env
+  env: EnvReader = process.env
 ): CapacitorBuildMode {
   return parseCapacitorBuildMode(
     env.ELAYOAI_CAPACITOR_BUILD_MODE
@@ -43,7 +46,7 @@ export function getCapacitorBuildMode(
 }
 
 export function isCapacitorStaticExportBuild(
-  env: NodeJS.ProcessEnv = process.env
+  env: EnvReader = process.env
 ): boolean {
   if (
     env.ELAYOAI_CAPACITOR_BUILD === "static"
@@ -56,7 +59,7 @@ export function isCapacitorStaticExportBuild(
 }
 
 export function getCapacitorServerUrl(
-  env: NodeJS.ProcessEnv = process.env
+  env: EnvReader = process.env
 ): string | undefined {
   const url =
     env.ELAYOAI_CAPACITOR_SERVER_URL?.trim()

@@ -44,7 +44,7 @@ export function assertDocContainsStrings(
 ): void {
   const headerText =
     typeof doc.header === "function"
-      ? JSON.stringify(doc.header({}, 1))
+      ? JSON.stringify(doc.header(1, 1))
       : JSON.stringify(doc.header ?? {});
   const contentText = JSON.stringify(doc.content ?? []);
   const combined = normalizePdfExtractedText(`${headerText}\n${contentText}`);

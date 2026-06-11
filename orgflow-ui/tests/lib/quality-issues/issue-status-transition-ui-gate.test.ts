@@ -27,7 +27,7 @@ describe("issue status transition UI gate (2.2.1–2.2.4)", () => {
     expect(detailPanel).toContain("IssueStatusActions");
     expect(detailPanel).toContain("actorRole");
     expect(detailPage).toContain("actorRole={effectiveRole}");
-    expect(detailPage).toContain("onIssueUpdated={() => reload()}");
+    expect(detailPage).toContain("await reload()");
     expect(statusActions).toContain("buildRemediationUpdateRequest");
     expect(statusActions).toContain("RemediationPhotoUpload");
     expect(statusActions).toContain("canSubmitRemediation");

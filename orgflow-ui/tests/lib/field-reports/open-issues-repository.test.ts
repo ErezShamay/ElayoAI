@@ -31,6 +31,7 @@ function sampleIssue(overrides: Partial<QualityIssue> = {}): QualityIssue {
     location: "דירה 3",
     trade: "אינסטלציה",
     group_key: "bath",
+    materialization_key: "report-1:line-1",
     first_seen_report_id: "report-1",
     first_seen_at: "2026-06-01T10:00:00Z",
     last_seen_report_id: "report-1",

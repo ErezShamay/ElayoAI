@@ -62,7 +62,7 @@ export type CreateLocalVisitReportParams = {
   visitTypeLabelHe?: string | null;
   visitDate: string;
   catalogVersion?: string | null;
-  organizationProfileSnapshot?: Record<string, unknown> | null;
+  organizationProfileSnapshot?: unknown;
   projectPrefill?: ProjectPrefillSource | null;
 };
 
@@ -95,7 +95,8 @@ export async function createLocalVisitReport(
     local_status: "LOCAL_IN_PROGRESS",
     catalog_version: params.catalogVersion ?? null,
     organization_profile_snapshot:
-      params.organizationProfileSnapshot ?? null,
+      (params.organizationProfileSnapshot as Record<string, unknown> | null
+        | undefined) ?? null,
   });
 }
 

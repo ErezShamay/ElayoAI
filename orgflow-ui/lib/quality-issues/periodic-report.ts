@@ -142,16 +142,12 @@ export function buildPeriodicReportDocDefinition(
     styles: PDF_DOCUMENT_STYLES,
     pageMargins: [40, 48, 40, 48],
     content: [
-      {
-        text: pdfText("דוח תקופתי - בקרת איכות"),
+      pdfText("דוח תקופתי - בקרת איכות", {
         style: "header",
-        alignment: "right",
-      },
-      {
-        text: pdfText(`תקופה: ${formatPeriodicReportPeriod(report)}`),
-        alignment: "right",
+      }),
+      pdfText(`תקופה: ${formatPeriodicReportPeriod(report)}`, {
         margin: [0, 0, 0, 12],
-      },
+      }),
       {
         ul: [
           pdfText(`סה״כ ליקויים: ${report.summary.total_issues}`),
@@ -163,12 +159,10 @@ export function buildPeriodicReportDocDefinition(
         alignment: "right",
         margin: [0, 0, 0, 16],
       },
-      {
-        text: pdfText("דירוג פרויקטים"),
+      pdfText("דירוג פרויקטים", {
         style: "subheader",
-        alignment: "right",
         margin: [0, 0, 0, 8],
-      },
+      }),
       {
         table: {
           widths: ["*", 50, 50, 50],
@@ -185,12 +179,10 @@ export function buildPeriodicReportDocDefinition(
         layout: "lightHorizontalLines",
         margin: [0, 0, 0, 16],
       },
-      {
-        text: pdfText("ליקויים בתקופה"),
+      pdfText("ליקויים בתקופה", {
         style: "subheader",
-        alignment: "right",
         margin: [0, 0, 0, 8],
-      },
+      }),
       {
         table: {
           widths: ["*", "*", 60, 60, 70],
@@ -217,20 +209,18 @@ export async function generatePeriodicReportPdf(
   const pdfMake = await createPdfPrinter();
   const docDefinition = buildPeriodicReportDocDefinition(report);
 
-  return new Promise((resolve, reject) => {
-    try {
-      const pdf = pdfMake.createPdf({
-        ...docDefinition,
-        defaultStyle: {
-          ...PDF_DEFAULT_STYLE,
-          font: PDF_HEBREW_FONT,
-        },
-      });
-      pdf.getBlob((blob: Blob) => resolve(blob));
-    } catch (error) {
-      reject(error);
-    }
-  });
+  try {
+    const pdf = pdfMake.createPdf({
+      ...docDefinition,
+      defaultStyle: {
+        ...PDF_DEFAULT_STYLE,
+        font: PDF_HEBREW_FONT,
+      },
+    });
+    return await pdf.getBlob();
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("הפקת PDF נכשלה");
+  }
 }
 
 export async function downloadPeriodicReportPdf(
