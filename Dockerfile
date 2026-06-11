@@ -4,14 +4,17 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt constraints.txt ./
-RUN pip install -r requirements.txt -c constraints.txt
+RUN pip install --upgrade pip && \
+    pip install --timeout 120 --retries 10 -r requirements.txt -c constraints.txt
 
 COPY app ./app
 COPY seed_projects.py ./
