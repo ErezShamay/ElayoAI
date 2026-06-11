@@ -25,12 +25,28 @@ class FakeExecutionLogRepository:
         )
 
 
+class FakeProjectRepository:
+
+    def get_project_by_id(
+        self,
+        project_id: str,
+    ):
+        return {
+            "id": project_id,
+            "organization_id": "org-1",
+        }
+
+
 def build_service():
 
     service = (
         AIAutomationService.__new__(
             AIAutomationService
         )
+    )
+
+    service.project_repository = (
+        FakeProjectRepository()
     )
 
     service.execution_log_repository = (

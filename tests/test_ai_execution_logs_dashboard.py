@@ -16,11 +16,26 @@ class FakeAIExecutionLogRepository:
     def get_recent_executions(
         self,
         limit=20,
+        organization_id=None,
+        project_ids=None,
     ):
 
         self.limit = limit
+        self.organization_id = organization_id
+        self.project_ids = project_ids
 
         return self.executions
+
+
+class FakeAILogRepository:
+
+    def list_recent_for_scope(
+        self,
+        limit=100,
+        organization_id=None,
+        project_ids=None,
+    ):
+        return []
 
 
 def build_service(
@@ -36,6 +51,7 @@ def build_service(
             executions
         )
     )
+    service.ai_log_repository = FakeAILogRepository()
 
     return service
 

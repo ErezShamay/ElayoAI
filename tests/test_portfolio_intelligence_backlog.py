@@ -78,8 +78,15 @@ def sample_portfolio_summary():
 class FakeProjectRepository:
     def get_all_projects(self):
         return [
-            {"id": "p1", "project_name": "Alpha"},
-            {"id": "p2", "project_name": "Beta"},
+            {"id": "p1", "project_name": "Alpha", "organization_id": "org-1"},
+            {"id": "p2", "project_name": "Beta", "organization_id": "org-1"},
+        ]
+
+    def get_projects_by_organization(self, organization_id: str):
+        return [
+            project
+            for project in self.get_all_projects()
+            if project.get("organization_id") == organization_id
         ]
 
 

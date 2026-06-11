@@ -65,7 +65,7 @@ def test_qc_notification_jobs_do_not_use_automation_engine() -> None:
 
     assert "AutomationNotificationService" not in qc_jobs
     assert "automation.jobs" not in qc_jobs
-    assert "QcNotificationService" in qc_jobs
+    assert "build_qc_notification_service" in qc_jobs
     assert "run_qc_notification_cycle" in qc_jobs
 
 
@@ -75,6 +75,9 @@ def test_scheduler_registers_single_qc_notification_cycle_job() -> None:
     assert "run_qc_notification_cycle" in scheduler_source
     assert "qc_notification_cycle" in scheduler_source
     assert "run_critical_stale_alert_job" not in scheduler_source
+    assert "Asia/Jerusalem" in scheduler_source
+    assert "ActionEscalationService" not in scheduler_source
+    assert "start_scheduler" not in scheduler_source
 
 
 def test_post_run_qc_notification_alerts_uses_notification_tool(

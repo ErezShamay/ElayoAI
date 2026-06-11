@@ -182,7 +182,9 @@ from app.services.field_visit_report_service import (
 from app.services.quality_issue_service import (
     QualityIssueService,
 )
-from app.services.qc_notification_service import QcNotificationService
+from app.services.qc_notification_service import (
+    build_qc_notification_service,
+)
 
 from app.schemas.quality_issue import (
     QualityIssue,
@@ -743,7 +745,9 @@ field_visit_report_export_service = FieldVisitReportExportService()
 
 quality_issue_service = QualityIssueService()
 
-qc_notification_service = QcNotificationService()
+qc_notification_service = build_qc_notification_service(
+    persistent_dedup=True,
+)
 
 tenant_migration_service = TenantMigrationService()
 

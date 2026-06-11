@@ -7,6 +7,11 @@ from datetime import UTC, datetime
 from app.schemas.field_reports import OpenReportReminderResponse
 from app.schemas.qc_notifications import QcNotificationCycleResponse
 from app.schemas.quality_issue import QualityCriticalStaleAlertResponse
+from app.services.alert_dedup_store import (
+    CriticalAlertDedupStore,
+    OpenReportAlertDedupStore,
+    production_alert_dedup_repository,
+)
 from app.services.field_visit_report_open_alert_service import (
     FieldVisitReportOpenAlertService,
 )
@@ -106,3 +111,31 @@ class QcNotificationService:
                 open_reports,
             ),
         )
+
+
+def build_qc_notification_service(
+    *,
+    persistent_dedup: bool = False,
+    notification_tool: NotificationTool | None = None,
+    critical_alert_service: QualityIssueCriticalAlertService | None = None,
+    open_report_service: FieldVisitReportOpenAlertService | None = None,
+) -> QcNotificationService:
+    tool = notification_tool or NotificationTool()
+    repository = (
+        production_alert_dedup_repository()
+        if persistent_dedup
+        else None
+    )
+    return QcNotificationService(
+        notification_tool=tool,
+        critical_alert_service=critical_alert_service
+        or QualityIssueCriticalAlertService(
+            notification_tool=tool,
+            dedup_store=CriticalAlertDedupStore(repository=repository),
+        ),
+        open_report_service=open_report_service
+        or FieldVisitReportOpenAlertService(
+            notification_tool=tool,
+            dedup_store=OpenReportAlertDedupStore(repository=repository),
+        ),
+    )

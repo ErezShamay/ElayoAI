@@ -86,11 +86,14 @@ def test_accessibility_responsive_and_dark_mode():
     dashboard_layout = (
         UI_ROOT / "app/(dashboard)/layout.tsx"
     ).read_text()
+    app_providers = (
+        UI_ROOT / "providers/AppProviders.tsx"
+    ).read_text()
 
     assert "of-focus-ring" in tokens
     assert "of-sr-only" in tokens
     assert "lg:flex-row" in dashboard_layout
-    assert "ThemeToggle" in dashboard_layout
+    assert "ThemeProvider" in app_providers
     assert ".dark" in tokens
 
 

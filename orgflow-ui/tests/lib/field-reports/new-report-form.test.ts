@@ -44,9 +44,12 @@ describe("new-report-form (FR-011)", () => {
       reports: [],
     });
 
-    expect(parsed.projects).toEqual([
-      { id: "p-1", project_name: "מגדל א" },
-    ]);
+    expect(parsed.projects).toHaveLength(1);
+    expect(parsed.projects[0]).toMatchObject({
+      id: "p-1",
+      project_name: "מגדל א",
+    });
+    expect(parsed.projects[0].prefill).toBeDefined();
     expect(parsed.visitTypes).toEqual([
       { code: "STRUCTURE_SITE", label_he: "שלד / אתר" },
     ]);

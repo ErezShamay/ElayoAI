@@ -255,7 +255,7 @@ def register_automation_jobs():
 
         "interval",
 
-        minutes=5,
+        minutes=15,
 
         id="sla_monitoring",
 
@@ -270,7 +270,7 @@ def register_automation_jobs():
 
         "interval",
 
-        minutes=15,
+        minutes=30,
 
         id="ai_automation",
 
@@ -285,7 +285,7 @@ def register_automation_jobs():
 
         "interval",
 
-        minutes=3,
+        minutes=10,
 
         id="ai_recovery",
 

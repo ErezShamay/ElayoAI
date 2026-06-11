@@ -231,9 +231,20 @@ def test_admin_module_list_and_toggle(monkeypatch):
     assert patch_response.json()["is_enabled"] is True
 
 
-def test_client_admin_cannot_toggle_module():
+def test_non_platform_role_cannot_toggle_module(monkeypatch):
+    service = FieldReportModuleService(
+        module_repository=FakeModuleRepository(),
+        organization_repository=FakeOrganizationRepository(),
+        visit_report_repository=FakeVisitReportRepository(),
+    )
+    monkeypatch.setattr(
+        "app.main.field_report_module_service",
+        service,
+    )
+    app.state.field_report_module_service = service
+
     client = TestClient(app)
-    token = _token(role="ADMIN")
+    token = _token(role="SUPERVISOR")
 
     response = client.patch(
         "/admin/field-reports/modules/org-1",

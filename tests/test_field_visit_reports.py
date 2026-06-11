@@ -16,9 +16,24 @@ from app.config.field_report_construction_progress import (
 from app.config.field_report_pdf_defaults import (
     DEFAULT_WINTER_RECOMMENDATIONS_HE,
 )
+from app.services.field_report_catalog_service import (
+    FieldReportCatalogService,
+)
 from app.services.field_visit_report_service import (
     FieldVisitReportService,
 )
+
+
+def _structure_catalog_issue_id() -> str:
+    service = FieldReportCatalogService()
+    for candidate in ("STR-02-001", "QC-STR-001"):
+        issue = service.find_issue(candidate)
+        if issue is not None:
+            return str(issue["issue_id"])
+    catalog = service.get_catalog_for_visit_type("STRUCTURE_SITE")
+    issues = catalog.get("issues") or []
+    assert issues, "STRUCTURE_SITE catalog must include at least one issue"
+    return str(issues[0]["issue_id"])
 
 
 def _token(
@@ -560,14 +575,16 @@ def test_create_line_from_catalog_and_free_text(monkeypatch):
     )
     report_id = create_response.json()["id"]
 
+    catalog_issue_id = _structure_catalog_issue_id()
+
     catalog_line = client.post(
         f"/field-reports/visits/{report_id}/lines",
         headers=_headers(token),
-        json={"issue_id": "STR-02-001"},
+        json={"issue_id": catalog_issue_id},
     )
     assert catalog_line.status_code == 200
     catalog_payload = catalog_line.json()
-    assert catalog_payload["issue_id"] == "STR-02-001"
+    assert catalog_payload["issue_id"] == catalog_issue_id
     assert catalog_payload["standard_ref"]
     assert catalog_payload["has_catalog_issue"] is True
 

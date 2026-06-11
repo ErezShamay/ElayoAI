@@ -42,7 +42,7 @@ class TableSchema:
     audited: bool = True
 
 
-SCHEMA_VERSION = "2026060915"
+SCHEMA_VERSION = "2026061010"
 
 # Matches deploy/sql/20260604_enable_rls_best_practice.sql (authenticated SELECT + service_role bypass).
 ORGFLOW_TENANT_ISOLATION = (
@@ -552,6 +552,20 @@ TABLES: dict[str, TableSchema] = {
         rls_policies=(),
         audited=False,
     ),
+    "scheduled_alert_dedups": TableSchema(
+        name="scheduled_alert_dedups",
+        tenant_column=None,
+        soft_delete_column=None,
+        indexes=(
+            IndexDef(
+                name="scheduled_alert_dedups_dedup_key_key",
+                columns=("dedup_key",),
+                unique=True,
+            ),
+        ),
+        rls_policies=(),
+        audited=False,
+    ),
     "approval_requests": TableSchema(
         name="approval_requests",
         tenant_column=None,
@@ -731,6 +745,14 @@ MIGRATION_SCRIPTS: list[dict] = [
         "name": "quality_issue_photos",
         "description": "Remediation photos uploaded by contractors",
         "tables": ["quality_issue_photos"],
+    },
+    {
+        "version": "2026061010",
+        "name": "scheduled_alert_dedups",
+        "description": (
+            "Persistent dedup keys for scheduled SLA and QC alert delivery"
+        ),
+        "tables": ["scheduled_alert_dedups"],
     },
 ]
 

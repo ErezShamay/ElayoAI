@@ -194,11 +194,11 @@ def test_admin_export_field_reports_returns_zip(
         ) == FAKE_PDF
 
 
-def test_client_admin_cannot_export_field_reports():
+def test_non_platform_role_cannot_export_field_reports():
     client = TestClient(app)
     response = client.get(
         "/admin/field-reports/organizations/org-1/export",
-        headers=_headers(_token(role="ADMIN")),
+        headers=_headers(_token(role="SUPERVISOR")),
     )
 
     assert response.status_code == 403

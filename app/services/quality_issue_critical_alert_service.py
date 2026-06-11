@@ -18,22 +18,10 @@ from app.services.quality_issue_portfolio_kpi import (
     days_open_for_issue,
     is_critical_open_over_days,
 )
+from app.services.alert_dedup_store import CriticalAlertDedupStore
 from app.tools.notification_tool import NotificationTool
 
 CRITICAL_ALERT_DAYS_THRESHOLD = 7
-
-
-class CriticalAlertDedupStore:
-    """Skip duplicate alerts for the same issue on the same calendar day."""
-
-    def __init__(self) -> None:
-        self._last_alert_date_by_issue: dict[str, str] = {}
-
-    def should_alert(self, issue_id: str, *, alert_date: str) -> bool:
-        return self._last_alert_date_by_issue.get(issue_id) != alert_date
-
-    def mark_alerted(self, issue_id: str, *, alert_date: str) -> None:
-        self._last_alert_date_by_issue[issue_id] = alert_date
 
 
 class NotificationSender(Protocol):

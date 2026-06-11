@@ -12,23 +12,11 @@ from app.schemas.field_reports import (
     OpenReportReminderResponse,
 )
 from app.services.quality_issue_portfolio_kpi import _parse_timestamp
+from app.services.alert_dedup_store import OpenReportAlertDedupStore
 from app.tools.notification_tool import NotificationTool
 
 OPEN_REPORT_REMINDER_DAYS_THRESHOLD = 3
 IN_PROGRESS_REPORT_STATUS = "IN_PROGRESS"
-
-
-class OpenReportAlertDedupStore:
-    """Skip duplicate reminders for the same report on the same calendar day."""
-
-    def __init__(self) -> None:
-        self._last_alert_date_by_report: dict[str, str] = {}
-
-    def should_alert(self, report_id: str, *, alert_date: str) -> bool:
-        return self._last_alert_date_by_report.get(report_id) != alert_date
-
-    def mark_alerted(self, report_id: str, *, alert_date: str) -> None:
-        self._last_alert_date_by_report[report_id] = alert_date
 
 
 class OpenReportNotificationSender(Protocol):

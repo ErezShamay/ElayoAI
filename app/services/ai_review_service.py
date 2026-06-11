@@ -1174,12 +1174,12 @@ class AIReviewService:
             return None
 
         try:
-            return (
-                datetime
-                .fromisoformat(
-                    value.replace("Z", "+00:00")
-                )
+            parsed = datetime.fromisoformat(
+                value.replace("Z", "+00:00")
             )
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=UTC)
+            return parsed
         except ValueError:
             return None
 

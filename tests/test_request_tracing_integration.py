@@ -85,7 +85,7 @@ def test_liveness_endpoint_returns_alive_and_trace_headers():
     payload = response.json()
     assert payload["status"] == "alive"
     assert payload["service"] == "orgflow-agent"
-    assert payload["environment"] == "local"
+    assert payload["environment"] == "test"
     assert payload["timestamp"]
     assert UUID(response.headers["X-Request-ID"])
     assert UUID(response.headers["X-Trace-ID"])
@@ -130,6 +130,6 @@ def test_feature_flags_endpoint_returns_runtime_flags():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["environment"] == "local"
+    assert payload["environment"] == "test"
     assert payload["flags"]["enable_automation"] is True
     assert payload["flags"]["enable_notifications"] is True

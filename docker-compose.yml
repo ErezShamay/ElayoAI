@@ -35,23 +35,6 @@ services:
     deploy:
       replicas: 2
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["python", "-m", "app.automation.scheduler"]
-    env_file:
-      - .env
-    environment:
-      ENVIRONMENT: production
-    networks:
-      - orgflow-net
-    depends_on:
-      api:
-        condition: service_healthy
-    deploy:
-      replicas: 1
-
   nginx:
     image: nginx:1.27-alpine
     ports:

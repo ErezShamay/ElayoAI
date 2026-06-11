@@ -8,7 +8,6 @@ COMPOSE_FILE = PROJECT_ROOT / "docker-compose.yml"
 STACK_SERVICES = [
     "api",
     "ui",
-    "worker",
     "nginx",
     "prometheus",
     "grafana",

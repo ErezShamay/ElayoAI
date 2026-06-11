@@ -13,6 +13,10 @@ from app.schemas.operational_action import (
     OperationalAction
 )
 
+from app.services.alert_dedup_store import (
+    SlaOverdueAlertDedupStore,
+    production_alert_dedup_repository,
+)
 from app.services.automation_notification_service import (
     AutomationNotificationService
 )
@@ -20,7 +24,10 @@ from app.services.automation_notification_service import (
 
 class SLAMonitoringService:
 
-    def __init__(self):
+    def __init__(
+        self,
+        dedup_store: SlaOverdueAlertDedupStore | None = None,
+    ):
 
         self.repository = (
             OperationalActionRepository()
@@ -28,6 +35,10 @@ class SLAMonitoringService:
 
         self.automation_notifications = (
             AutomationNotificationService()
+        )
+
+        self.dedup_store = dedup_store or SlaOverdueAlertDedupStore(
+            repository=production_alert_dedup_repository(),
         )
 
     # ==========================================
@@ -155,36 +166,11 @@ class SLAMonitoringService:
         escalation_parent_ids: set[str] | None = None,
     ):
 
+        action_id = str(action["id"])
+
         print(
             f"[AUTOMATION] Overdue action detected: "
             f"{action['title']}"
-        )
-
-        # ======================================
-        # CREATE TIMELINE ACTIVITY
-        # ======================================
-
-        self.automation_notifications.create_automation_activity(
-
-            project_id=
-                action["project_id"],
-
-            activity_type=
-                "SLA_OVERDUE",
-
-            title=
-                "חריגת SLA זוהתה",
-
-            description=
-                f"{action['title']} חרג מזמן הטיפול",
-        )
-
-        # ======================================
-        # SEND AUTOMATION NOTIFICATION
-        # ======================================
-
-        self.automation_notifications.send_sla_overdue_notification(
-            action
         )
 
         # ======================================
@@ -198,7 +184,7 @@ class SLAMonitoringService:
             )
 
         already_exists = (
-            action["id"]
+            action_id
             in escalation_parent_ids
         )
 
@@ -206,10 +192,37 @@ class SLAMonitoringService:
 
             print(
                 f"[AUTOMATION] Escalation already exists "
-                f"for action: {action['id']}"
+                f"for action: {action_id}"
             )
 
             return
+
+        # ======================================
+        # SLA NOTIFICATION (ONCE PER OVERDUE ACTION)
+        # ======================================
+
+        if self.dedup_store.should_notify_once(action_id):
+
+            self.automation_notifications.create_automation_activity(
+
+                project_id=
+                    action["project_id"],
+
+                activity_type=
+                    "SLA_OVERDUE",
+
+                title=
+                    "חריגת SLA זוהתה",
+
+                description=
+                    f"{action['title']} חרג מזמן הטיפול",
+            )
+
+            self.automation_notifications.send_sla_overdue_notification(
+                action
+            )
+
+            self.dedup_store.mark_notified_once(action_id)
 
         # ======================================
         # CREATE ESCALATION ACTION
