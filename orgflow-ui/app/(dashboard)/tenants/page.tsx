@@ -14,6 +14,7 @@ import {
   bulkUpsertProjectApartments,
   inviteAllApartmentResidents,
 } from "@/lib/apartments/api";
+import { normalizeProjectList } from "@/lib/api/read-error-message";
 import { apiFetch } from "@/lib/api/client";
 import type { Tenant } from "@/lib/tenants/types";
 
@@ -39,9 +40,15 @@ export default function TenantsPage() {
   useEffect(() => {
     if (!isEnabled) return;
 
-    void apiFetch<{ projects: ProjectOption[] }>("/projects")
-      .then((response) => {
-        const items = response.projects ?? [];
+    void apiFetch("/projects")
+      .then(async (response) => {
+        if (!response.ok) {
+          setProjects([]);
+          return;
+        }
+
+        const data = await response.json();
+        const items = normalizeProjectList(data);
         setProjects(items);
         if (items.length === 1) {
           setSelectedProjectId(items[0]!.id);

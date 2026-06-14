@@ -42,7 +42,7 @@ export type GanttRenderModel = {
   totalDays: number;
   monthMarkers: { label: string; leftPercent: number }[];
   rows: Array<
-    ResidentPortalGanttRow & {
+    Omit<ResidentPortalGanttRow, "milestones"> & {
       barLeftPercent: number;
       barWidthPercent: number;
       milestones: Array<
@@ -114,7 +114,7 @@ export function buildGanttRenderModel(
       ...row,
       barLeftPercent,
       barWidthPercent,
-      statusColorClass: statusColor(row.status),
+      statusColorClass: statusColor(row.status ?? ""),
       milestones: row.milestones.map((milestone) => ({
         ...milestone,
         leftPercent: toPercent(parseDate(milestone.date) ?? rangeStart),

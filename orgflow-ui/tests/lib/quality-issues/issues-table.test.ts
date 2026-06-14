@@ -24,6 +24,7 @@ const SAMPLE_ISSUE: QualityIssue = {
   trade: "אינסטלציה",
   severity: "HIGH",
   status: "OPEN",
+  visibility: "PUBLISHED",
   first_seen_report_id: "report-1",
   first_seen_at: "2026-06-09T12:00:00.000Z",
   last_seen_report_id: "report-1",

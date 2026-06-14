@@ -65,7 +65,7 @@ export default function DeliverableReportsPanel() {
     data: dashboard,
     loading,
     error,
-    retry,
+    reload,
   } = useOrgQuery(
     `portfolio/deliverable-reports:${startDate}:${endDate}`,
     loadDashboard,
@@ -127,7 +127,7 @@ export default function DeliverableReportsPanel() {
             className="block rounded-xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </label>
-        <Button type="button" variant="secondary" onClick={() => void retry()}>
+        <Button type="button" variant="secondary" onClick={() => void reload()}>
           רענון
         </Button>
       </div>

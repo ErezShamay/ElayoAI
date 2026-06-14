@@ -70,7 +70,10 @@ describe("supervision PDF gate (§13.3)", () => {
     });
 
     expect(typeof doc.footer).toBe("function");
-    const footer = doc.footer?.(2, 5);
+    if (typeof doc.footer !== "function") {
+      throw new Error("expected footer function");
+    }
+    const footer = doc.footer(2, 5);
     const footerText = JSON.stringify(footer);
     expect(footerText).toContain("עמוד 2 מתוך 5");
     expect(footerText).toContain("פיקוח בע״מ");

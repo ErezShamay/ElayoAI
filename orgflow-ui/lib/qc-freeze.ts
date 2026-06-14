@@ -23,6 +23,7 @@ export const QC_FROZEN_SURFACE_IDS = [
   "reviews_global",
   "actions_global",
   "escalations_global",
+  "operational_review_global",
   "tenants_manager",
   "alerts_global",
   "automation_ui",

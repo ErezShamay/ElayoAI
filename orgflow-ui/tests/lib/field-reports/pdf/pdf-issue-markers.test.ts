@@ -16,6 +16,7 @@ const SAMPLE_ISSUE = {
   title: "נזילה",
   severity: "HIGH" as const,
   status: "OPEN" as const,
+  visibility: "PUBLISHED" as const,
   first_seen_report_id: "report-1",
   first_seen_at: NOW,
   last_seen_report_id: "report-2",

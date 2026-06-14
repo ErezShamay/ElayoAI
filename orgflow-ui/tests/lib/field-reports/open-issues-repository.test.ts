@@ -28,6 +28,7 @@ function sampleIssue(overrides: Partial<QualityIssue> = {}): QualityIssue {
     title: "נזילה",
     severity: "HIGH",
     status: "OPEN",
+    visibility: "PUBLISHED",
     location: "דירה 3",
     trade: "אינסטלציה",
     group_key: "bath",
