@@ -28,15 +28,14 @@ describe("stage 4.1.2 gate (critical open > 14 days KPI)", () => {
     expect(service).toContain("critical_open_over_14_days");
   });
 
-  it("shows stale critical KPI in portfolio QC panel", () => {
+  it("keeps stale-critical helpers while portfolio UI is supervision-first", () => {
     const panel = readSource(
       "components/quality-issues/PortfolioQualitySummaryPanel.tsx"
     );
     const helpers = readSource("lib/quality-issues/portfolio-summary.ts");
 
-    expect(panel).toContain("קריטיים > 14 יום");
-    expect(panel).toContain("critical_open_over_14_days");
-    expect(panel).toContain("formatCriticalOpenOver14DaysCaption");
+    expect(panel).toContain("קריטיים פתוחים");
+    expect(panel).not.toContain("קריטיים > 14 יום");
     expect(helpers).toContain("formatCriticalOpenOver14DaysCaption");
     expect(helpers).toContain("countProjectsWithStaleCriticalIssues");
   });

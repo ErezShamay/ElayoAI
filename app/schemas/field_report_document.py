@@ -176,6 +176,7 @@ class FindingRow(BaseModel):
     notes: str | None = None
     severity: str | None = None
     standard_ref: str | None = None
+    catalog_reference_id: str | None = None
     issue_id: str | None = None
     group_key: str | None = None
     group_label_he: str | None = None

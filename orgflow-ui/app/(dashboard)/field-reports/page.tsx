@@ -10,6 +10,10 @@ import { FIELD_REPORTS_UPLOAD_ROUTE } from "@/lib/qc-navigation";
 import { fieldReportDetailPath } from "@/lib/field-reports/routes";
 import { isFieldReportVisibleInList } from "@/lib/field-reports/field-report-list";
 import {
+  fieldReportListStatusLabel,
+  isFieldReportPendingPublish,
+} from "@/lib/field-reports/publish-list";
+import {
   FR_FILTER_BUTTON_ACTIVE,
   FR_FILTER_BUTTON_INACTIVE,
   FR_PRIMARY_ACTION_BUTTON,
@@ -30,12 +34,16 @@ type VisitReport = {
   status_label_he: string;
   visit_date: string;
   status: string;
+  pending_publish?: boolean;
+  is_published?: boolean;
+  can_publish?: boolean;
 };
 
 const STATUS_FILTERS = [
   { value: "", label: "הכל" },
   { value: "IN_PROGRESS", label: "בעבודה" },
   { value: "CLOSED", label: "סגור" },
+  { value: "PENDING_PUBLISH", label: "ממתין לפרסום" },
   { value: "PENDING_UPLOAD", label: "ממתין לשליחה" },
 ] as const;
 
@@ -130,9 +138,12 @@ export default function FieldReportsPage() {
       setReportsLoading(true);
       setReportsError("");
 
-      const query = status
-        ? `?status=${encodeURIComponent(status)}`
-        : "";
+      const query =
+        status && status !== "PENDING_PUBLISH"
+          ? `?status=${encodeURIComponent(status)}`
+          : status === "PENDING_PUBLISH"
+            ? "?status=CLOSED"
+            : "";
       const response = await apiFetch(`/field-reports/visits${query}`);
 
       if (!response.ok) {
@@ -145,10 +156,15 @@ export default function FieldReportsPage() {
       }
 
       const payload = await response.json();
-      const nextReports = (payload.reports || []).filter(
+      let nextReports = (payload.reports || []).filter(
         (report: VisitReport) =>
           isFieldReportVisibleInList(report.status)
       );
+      if (status === "PENDING_PUBLISH") {
+        nextReports = nextReports.filter((report: VisitReport) =>
+          isFieldReportPendingPublish(report)
+        );
+      }
       setReports(nextReports);
       if (status === "IN_PROGRESS") {
         setInProgressCount(nextReports.length);
@@ -407,7 +423,7 @@ export default function FieldReportsPage() {
                     {report.visit_type_label_he} · {report.visit_date}
                   </p>
                 </div>
-                <Badge>{report.status_label_he}</Badge>
+                <Badge>{fieldReportListStatusLabel(report)}</Badge>
               </Link>
             </li>
           ))}

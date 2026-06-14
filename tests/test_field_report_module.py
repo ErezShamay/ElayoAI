@@ -322,7 +322,7 @@ def test_admin_can_update_organization_report_profile(monkeypatch):
             "report_phone": "03-1234567",
             "report_address_line": "רחוב הבדיקה 10",
             "report_city": "תל אביב",
-            "report_tagline": "פיקוח הנדסי מטעם הדיירים",
+            "report_tagline": "פיקוח בניה הנדסי",
             "logo_storage_path": "/storage/v1/object/public/logos/org-1.png",
         },
     )

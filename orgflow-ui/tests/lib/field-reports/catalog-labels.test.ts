@@ -6,18 +6,18 @@ import {
 } from "@/lib/field-reports/catalog-labels";
 
 describe("catalog-labels", () => {
-  it("maps top_family codes to Hebrew", () => {
-    expect(catalogFamilyLabelHe("STRUCTURAL_WORKS")).toBe(
-      "שלד, קונסטרוקציה ובטון"
-    );
-    expect(catalogFamilyLabelHe("FINISHING_WORKS", null)).toBe(
-      "עבודות גמר ופנים"
+  it("maps top_family codes to Hebrew (§8 — איטום, שלד, מערכות, גמר)", () => {
+    expect(catalogFamilyLabelHe("STRUCTURAL_WORKS")).toBe("שלד");
+    expect(catalogFamilyLabelHe("FINISHING_WORKS", null)).toBe("גמר");
+    expect(catalogFamilyLabelHe("MECHANICAL_ELECTRICAL_SYSTEMS")).toBe("מערכות");
+    expect(catalogFamilyLabelHe("SYSTEM_WATERPROOFING_AND_INSULATION")).toBe(
+      "איטום"
     );
   });
 
   it("prefers known mapping over raw English code in label_he", () => {
     expect(catalogFamilyLabelHe("STRUCTURAL_WORKS", "STRUCTURAL_WORKS")).toBe(
-      "שלד, קונסטרוקציה ובטון"
+      "שלד"
     );
   });
 

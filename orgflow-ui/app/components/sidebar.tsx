@@ -15,6 +15,8 @@ import {
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { useTenantManagerModule } from "@/hooks/useTenantManagerModule";
 import { isContractorRole } from "@/lib/auth/contractor-access";
+import { isResidentRole } from "@/lib/auth/resident-access";
+import { RESIDENT_POST_LOGIN_ROUTE } from "@/lib/auth/resident-route-guard";
 import {
   getSystemNavLinks,
   isNavLinkActive,
@@ -46,7 +48,12 @@ export default function Sidebar() {
       : null;
 
   const contractorView = isContractorRole(effectiveRole);
-  const showClientNavigation = !contractorView && !isPlatformAdminUser;
+  const residentView = isResidentRole(effectiveRole);
+  const showClientNavigation =
+    !contractorView && !residentView && !isPlatformAdminUser;
+  const residentLinks = residentView
+    ? [{ href: RESIDENT_POST_LOGIN_ROUTE, label: "האזור האישי שלי" }]
+    : [];
   const systemLinks = contractorView
     ? [SETTINGS_ROUTE]
     : getSystemNavLinks(isAdminUser, {
@@ -94,6 +101,22 @@ export default function Sidebar() {
       </div>
 
       <nav className="space-y-6">
+        {residentLinks.length > 0 ? (
+          <div>
+            <p className="of-nav-section-label">אזור דייר</p>
+            <div className="space-y-1">
+              {residentLinks.map((link) => (
+                <NavLinkItem
+                  key={link.href}
+                  href={link.href}
+                  label={link.label}
+                  isActive={pathname === link.href}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {primaryLinks.length > 0 ? (
           <div>
             <p className="of-nav-section-label">

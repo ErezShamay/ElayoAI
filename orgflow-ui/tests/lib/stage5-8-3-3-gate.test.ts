@@ -17,8 +17,8 @@ describe("stage 5.8.3.3 gate (workflow pillars - closure verification)", () => {
   it("replaces risk points pillar with contractor and supervisor closure flow", () => {
     const source = readPublicHomePage();
 
-    expect(source).toContain('value: "סגירה ואימות"');
-    expect(source).toContain('label: "קבלן + מפקח"');
+    expect(source).toContain('value: "אישור ופרסום"');
+    expect(source).toContain('label: "טיוטה → רוכש"');
     expect(source).not.toContain('value: "נקודות סיכון"');
     expect(source).not.toContain("הסלמה ידנית ואוטומטית לפי SLA");
   });

@@ -14,11 +14,11 @@ function readPublicHomePage(): string {
 }
 
 describe("stage 5.8.7.3 gate (footer tagline - QC)", () => {
-  it("replaces operational engineering tagline with quality control", () => {
+  it("replaces operational engineering tagline with engineering supervision", () => {
     const source = readPublicHomePage();
 
     expect(source).toContain(
-      'const FOOTER_TAGLINE = "בקרת איכות לפרויקטי בנייה"'
+      'const FOOTER_TAGLINE = "שטח מסודר. ניהול שקט."'
     );
     expect(source).toMatch(/<footer[\s\S]*?FOOTER_TAGLINE/);
     expect(source).not.toContain("פלטפורמת AI לניהול תפעול הנדסי");

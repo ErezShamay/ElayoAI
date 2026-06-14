@@ -23,6 +23,7 @@ export type CatalogPayload = {
     issue_id: string;
     issue_name_he: string;
     standard_ref?: string | null;
+    catalog_reference_id?: string | null;
     top_family: string;
     category_id: string;
     category_name_he: string;

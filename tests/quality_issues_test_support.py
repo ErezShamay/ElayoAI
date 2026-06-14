@@ -8,6 +8,8 @@ from app.repositories.quality_issue_repository import (
     matches_issue_list_filters,
 )
 from app.schemas.quality_issue import (
+    DEFAULT_ISSUE_VISIBILITY,
+    IssueVisibility,
     QualityIssueCreateRequest,
     QualityIssueListQuery,
     QualityIssueStatus,
@@ -33,6 +35,13 @@ def qc_create_request(**overrides: object) -> QualityIssueCreateRequest:
     return QualityIssueCreateRequest(**base)
 
 
+def qc_published_create_request(**overrides: object) -> QualityIssueCreateRequest:
+    return qc_create_request(
+        visibility=IssueVisibility.PUBLISHED,
+        **overrides,
+    )
+
+
 def qc_issue_payload(**overrides: object) -> dict:
     base = {
         "title": "נזילה",
@@ -42,6 +51,13 @@ def qc_issue_payload(**overrides: object) -> dict:
     }
     base.update(overrides)
     return base
+
+
+def qc_published_issue_payload(**overrides: object) -> dict:
+    return qc_issue_payload(
+        visibility=IssueVisibility.PUBLISHED,
+        **overrides,
+    )
 
 
 class InMemoryQualityIssueRepository:
@@ -70,6 +86,10 @@ class InMemoryQualityIssueRepository:
             "organization_id": organization_id,
             "project_id": project_id,
             "status": status or QualityIssueStatus.OPEN.value,
+            "visibility": payload.get(
+                "visibility",
+                DEFAULT_ISSUE_VISIBILITY.value,
+            ),
             "recurrence_count": 0,
             **payload,
         }
@@ -327,6 +347,18 @@ class FakeFieldVisitReportRepository:
 
     def get_by_id(self, report_id: str) -> dict | None:
         return self.reports.get(report_id)
+
+    def list_pdf_deliverables_by_organization(
+        self,
+        *,
+        organization_id: str,
+    ) -> list[dict]:
+        return [
+            report
+            for report in self.reports.values()
+            if report.get("organization_id") == organization_id
+            and report.get("pdf_storage_path") is not None
+        ]
 
 
 class FakeProjectRepository:

@@ -11,14 +11,14 @@ import type { OrganizationProfileSnapshot, PdfVisitReport } from "./types";
 
 /** כותרת עליונה כמו בדוחות הלקוח (7/7). */
 export const PDF_SUPERVISION_BANNER_HE =
-  "פיקוח בניה הנדסי מטעם הדיירים";
+  "פיקוח בניה הנדסי";
 
 /** כותרת דוח ראשית - דוחות דוגמה. */
 export const PDF_REPORT_TITLE_HE =
-  "דוח מפקח/ת הנדסי מטעם בעלי הדירות";
+  "דוח ביקור הנדסי";
 
 /** נמען ברירת מחדל כשאין addressee_label_he. */
-export const PDF_DEFAULT_ADDRESSEE_HE = "בעלי הקרקע / בעלי הדירות";
+export const PDF_DEFAULT_ADDRESSEE_HE = "לקוח הפרויקט";
 
 /** תוויות stakeholders ב-PDF - גרשיים ישרים לתאימות גופן. */
 const PDF_STAKEHOLDER_LABELS_HE: Record<StakeholderRole, string> = {
@@ -108,6 +108,17 @@ export function renderVisitReportHeader(
       alignment: "center",
       margin: [0, 0, 0, 10],
     });
+  }
+
+  const orgContact = formatHeaderContact(profile);
+  if (orgContact) {
+    content.push(
+      pdfText(orgContact, {
+        alignment: "center",
+        fontSize: 9,
+        margin: [0, 0, 0, 8],
+      })
+    );
   }
 
   for (const line of buildCoverMetadataLines(metadata, headerFields, report)) {

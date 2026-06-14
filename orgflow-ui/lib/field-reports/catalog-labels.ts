@@ -1,9 +1,9 @@
 /** תוויות משפחת מפרט - מסונכרן עם `app/config/field_report_catalog_labels.py`. */
 export const CATALOG_TOP_FAMILY_LABELS_HE: Record<string, string> = {
-  STRUCTURAL_WORKS: "שלד, קונסטרוקציה ובטון",
-  FINISHING_WORKS: "עבודות גמר ופנים",
-  MECHANICAL_ELECTRICAL_SYSTEMS: "מערכות אלקטרו-מכניות",
-  SYSTEM_WATERPROOFING_AND_INSULATION: "איטום ובידוד",
+  STRUCTURAL_WORKS: "שלד",
+  FINISHING_WORKS: "גמר",
+  MECHANICAL_ELECTRICAL_SYSTEMS: "מערכות",
+  SYSTEM_WATERPROOFING_AND_INSULATION: "איטום",
 };
 
 /** תוויות חומרה - ערכי המפרט באנגלית (`Critical`, `High`, …). */

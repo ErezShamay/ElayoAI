@@ -155,6 +155,7 @@ export type FindingRow = {
   notes?: string | null;
   severity?: string | null;
   standard_ref?: string | null;
+  catalog_reference_id?: string | null;
   issue_id?: string | null;
   group_key?: string | null;
   group_label_he?: string | null;

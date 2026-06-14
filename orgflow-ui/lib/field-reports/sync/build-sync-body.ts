@@ -19,6 +19,7 @@ export type VisitReportSyncRequestBody = {
     notes?: string | null;
     severity?: string | null;
     standard_ref?: string | null;
+    catalog_reference_id?: string | null;
     issue_id?: string | null;
     group_key?: string | null;
     group_label_he?: string | null;
@@ -48,6 +49,7 @@ export function buildVisitReportSyncBody(
       notes: line.notes ?? null,
       severity: line.severity ?? null,
       standard_ref: line.standard_ref ?? null,
+      catalog_reference_id: line.catalog_reference_id ?? null,
       issue_id: line.issue_id ?? null,
       group_key: line.group_key ?? null,
       group_label_he: line.group_label_he ?? null,

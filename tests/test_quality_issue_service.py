@@ -20,10 +20,12 @@ from app.schemas.quality_issue import (
 )
 from app.services.quality_issue_service import QualityIssueService
 from tests.quality_issues_test_support import (
+    FakeFieldVisitReportRepository,
     FakeProjectRepository,
     InMemoryQualityIssueEventRepository,
     InMemoryQualityIssueRepository,
     qc_create_request,
+    qc_published_create_request,
     qc_now,
 )
 
@@ -42,6 +44,7 @@ def service() -> QualityIssueService:
         issue_repository=InMemoryQualityIssueRepository(),
         event_repository=InMemoryQualityIssueEventRepository(),
         project_repository=FakeProjectRepository(),
+        report_repository=FakeFieldVisitReportRepository(),
     )
 
 
@@ -645,7 +648,7 @@ def test_portfolio_quality_summary_aggregates_kpis(
     service.create_issue(
         organization_id="org-1",
         project_id="proj-1",
-        request=_create_request(
+        request=qc_published_create_request(
             title="קריטי ישן",
             severity=QualityIssueSeverity.CRITICAL,
             first_seen_at=old_seen,
@@ -656,7 +659,7 @@ def test_portfolio_quality_summary_aggregates_kpis(
     service.create_issue(
         organization_id="org-1",
         project_id="proj-1",
-        request=_create_request(
+        request=qc_published_create_request(
             title="פתוח",
             severity=QualityIssueSeverity.MEDIUM,
             materialization_key="k2",
@@ -666,7 +669,7 @@ def test_portfolio_quality_summary_aggregates_kpis(
     closed = service.create_issue(
         organization_id="org-1",
         project_id="proj-2",
-        request=_create_request(
+        request=qc_published_create_request(
             title="סגור",
             materialization_key="k3",
         ),

@@ -72,7 +72,7 @@ export const QC_FROZEN_SURFACES: readonly QCFrozenSurface[] = [
     category: "FROZEN",
     uiRoutes: ["/upload", "/field-reports/upload"],
     apiPrefixes: ["/reports/upload", "/reports/upload/bulk"],
-    qcReplacement: "דוחות שטח + registry (שלב 5.7)",
+    qcReplacement: "דוחות שטח + רישום ליקויים (שלב 5.7)",
   },
   {
     id: "workflow_runs",
@@ -123,6 +123,14 @@ export const QC_FROZEN_SURFACES: readonly QCFrozenSurface[] = [
     qcReplacement: "quality_issues",
   },
   {
+    id: "operational_review_global",
+    labelHe: "סקירה תפעולית",
+    category: "DEPRECATED",
+    uiRoutes: ["/operational-review"],
+    apiPrefixes: [],
+    qcReplacement: null,
+  },
+  {
     id: "tenants_manager",
     labelHe: "מנהל דיירים",
     category: "DEPRECATED",
@@ -157,7 +165,7 @@ export const QC_FROZEN_SURFACES: readonly QCFrozenSurface[] = [
   {
     id: "reviews_project",
     labelHe: "ביקורות AI (פרויקט)",
-    category: "SECONDARY",
+    category: "DEPRECATED",
     uiRoutes: [],
     apiPrefixes: ["/reviews/"],
     qcReplacement: "ליקויים בפרויקט",

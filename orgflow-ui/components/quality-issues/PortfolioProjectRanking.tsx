@@ -11,7 +11,7 @@ import {
   formatAverageOpenDays,
   formatProjectQcRankCaption,
   projectQcPressureLevel,
-  rankProjectsByQcPressure,
+  rankProjectsBySupervisionPressure,
 } from "@/lib/quality-issues/portfolio-summary";
 import { hasQCPermission } from "@/lib/quality-issues/permissions";
 import type { QualityPortfolioProjectSummary } from "@/lib/quality-issues/types";
@@ -60,13 +60,13 @@ export default function PortfolioProjectRanking() {
     return null;
   }
 
-  const rankedProjects = rankProjectsByQcPressure(summary.projects);
+  const rankedProjects = rankProjectsBySupervisionPressure(summary.projects);
   const rankCaption = formatProjectQcRankCaption(summary.projects);
 
   return (
     <section className="mb-10 space-y-6">
       <div className="space-y-1">
-        <p className="text-zinc-500">דירוג QC</p>
+        <p className="text-zinc-500">לחץ פיקוח</p>
         <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
           דירוג פרויקטים
         </h2>
@@ -74,7 +74,7 @@ export default function PortfolioProjectRanking() {
           {rankCaption}
         </p>
         <p className="text-xs text-zinc-500">
-          ממוין לפי ליקויים קריטיים פתוחים, ואז סה״כ ליקויים פתוחים
+          ממוין לפי ליקויים קריטיים שפורסמו, ואז סה״כ ליקויים פתוחים שפורסמו
         </p>
       </div>
 

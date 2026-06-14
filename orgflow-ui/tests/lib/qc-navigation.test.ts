@@ -1,143 +1,108 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  QC_DEPRECATED_PRIMARY_ROUTES,
-  QC_PRIMARY_NAV_ITEMS,
-  getQCPrimaryNavLinks,
-  getQCProjectNavLinks,
-  getQCProjectPrimaryNavLinks,
-  getQCProjectSecondaryNavLinks,
-  isQCPrimaryNavActive,
-  isQCProjectNavActive,
+  SUPERVISION_DEPRECATED_PRIMARY_ROUTES,
+  SUPERVISION_PRIMARY_NAV_ITEMS,
+  getSupervisionPrimaryNavLinks,
+  getSupervisionProjectNavLinks,
+  getSupervisionProjectPrimaryNavLinks,
+  getSupervisionProjectSecondaryNavLinks,
+  isSupervisionPrimaryNavActive,
+  isSupervisionProjectNavActive,
   recommendedPostLoginRoute,
 } from "@/lib/qc-navigation";
 
-describe("qc navigation (spec 0.4)", () => {
-  it("defines primary nav items including operational review", () => {
-    expect(QC_PRIMARY_NAV_ITEMS).toHaveLength(5);
-    expect(QC_PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
-      "תיק QC",
-      "סקירה תפעולית",
-      "פרויקטים",
+describe("supervision navigation (PRODUCT-SPEC-LOCKED §11)", () => {
+  it("defines primary nav without operational review", () => {
+    expect(SUPERVISION_PRIMARY_NAV_ITEMS).toHaveLength(4);
+    expect(SUPERVISION_PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
       "דוחות שטח",
       "ליקויים",
+      "תיק פיקוח הנדסי",
+      "פרויקטים",
     ]);
   });
 
-  it("lists deprecated PM routes for removal from primary nav", () => {
-    const hrefs = QC_DEPRECATED_PRIMARY_ROUTES.map((item) => item.href);
+  it("lists deprecated OUT routes including operational review", () => {
+    const hrefs = SUPERVISION_DEPRECATED_PRIMARY_ROUTES.map((item) => item.href);
     expect(hrefs).toContain("/upload");
     expect(hrefs).toContain("/actions");
     expect(hrefs).toContain("/reviews");
+    expect(hrefs).toContain("/operational-review");
     expect(hrefs).not.toContain("/portfolio");
   });
 
-  it("shows full primary nav for supervisor", () => {
-    const links = getQCPrimaryNavLinks({ role: "SUPERVISOR" });
-    expect(links).toHaveLength(5);
+  it("shows supervision nav for supervisor", () => {
+    const links = getSupervisionPrimaryNavLinks({ role: "SUPERVISOR" });
+    expect(links).toHaveLength(4);
     expect(links.map((link) => link.href)).toEqual([
-      "/portfolio",
-      "/operational-review",
-      "/projects",
       "/field-reports",
       "/issues",
+      "/portfolio",
+      "/projects",
     ]);
   });
 
-  it("hides field reports and portfolio for contractor", () => {
-    const links = getQCPrimaryNavLinks({ role: "CONTRACTOR" });
-    expect(links.map((link) => link.href)).toEqual(["/projects", "/issues"]);
+  it("hides primary nav for contractor (disabled v1 persona)", () => {
+    const links = getSupervisionPrimaryNavLinks({ role: "CONTRACTOR" });
+    expect(links).toEqual([]);
   });
 
-  it("hides field reports write nav for developer but keeps portfolio", () => {
-    const links = getQCPrimaryNavLinks({ role: "DEVELOPER" });
-    expect(links.map((link) => link.label)).toEqual([
-      "תיק QC",
-      "סקירה תפעולית",
-      "פרויקטים",
-      "דוחות שטח",
-      "ליקויים",
-    ]);
+  it("hides primary nav for developer (disabled v1 persona)", () => {
+    const links = getSupervisionPrimaryNavLinks({ role: "DEVELOPER" });
+    expect(links).toEqual([]);
   });
 
   it("omits field reports when module disabled", () => {
-    const links = getQCPrimaryNavLinks({
+    const links = getSupervisionPrimaryNavLinks({
       role: "SUPERVISOR",
       fieldReportsEnabled: false,
     });
     expect(links.map((link) => link.href)).not.toContain("/field-reports");
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(3);
   });
 
-  it("builds project nav without operational actions", () => {
-    const links = getQCProjectNavLinks("proj-1", "SUPERVISOR");
+  it("builds project nav without reviews AI", () => {
+    const links = getSupervisionProjectNavLinks("proj-1", "SUPERVISOR");
     const labels = links.map((link) => link.label);
-    expect(labels).toContain("ליקויים");
-    expect(labels).toContain("ביקורות AI");
-    expect(labels).not.toContain("פעולות תפעוליות");
-    expect(labels).not.toContain("נקודות סיכון");
+    expect(labels).toEqual(["סקירה", "ליקויים", "דיירים"]);
+    expect(labels).not.toContain("ביקורות AI");
   });
 
-  it("splits project reviews into secondary nav (stage 5.4)", () => {
-    const primary = getQCProjectPrimaryNavLinks("proj-1", "SUPERVISOR");
-    const secondary = getQCProjectSecondaryNavLinks("proj-1", "SUPERVISOR");
-
-    expect(primary.map((link) => link.label)).toEqual([
-      "סקירת הפרויקט",
-      "ליקויים",
-    ]);
-    expect(secondary.map((link) => link.href)).toEqual([
-      "/projects/proj-1/reviews",
-    ]);
-    expect(secondary.map((link) => link.label)).toEqual(["ביקורות AI"]);
+  it("has no secondary project nav in supervision v1", () => {
+    expect(getSupervisionProjectSecondaryNavLinks("proj-1", "SUPERVISOR")).toEqual(
+      []
+    );
+    expect(getSupervisionProjectPrimaryNavLinks("proj-1", "SUPERVISOR").map(
+      (link) => link.label
+    )).toEqual(["סקירה", "ליקויים", "דיירים"]);
   });
 
-  it("hides secondary reviews for developer persona", () => {
-    expect(getQCProjectSecondaryNavLinks("proj-1", "DEVELOPER")).toEqual([]);
+  it("hides project nav for contractor", () => {
+    expect(getSupervisionProjectNavLinks("proj-1", "CONTRACTOR")).toEqual([]);
+  });
+
+  it("detects active project nav paths", () => {
     expect(
-      getQCProjectPrimaryNavLinks("proj-1", "DEVELOPER").map((link) => link.label)
-    ).toEqual(["סקירת הפרויקט", "ליקויים"]);
-  });
-
-  it("limits contractor project nav to overview and issues", () => {
-    const links = getQCProjectNavLinks("proj-1", "CONTRACTOR");
-    expect(links.map((link) => link.label)).toEqual([
-      "סקירת הפרויקט",
-      "ליקויים",
-    ]);
-  });
-
-  it("detects active project nav paths without matching overview on child routes", () => {
-    expect(
-      isQCProjectNavActive("/projects/proj-1", "/projects/proj-1")
+      isSupervisionProjectNavActive("/projects/proj-1", "/projects/proj-1")
     ).toBe(true);
     expect(
-      isQCProjectNavActive(
+      isSupervisionProjectNavActive(
         "/projects/proj-1/issues",
         "/projects/proj-1"
       )
     ).toBe(false);
-    expect(
-      isQCProjectNavActive(
-        "/projects/proj-1/issues/issue-1",
-        "/projects/proj-1/issues"
-      )
-    ).toBe(true);
   });
 
   it("detects active primary nav paths", () => {
-    expect(isQCPrimaryNavActive("/portfolio", "/portfolio")).toBe(true);
-    expect(isQCPrimaryNavActive("/portfolio/extra", "/portfolio")).toBe(false);
-    expect(isQCPrimaryNavActive("/projects/abc", "/projects")).toBe(true);
-    expect(isQCPrimaryNavActive("/projects/abc/reviews", "/projects")).toBe(
-      false
-    );
-    expect(isQCPrimaryNavActive("/issues/123", "/issues")).toBe(true);
+    expect(isSupervisionPrimaryNavActive("/portfolio", "/portfolio")).toBe(true);
+    expect(isSupervisionPrimaryNavActive("/issues/123", "/issues")).toBe(true);
   });
 
   it("recommends post-login route by persona", () => {
-    expect(recommendedPostLoginRoute("CONTRACTOR")).toBe("/issues");
-    expect(recommendedPostLoginRoute("SUPERVISOR")).toBe("/portfolio");
-    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/portfolio");
+    expect(recommendedPostLoginRoute("SUPERVISOR")).toBe("/field-reports");
+    expect(recommendedPostLoginRoute("ADMIN")).toBe("/portfolio");
+    expect(recommendedPostLoginRoute("CONTRACTOR")).toBe("/settings");
+    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/settings");
   });
 });

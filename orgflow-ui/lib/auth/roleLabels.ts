@@ -14,6 +14,7 @@ export const ROLE_LABELS: Record<string, string> = {
   VIEWER: "משתמש כללי",
   MANAGER: "מנהל",
   ANALYST: "אנליסט",
+  RESIDENT: "דייר/ת",
 };
 
 export const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -22,13 +23,15 @@ export const ROLE_DESCRIPTIONS: Record<string, string> = {
   ADMIN:
     "גישה רק ללקוח אחד, ניהול משתמשים והרשאות בתוך הארגון שלו בלבד",
   SUPERVISOR:
-    "גישה לפרויקטים ודוחות, ללא הרשאות ניהול משתמשים",
+    "גישה לפרויקטים שמלווה בלבד, דוחות וליקויים — ללא הרשאות ניהול משתמשים",
   CONTRACTOR:
     "צפייה בליקויים פתוחים והגשת תיקון - ללא גישה לדוחות שטח או תיק QC",
   DEVELOPER:
     "תיק QC וליקויים לקריאה בלבד - ללא עריכת דוחות או ליקויים",
   VIEWER:
     "צפייה בפרויקטים ודוחות בלבד, ללא הרשאות ניהול",
+  RESIDENT:
+    "גישה לאזור האישי של הדירה בלבד — צפייה בתיק ההנדסי ללא עריכה",
 };
 
 export function getRoleLabel(

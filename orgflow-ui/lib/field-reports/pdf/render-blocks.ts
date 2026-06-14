@@ -28,6 +28,7 @@ import {
   resolvePdfIssueMarkerForLine,
   type PdfLineIssueMarkerMap,
 } from "./pdf-issue-markers";
+import { formatCatalogStandardCell } from "./format-catalog-standard-cell";
 
 const LINE_STATUS_LABELS: Record<string, string> = {
   IN_PROGRESS: "בתהליך",
@@ -37,6 +38,8 @@ const LINE_STATUS_LABELS: Record<string, string> = {
 
 /** גודל thumbnail בעמודת תמונות (FR-3.2). */
 const INLINE_PHOTO_THUMB_SIZE = 40;
+/** מקסימום תמונות inline לשורה (§13.3 / P3). */
+const MAX_INLINE_PHOTOS_PER_ROW = 2;
 
 export type LinePhotoLookup = ReadonlyMap<string, readonly string[]>;
 
@@ -223,7 +226,7 @@ export function renderFindingsTable(
   const photoLookup = buildLinePhotoLookup(linePhotos);
   const includeCatalogColumns =
     block.column_preset === "rich"
-    && rows.some((row) => Boolean(row.issue_id));
+    && rows.some((row) => Boolean(row.issue_id || row.catalog_reference_id));
   const includeIssueMarkerColumn = hasPdfIssueMarkers(lineIssueMarkers);
   const headers = columns.map((column) => column.header_he);
   if (includeCatalogColumns) {
@@ -490,7 +493,7 @@ function findingRowToCells(
   });
 
   if (includeCatalogColumns) {
-    cells.push(pdfTableCell(row.issue_id ? row.standard_ref || "" : ""));
+    cells.push(pdfTableCell(formatCatalogStandardCell(row)));
     cells.push(pdfTableCell(row.issue_id ? row.severity || "" : ""));
   }
 
@@ -518,7 +521,7 @@ function renderInlinePhotoCell(
     return "";
   }
 
-  const dataUrls = photoLookup.get(row.id);
+  const dataUrls = photoLookup.get(row.id)?.slice(0, MAX_INLINE_PHOTOS_PER_ROW);
   if (!dataUrls?.length) {
     return "";
   }

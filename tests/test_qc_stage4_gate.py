@@ -22,6 +22,7 @@ from tests.quality_issues_test_support import (
     InMemoryQualityIssuePhotoRepository,
     InMemoryQualityIssueRepository,
     qc_issue_payload,
+    qc_published_issue_payload,
 )
 from tests.test_field_visit_reports import (
     FakeVisitReportLineRepository,
@@ -103,7 +104,7 @@ def test_stage4_gate_developer_sees_critical_projects_in_portfolio(
     client.post(
         "/projects/proj-1/issues",
         headers=supervisor_headers,
-        json=qc_issue_payload(
+        json=qc_published_issue_payload(
             title="נזילה קריטית",
             severity="CRITICAL",
             materialization_key="gate4-proj1-critical",
@@ -112,7 +113,7 @@ def test_stage4_gate_developer_sees_critical_projects_in_portfolio(
     client.post(
         "/projects/proj-2/issues",
         headers=supervisor_headers,
-        json=qc_issue_payload(
+        json=qc_published_issue_payload(
             title="ליקוי בינוני",
             severity="MEDIUM",
             materialization_key="gate4-proj2-medium",

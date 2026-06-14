@@ -18,7 +18,7 @@ describe("stage 5.8.4.2 gate (features card 2 - issue tracking)", () => {
     const source = readPublicHomePage();
 
     expect(source).toContain('title: "מעקב ליקויים"');
-    expect(source).toContain("registry");
+    expect(source).toContain("רישום ליקויים");
     expect(source).toContain("חומרה");
     expect(source).toContain("מיקום");
     expect(source).toContain("מלאכה");

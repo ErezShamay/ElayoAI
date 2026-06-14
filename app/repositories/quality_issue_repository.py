@@ -8,6 +8,7 @@ from postgrest.exceptions import APIError
 from app.db.supabase_client import supabase
 from app.repositories.postgrest_errors import is_missing_table_error
 from app.schemas.quality_issue import (
+    DEFAULT_ISSUE_VISIBILITY,
     DEFAULT_QUALITY_ISSUE_STATUS,
     QualityIssueCreateRequest,
     QualityIssueListQuery,
@@ -36,6 +37,7 @@ NULLABLE_ISSUE_UPDATE_FIELDS: frozenset[str] = frozenset(
         "group_label_he",
         "standard_ref",
         "catalog_issue_id",
+        "catalog_reference_id",
         "first_seen_line_id",
         "last_seen_report_id",
         "last_seen_line_id",
@@ -136,6 +138,10 @@ class QualityIssueRepository:
                 "organization_id": organization_id,
                 "project_id": project_id,
                 "status": status or DEFAULT_QUALITY_ISSUE_STATUS.value,
+                "visibility": payload.get(
+                    "visibility",
+                    DEFAULT_ISSUE_VISIBILITY.value,
+                ),
                 "recurrence_count": 0,
                 "created_at": now,
                 "updated_at": now,

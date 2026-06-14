@@ -17,7 +17,7 @@ describe("stage 5.8.4.6 gate (features card 6 - QC portfolio)", () => {
   it("replaces multi-project management with QC portfolio ranking", () => {
     const source = readPublicHomePage();
 
-    expect(source).toContain('title: "תיק בקרת איכות"');
+    expect(source).toContain('title: "תיק פיקוח הנדסי"');
     expect(source).toContain("דירוג פרויקטים לפי ליקויים");
     expect(source).toContain("חומרה");
     expect(source).not.toContain('title: "ניהול רב-פרויקטים"');

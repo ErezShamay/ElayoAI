@@ -226,6 +226,7 @@ describe("quality issues API paths (1.3.2)", () => {
       last_seen_at: NOW,
       materialization_key: "report-1:line-1",
       severity: "MEDIUM",
+      visibility: "DRAFT",
       photo_ids: [],
     });
   });

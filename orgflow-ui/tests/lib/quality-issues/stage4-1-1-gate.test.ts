@@ -26,7 +26,7 @@ describe("stage 4.1.1 gate (open issues per project KPI)", () => {
     expect(service).toContain("get_portfolio_quality_summary");
   });
 
-  it("shows per-project open issues in portfolio QC panel", () => {
+  it("shows per-project open issues in supervision portfolio panel", () => {
     const panel = readSource(
       "components/quality-issues/PortfolioQualitySummaryPanel.tsx"
     );
@@ -37,7 +37,7 @@ describe("stage 4.1.1 gate (open issues per project KPI)", () => {
 
     expect(panel).toContain("formatOpenIssuesPerProjectCaption");
     expect(panel).toContain("total_open");
-    expect(ranking).toContain("rankProjectsByQcPressure");
+    expect(ranking).toContain("rankProjectsBySupervisionPressure");
     expect(ranking).toContain("open_total");
     expect(helpers).toContain("countProjectsWithOpenIssues");
   });

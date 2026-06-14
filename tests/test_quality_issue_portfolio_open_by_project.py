@@ -16,15 +16,16 @@ from app.services.quality_issue_portfolio_kpi import (
 )
 from app.services.quality_issue_service import QualityIssueService
 from tests.quality_issues_test_support import (
+    FakeFieldVisitReportRepository,
     FakeProjectRepository,
     InMemoryQualityIssueEventRepository,
     InMemoryQualityIssueRepository,
-    qc_create_request,
+    qc_published_create_request,
 )
 
 
 def _create_request(**overrides):
-    return qc_create_request(**overrides)
+    return qc_published_create_request(**overrides)
 
 
 def test_aggregate_open_issue_counts_by_project() -> None:
@@ -93,6 +94,7 @@ def portfolio_service() -> QualityIssueService:
         issue_repository=InMemoryQualityIssueRepository(),
         event_repository=InMemoryQualityIssueEventRepository(),
         project_repository=FakeProjectRepository(),
+        report_repository=FakeFieldVisitReportRepository(),
     )
 
 

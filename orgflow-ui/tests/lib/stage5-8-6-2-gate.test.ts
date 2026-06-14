@@ -13,15 +13,15 @@ function readPublicHomePage(): string {
   return readFileSync(PUBLIC_HOME_PAGE, "utf8");
 }
 
-describe("stage 5.8.6.2 gate (platform description - QC)", () => {
-  it("describes field reports, issues, closure and QC portfolio without automation", () => {
+describe("stage 5.8.6.2 gate (platform description - supervision)", () => {
+  it("describes field reports, registry, PDF and resident portal without automation", () => {
     const source = readPublicHomePage();
 
     expect(source).toContain(
-      "ממשק אחיד לדוחות שטח, מעקב ליקויים,"
+      "ממשק אחיד לדוחות שטח, רישום ליקויים,"
     );
     expect(source).toContain(
-      "סגירה ואימות ותיק בקרת איכות - מהביקור"
+      "PDF ללקוח, תיק פיקוח ושקיפות לרוכש — מהביקור"
     );
     expect(source).not.toContain("ממשק אחיד לניהול ביקורות, חריגות");
     expect(source).not.toContain("פעולות תפעוליות והתראות");

@@ -22,7 +22,7 @@ describe("qc freeze list (spec 0.5)", () => {
       5
     );
     expect(listSurfacesByCategory("ADMIN_ONLY")).toHaveLength(2);
-    expect(listSurfacesByCategory("SECONDARY")).toHaveLength(1);
+    expect(listSurfacesByCategory("SECONDARY")).toHaveLength(0);
   });
 
   it("marks agent orchestrator as frozen", () => {

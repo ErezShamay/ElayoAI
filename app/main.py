@@ -3,7 +3,7 @@ import threading
 from urllib.parse import quote
 
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from typing import Annotated
@@ -142,6 +142,7 @@ from app.schemas.field_reports import (
     FieldReportOrganizationProfileUpdateRequest,
     FieldReportModuleToggleRequest,
     FieldVisitReportClosePreview,
+    FieldVisitReportPublishPreview,
     FieldVisitReportCreateRequest,
     FieldVisitReportLineCreateRequest,
     FieldVisitReportLineUpdateRequest,
@@ -182,6 +183,9 @@ from app.services.field_visit_report_service import (
 from app.services.quality_issue_service import (
     QualityIssueService,
 )
+from app.services.deliverable_reports_service import (
+    DeliverableReportsService,
+)
 from app.services.qc_notification_service import (
     build_qc_notification_service,
 )
@@ -209,6 +213,9 @@ from app.schemas.quality_issue import (
     parse_quality_issue_row,
 )
 
+from app.schemas.deliverable_reports import (
+    DeliverableReportsDashboardResponse,
+)
 from app.schemas.qc_notifications import QcNotificationCycleResponse
 
 from app.auth.field_report_dependencies import (
@@ -225,6 +232,34 @@ from app.services.tenant_scope_service import (
 
 from app.services.tenant_extraction_service import (
     TenantExtractionService,
+)
+
+from app.services.project_apartment_service import (
+    ProjectApartmentService,
+)
+
+from app.services.resident_invite_service import (
+    ResidentInviteService,
+)
+
+from app.services.resident_portal_service import (
+    ResidentPortalService,
+)
+
+from app.services.resident_activation_service import (
+    ResidentActivationService,
+)
+
+from app.auth.tenant_manager_dependencies import (
+    require_tenant_manager_module,
+)
+
+from app.schemas.project_apartment import (
+    BulkUpsertProjectApartmentsRequest,
+    BulkUpsertProjectApartmentsResponse,
+    InviteResidentResponse,
+    ProjectApartmentListResponse,
+    ResidentPortalPayload,
 )
 
 from app.services.notification_service import (
@@ -745,6 +780,8 @@ field_visit_report_export_service = FieldVisitReportExportService()
 
 quality_issue_service = QualityIssueService()
 
+deliverable_reports_service = DeliverableReportsService()
+
 qc_notification_service = build_qc_notification_service(
     persistent_dedup=True,
 )
@@ -754,6 +791,14 @@ tenant_migration_service = TenantMigrationService()
 tenant_scope_service = TenantScopeService()
 
 tenant_extraction_service = TenantExtractionService()
+
+project_apartment_service = ProjectApartmentService()
+
+resident_invite_service = ResidentInviteService()
+
+resident_portal_service = ResidentPortalService()
+
+resident_activation_service = ResidentActivationService()
 
 notification_service = (
     NotificationService()
@@ -1481,6 +1526,11 @@ def exchange_supabase_session(request: ExchangeTokenRequest):
         role=role,
     )
 
+    resident_activation_service.activate_on_login(
+        profile_id=user_id,
+        role=role,
+    )
+
     access_token = jwt_service.issue_access_token(
         user_id=request.user_id,
         org_id=org_id,
@@ -1622,6 +1672,138 @@ def get_tenant_manager_module_status(
     )
 
 
+@app.get(
+    "/projects/{project_id}/apartments",
+    response_model=ProjectApartmentListResponse,
+)
+def list_project_apartments(
+    project_id: str,
+    auth=Depends(require_permission("apartments:read")),
+    _module=Depends(require_tenant_manager_module),
+):
+    return project_apartment_service.list_apartments(
+        organization_id=auth.org_id,
+        project_id=project_id,
+        actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
+    )
+
+
+@app.post(
+    "/projects/{project_id}/apartments/bulk",
+    response_model=BulkUpsertProjectApartmentsResponse,
+)
+def bulk_upsert_project_apartments(
+    project_id: str,
+    request: BulkUpsertProjectApartmentsRequest,
+    auth=Depends(require_permission("apartments:write")),
+    _module=Depends(require_tenant_manager_module),
+):
+    return project_apartment_service.bulk_upsert(
+        organization_id=auth.org_id,
+        project_id=project_id,
+        apartments=[item.model_dump() for item in request.apartments],
+        actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
+    )
+
+
+@app.post(
+    "/projects/{project_id}/apartments/{apartment_id}/invite",
+    response_model=InviteResidentResponse,
+)
+def invite_project_apartment_resident(
+    project_id: str,
+    apartment_id: str,
+    auth=Depends(require_permission("apartments:write")),
+    _module=Depends(require_tenant_manager_module),
+):
+    _ = project_id
+    return resident_invite_service.invite_resident_for_apartment(
+        organization_id=auth.org_id,
+        apartment_id=apartment_id,
+        invited_by=auth.user_id,
+        inviter_role=auth.role,
+    )
+
+
+@app.post("/projects/{project_id}/apartments/invite-all")
+def invite_all_project_apartment_residents(
+    project_id: str,
+    auth=Depends(require_permission("apartments:write")),
+    _module=Depends(require_tenant_manager_module),
+):
+    return resident_invite_service.bulk_invite_residents(
+        organization_id=auth.org_id,
+        project_id=project_id,
+        invited_by=auth.user_id,
+        inviter_role=auth.role,
+    )
+
+
+@app.get(
+    "/resident-portal/me",
+    response_model=ResidentPortalPayload,
+)
+def get_my_resident_portal(
+    auth=Depends(require_permission("resident_portal:read")),
+):
+    return resident_portal_service.get_portal_for_resident(
+        organization_id=auth.org_id,
+        actor_user_id=auth.user_id,
+        actor_role=auth.role,
+    )
+
+
+@app.get("/resident-portal/reports/{report_id}/pdf")
+def get_resident_portal_report_pdf(
+    report_id: str,
+    auth=Depends(require_permission("resident_portal:read")),
+):
+    resident_portal_service.assert_resident_can_access_report(
+        organization_id=auth.org_id,
+        actor_user_id=auth.user_id,
+        actor_role=auth.role,
+        report_id=report_id,
+    )
+    content, content_type, filename = (
+        field_visit_report_service.get_archived_report_pdf(
+            organization_id=auth.org_id,
+            report_id=report_id,
+        )
+    )
+    safe_filename = quote(filename)
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{safe_filename}"; '
+                f"filename*=UTF-8''{safe_filename}"
+            ),
+        },
+    )
+
+
+@app.get(
+    "/projects/{project_id}/apartments/{apartment_id}/portal",
+    response_model=ResidentPortalPayload,
+)
+def get_apartment_resident_portal(
+    project_id: str,
+    apartment_id: str,
+    auth=Depends(require_permission("apartments:read")),
+    _module=Depends(require_tenant_manager_module),
+):
+    _ = project_id
+    return resident_portal_service.get_portal_for_apartment(
+        organization_id=auth.org_id,
+        apartment_id=apartment_id,
+        actor_user_id=auth.user_id,
+        actor_role=auth.role,
+    )
+
+
 @app.get("/field-reports/organization-profile")
 def get_field_report_organization_profile(
     auth=Depends(require_field_report_module),
@@ -1725,12 +1907,22 @@ def list_field_visit_reports(
     _module=Depends(require_field_report_module),
 ):
     if project_id:
-        project = project_repository.get_project_by_id(project_id)
-        if project is None or str(project.get("organization_id")) != auth.org_id:
+        project = tenant_scope_service.get_organization_scoped_project(
+            project_id,
+            auth.org_id,
+            role=auth.role,
+            actor_user_id=auth.actor_user_id,
+        )
+        if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
 
     projects = project_repository.get_projects_by_organization(
         auth.org_id
+    )
+    projects = tenant_scope_service.filter_actor_projects(
+        projects,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
     project_names = {
         str(project["id"]): project.get("project_name")
@@ -1896,6 +2088,47 @@ def close_field_visit_report(
     )
 
 
+@app.get(
+    "/field-reports/visits/{report_id}/publish-preview",
+    response_model=FieldVisitReportPublishPreview,
+)
+def preview_publish_field_visit_report(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:publish")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_visit_report_service.preview_publish_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
+@app.post("/field-reports/visits/{report_id}/publish")
+async def publish_field_visit_report(
+    report_id: str,
+    file: UploadFile | None = File(None),
+    auth=Depends(
+        require_permission("field_reports:publish")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    source_content: bytes | None = None
+    source_filename: str | None = None
+    if file is not None:
+        source_content = await file.read()
+        source_filename = file.filename or f"{report_id}.pdf"
+
+    return field_visit_report_service.publish_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        actor_id=auth.user_id,
+        source_filename=source_filename,
+        source_content=source_content,
+    )
+
+
 @app.post("/field-reports/visits/{report_id}/reopen")
 def reopen_field_visit_report(
     report_id: str,
@@ -1966,6 +2199,8 @@ def get_project_field_report_archive(
     if not tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     ):
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -2006,6 +2241,7 @@ def list_project_open_quality_issues(
         organization_id=auth.org_id,
         project_id=project_id,
         actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -2023,6 +2259,7 @@ def suggest_project_quality_issue_matches(
         project_id=project_id,
         request=request,
         actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -2040,6 +2277,7 @@ def get_project_visit_issue_diff(
         project_id=project_id,
         report_id=report_id,
         actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -2075,6 +2313,7 @@ def list_project_quality_issues(
             offset=offset,
         ),
         actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -2108,6 +2347,7 @@ def list_organization_quality_issues(
             offset=offset,
         ),
         actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -2123,6 +2363,7 @@ def get_quality_issue_detail(
         organization_id=auth.org_id,
         issue_id=issue_id,
         actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -3181,6 +3422,8 @@ def edit_project(
     if not tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     ):
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -3220,6 +3463,8 @@ async def upload_project_illustration(
     project = tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -3245,6 +3490,8 @@ def get_project_illustration(
     project = tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -3281,9 +3528,14 @@ def search_projects(
     query: str,
     auth=Depends(require_permission("projects:read")),
 ):
-    return project_service.search_projects(
+    projects = project_service.search_projects(
         query,
         organization_id=auth.org_id,
+    )
+    return tenant_scope_service.filter_actor_projects(
+        projects,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -3294,11 +3546,16 @@ def filter_projects(
     tag: str | None = None,
     auth=Depends(require_permission("projects:read")),
 ):
-    return project_service.filter_projects(
+    projects = project_service.filter_projects(
         status=status,
         owner_id=owner_id,
         tag=tag,
         organization_id=auth.org_id,
+    )
+    return tenant_scope_service.filter_actor_projects(
+        projects,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -3409,6 +3666,8 @@ async def upload_report(
     project = tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -3464,6 +3723,8 @@ async def upload_reports_bulk(
     project = tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -3525,6 +3786,8 @@ def get_reports_bulk_upload_progress(
     if not tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     ):
         raise HTTPException(status_code=404, detail="Project not found")
     progress = report_processing_service.get_bulk_upload_progress(project_id, job_id)
@@ -3541,6 +3804,8 @@ def list_project_uploaded_reports(
     if not tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     ):
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -3677,6 +3942,8 @@ def get_project_workspace(
     if not tenant_scope_service.get_organization_scoped_project(
         project_id,
         auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
     ):
         raise HTTPException(
             status_code=404,
@@ -4845,6 +5112,7 @@ def get_portfolio_quality_summary(
     return quality_issue_service.get_portfolio_quality_summary(
         organization_id=auth.org_id,
         actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -4861,6 +5129,7 @@ def get_portfolio_quality_trade_heatmap(
         organization_id=auth.org_id,
         actor_role=auth.role,
         project_id=project_id,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -4877,6 +5146,7 @@ def get_portfolio_quality_recurring_rankings(
         organization_id=auth.org_id,
         actor_role=auth.role,
         project_id=project_id,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -4895,6 +5165,32 @@ def get_portfolio_quality_periodic_report(
         actor_role=auth.role,
         period_days=period_days,
         project_id=project_id,
+        actor_user_id=auth.actor_user_id,
+    )
+
+
+@app.get(
+    "/portfolio/deliverable-reports",
+    response_model=DeliverableReportsDashboardResponse,
+)
+def get_portfolio_deliverable_reports(
+    auth=Depends(get_auth_context),
+    start_date: date | None = None,
+    end_date: date | None = None,
+    project_id: str | None = None,
+):
+    """Deliverable reports sent in a date range with weekly compliance."""
+    today = date.today()
+    resolved_end = end_date or today
+    resolved_start = start_date or (resolved_end - timedelta(days=89))
+
+    return deliverable_reports_service.get_dashboard(
+        organization_id=auth.org_id,
+        actor_role=auth.role,
+        period_start=resolved_start,
+        period_end=resolved_end,
+        project_id=project_id,
+        actor_user_id=auth.actor_user_id,
     )
 
 
@@ -4917,6 +5213,7 @@ def export_portfolio_quality_periodic_report(
         actor_role=auth.role,
         period_days=period_days,
         project_id=project_id,
+        actor_user_id=auth.actor_user_id,
     )
     return Response(
         content=csv_content.encode("utf-8"),

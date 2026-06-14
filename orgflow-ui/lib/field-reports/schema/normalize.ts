@@ -580,6 +580,7 @@ function normalizeFindingRow(value: unknown, index: number): FindingRow | null {
     notes: nullableString(raw.notes),
     severity: nullableString(raw.severity),
     standard_ref: nullableString(raw.standard_ref),
+    catalog_reference_id: nullableString(raw.catalog_reference_id),
     issue_id: nullableString(raw.issue_id),
     group_key: nullableString(raw.group_key),
     group_label_he: nullableString(raw.group_label_he),

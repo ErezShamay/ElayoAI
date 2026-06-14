@@ -78,3 +78,27 @@ class WeeklyReportRepository:
         )
 
         return response.data or []
+
+    def list_by_project_ids(
+        self,
+        project_ids: list[str],
+    ) -> list[dict]:
+        normalized = [
+            project_id.strip()
+            for project_id in project_ids
+            if project_id and str(project_id).strip()
+        ]
+        if not normalized:
+            return []
+
+        if len(normalized) == 1:
+            return self.get_reports_by_project(normalized[0])
+
+        response = (
+            self.client
+            .table("weekly_reports")
+            .select("*")
+            .in_("project_id", normalized)
+            .execute()
+        )
+        return response.data or []

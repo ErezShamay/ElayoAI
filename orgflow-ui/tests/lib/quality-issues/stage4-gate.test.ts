@@ -39,9 +39,9 @@ const CRITICAL_PORTFOLIO: QualityPortfolioProjectSummary[] = [
 ];
 
 describe("stage 4 gate (QC portfolio + contractor remediation)", () => {
-  it("developer can read QC portfolio and sees critical projects first", () => {
+  it("developer persona is disabled in supervision v1 nav", () => {
     expect(hasQCPermission("DEVELOPER", "quality_portfolio:read")).toBe(true);
-    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/portfolio");
+    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/settings");
 
     const ranked = rankProjectsByQcPressure(CRITICAL_PORTFOLIO);
     expect(ranked[0]?.project_id).toBe("proj-hot");

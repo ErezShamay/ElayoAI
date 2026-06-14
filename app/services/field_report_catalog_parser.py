@@ -3,6 +3,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from app.config.catalog_reference_id import (
+    enrich_issue_catalog_reference_id,
+)
 from app.config.field_report_catalog_supplement import (
     SUPPLEMENT_CATALOG_VERSION,
     SUPPLEMENT_CATEGORIES_UNIQUE,
@@ -176,24 +179,29 @@ def parse_catalog_markdown(
 
             standard_ref = fields.get("Standard_Ref") or None
             issues.append(
-                {
-                    "issue_id": issue_id,
-                    "top_family": expected_top_family,
-                    "category_id": category_id,
-                    "category_name_he": category_name_he,
-                    "category_standard_id": category_standard_id,
-                    "target_elements": target_elements,
-                    "issue_name_he": fields["Issue_Name_HE"],
-                    "standard_ref": standard_ref,
-                    "severity": severity,
-                    "description": fields["Report_Text_HE"],
-                    "engineering_impact": fields[
-                        "Engineering_Impact_HE"
-                    ],
-                    "rectification_action": fields[
-                        "Rectification_Action_HE"
-                    ],
-                }
+                enrich_issue_catalog_reference_id(
+                    {
+                        "issue_id": issue_id,
+                        "top_family": expected_top_family,
+                        "category_id": category_id,
+                        "category_name_he": category_name_he,
+                        "category_standard_id": category_standard_id,
+                        "target_elements": target_elements,
+                        "issue_name_he": fields["Issue_Name_HE"],
+                        "standard_ref": standard_ref,
+                        "severity": severity,
+                        "description": fields["Report_Text_HE"],
+                        "engineering_impact": fields[
+                            "Engineering_Impact_HE"
+                        ],
+                        "rectification_action": fields[
+                            "Rectification_Action_HE"
+                        ],
+                        "catalog_reference_id": fields.get(
+                            "Catalog_Reference_ID"
+                        ),
+                    }
+                )
             )
 
     return {
@@ -303,7 +311,7 @@ def merge_catalog_supplement(catalog: dict) -> dict:
         issue_id = str(issue["issue_id"]).upper()
         if issue_id in global_issue_ids:
             continue
-        issues.append(dict(issue))
+        issues.append(enrich_issue_catalog_reference_id(dict(issue)))
         global_issue_ids.add(issue_id)
         supplement_added += 1
 

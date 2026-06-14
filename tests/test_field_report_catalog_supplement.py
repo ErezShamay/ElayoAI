@@ -12,7 +12,7 @@ from app.services.field_report_catalog_service import FieldReportCatalogService
 
 def test_catalog_includes_supplement_when_md_files_missing() -> None:
     catalog = load_catalog_from_directory()
-    assert catalog["issue_count"] >= len(SUPPLEMENT_ISSUES)
+    assert catalog["issue_count"] >= 30
     assert catalog["supplement_issue_count"] == len(SUPPLEMENT_ISSUES)
     assert catalog["catalog_version"] is not None
 

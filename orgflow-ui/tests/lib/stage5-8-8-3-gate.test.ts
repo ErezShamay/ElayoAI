@@ -13,7 +13,7 @@ describe("stage 5.8.8.3 gate (BrandLogo tagline - QC)", () => {
     const keys = readFileSync(ELAYOAI_KEYS, "utf8");
 
     expect(keys).toContain('export const ELAYOAI_APP_TAGLINE =');
-    expect(keys).toContain("בקרת איכות לפרויקטי בנייה");
+    expect(keys).toContain("שטח מסודר. ניהול שקט.");
     expect(logo).toContain("ELAYOAI_APP_NAME");
     expect(logo).toContain("ELAYOAI_APP_TAGLINE");
     expect(logo).not.toContain("AI לניהול בנייה ותפעול שטח");

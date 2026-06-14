@@ -14,11 +14,11 @@ function readPublicHomePage(): string {
 }
 
 describe("stage 5.8.6.1 gate (platform section title - QC)", () => {
-  it("replaces operating system headline with quality control platform", () => {
+  it("replaces operating system headline with engineering supervision platform", () => {
     const source = readPublicHomePage();
 
     expect(source).toMatch(
-      /id="platform"[\s\S]*?פלטפורמת בקרת איכות/
+      /id="platform"[\s\S]*?פלטפורמה לניהול ביקורים וליקויים/
     );
     expect(source).not.toContain("מערכת ההפעלה");
     expect(source).not.toContain("לפרויקטים שלך");

@@ -178,7 +178,7 @@ export function landingSectionHref(sectionId: string) {
 
 export const PUBLIC_ROUTES = ["/"] as const;
 
-export const POST_LOGIN_ROUTE = "/portfolio" as const;
+export const POST_LOGIN_ROUTE = "/field-reports" as const;
 
 export function isPublicRoute(pathname: string) {
   return (
@@ -192,13 +192,12 @@ export const FIELD_REPORTS_ROUTE = {
   label: "דוחות שטח",
 } as const;
 
-/** QC primary nav (spec 0.4 / stage 5.1) for dashboard sidebar. */
+/** Supervision primary nav — PRODUCT-SPEC-LOCKED §11. */
 export const GLOBAL_NAV_LINKS: NavLink[] = filterPrimaryNavLinks([
-  { href: "/portfolio", label: "תיק QC" },
-  { href: "/operational-review", label: "סקירה תפעולית" },
-  { href: "/projects", label: "פרויקטים" },
   FIELD_REPORTS_ROUTE,
   { href: "/issues", label: "ליקויים" },
+  { href: "/portfolio", label: "תיק פיקוח הנדסי" },
+  { href: "/projects", label: "פרויקטים" },
 ]);
 
 /** Legacy PM navbar - public home until stage 5.8. Upload hidden in 5.2. */

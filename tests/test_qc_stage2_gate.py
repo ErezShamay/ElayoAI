@@ -143,8 +143,16 @@ def test_stage2_gate_visit_two_links_visit_one_issue_without_duplicates(
         report_id="report-visit-1",
         actor_id="profile-1",
     )
-    assert visit_one_close["issue_materialization"]["created_count"] == 1
-    assert visit_one_close["issue_materialization"]["linked_count"] == 0
+    assert visit_one_close["issue_materialization"]["created_count"] == 0
+    visit_one_publish = (
+        visit_service.materialization_service.materialize_issues_from_report(
+            organization_id="org-1",
+            report_id="report-visit-1",
+            actor_id="profile-1",
+        )
+    )
+    assert visit_one_publish.created_count == 1
+    assert visit_one_publish.linked_count == 0
     assert len(issues.records) == 1
 
     issue_id = next(iter(issues.records))
@@ -187,10 +195,17 @@ def test_stage2_gate_visit_two_links_visit_one_issue_without_duplicates(
         report_id="report-visit-2",
         actor_id="profile-1",
     )
-    materialization = visit_two_close["issue_materialization"]
-    assert materialization["created_count"] == 0
-    assert materialization["linked_count"] == 1
-    assert materialization["linked_issue_ids"] == [issue_id]
+    assert visit_two_close["issue_materialization"]["created_count"] == 0
+    materialization = (
+        visit_service.materialization_service.materialize_issues_from_report(
+            organization_id="org-1",
+            report_id="report-visit-2",
+            actor_id="profile-1",
+        )
+    )
+    assert materialization.created_count == 0
+    assert materialization.linked_count == 1
+    assert materialization.linked_issue_ids == [issue_id]
     assert len(issues.records) == 1
 
     issue_after_visit_two = issues.get_by_id(issue_id)
@@ -282,6 +297,11 @@ def test_stage2_gate_visit_two_closes_linked_issue_updates_registry(
         report_id="report-visit-1",
         actor_id="profile-1",
     )
+    visit_service.materialization_service.materialize_issues_from_report(
+        organization_id="org-1",
+        report_id="report-visit-1",
+        actor_id="profile-1",
+    )
     issue_id = next(iter(issues.records))
 
     open_before_visit_two = client.get(
@@ -313,6 +333,11 @@ def test_stage2_gate_visit_two_closes_linked_issue_updates_registry(
     )
 
     visit_service.close_report(
+        organization_id="org-1",
+        report_id="report-visit-2",
+        actor_id="profile-1",
+    )
+    visit_service.materialization_service.materialize_issues_from_report(
         organization_id="org-1",
         report_id="report-visit-2",
         actor_id="profile-1",
@@ -443,6 +468,11 @@ def test_stage2_gate_recurring_issue_marked_reopened_in_visit_three(
         report_id="report-visit-1",
         actor_id="profile-1",
     )
+    visit_service.materialization_service.materialize_issues_from_report(
+        organization_id="org-1",
+        report_id="report-visit-1",
+        actor_id="profile-1",
+    )
     issue_id = next(iter(issues.records))
 
     reports.records["report-visit-2"] = {
@@ -467,6 +497,11 @@ def test_stage2_gate_recurring_issue_marked_reopened_in_visit_three(
     )
 
     visit_service.close_report(
+        organization_id="org-1",
+        report_id="report-visit-2",
+        actor_id="profile-1",
+    )
+    visit_service.materialization_service.materialize_issues_from_report(
         organization_id="org-1",
         report_id="report-visit-2",
         actor_id="profile-1",
@@ -508,6 +543,11 @@ def test_stage2_gate_recurring_issue_marked_reopened_in_visit_three(
     )
 
     visit_service.close_report(
+        organization_id="org-1",
+        report_id="report-visit-3",
+        actor_id="profile-1",
+    )
+    visit_service.materialization_service.materialize_issues_from_report(
         organization_id="org-1",
         report_id="report-visit-3",
         actor_id="profile-1",

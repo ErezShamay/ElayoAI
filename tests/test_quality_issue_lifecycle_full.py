@@ -86,11 +86,11 @@ def test_full_remediation_lifecycle_via_api(
     ).json()
     assert open_list["total"] == 1
 
-    summary = client.get(
+    draft_portfolio = client.get(
         "/portfolio/quality-summary",
         headers=supervisor_headers,
     ).json()
-    assert summary["total_open"] == 1
+    assert draft_portfolio["total_open"] == 0
 
     contractor_cannot_start = client.patch(
         f"/issues/{issue_id}",

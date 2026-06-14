@@ -17,9 +17,9 @@ describe("stage 5.8.4.7 gate (features section subtitle - QC)", () => {
   it("replaces operational AI engine tagline with field-first supervision", () => {
     const source = readPublicHomePage();
 
-    expect(source).toContain("פיקוח שמתחיל בשטח");
+    expect(source).toContain("מדוח ביקור וליקויים ועד אישור");
     expect(source).toContain("מדוח ביקור וליקויים");
-    expect(source).toContain("תיק QC לפרויקטים מורכבים");
+    expect(source).toContain("תיק פיקוח הנדסי");
     expect(source).not.toContain("מנוע AI תפעולי");
     expect(source).not.toContain("שמחבר בין דוחות, חריגות");
   });

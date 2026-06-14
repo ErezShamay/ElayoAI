@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Final
 
 TOP_FAMILY_LABELS_HE: Final[dict[str, str]] = {
-    "STRUCTURAL_WORKS": "שלד, קונסטרוקציה ובטון",
-    "FINISHING_WORKS": "עבודות גמר ופנים",
-    "MECHANICAL_ELECTRICAL_SYSTEMS": "מערכות אלקטרו-מכניות",
-    "SYSTEM_WATERPROOFING_AND_INSULATION": "איטום ובידוד",
+    "STRUCTURAL_WORKS": "שלד",
+    "FINISHING_WORKS": "גמר",
+    "MECHANICAL_ELECTRICAL_SYSTEMS": "מערכות",
+    "SYSTEM_WATERPROOFING_AND_INSULATION": "איטום",
 }
 
 

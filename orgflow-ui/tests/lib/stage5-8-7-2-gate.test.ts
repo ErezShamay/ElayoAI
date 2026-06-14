@@ -18,7 +18,7 @@ describe("stage 5.8.7.2 gate (final CTA subheadline - QC)", () => {
     const source = readPublicHomePage();
 
     expect(source).toContain(
-      'subheadline: "התחברו וצרו דוח ביקור ראשון"'
+      'subheadline: "התחילו עם דוח ביקור ראשון"'
     );
     expect(source).toContain("FINAL_CTA.subheadline");
     expect(source).not.toContain("התחברו למערכת וקבלו גישה מיידית");

@@ -42,7 +42,7 @@ describe("pdf parity guardrails (FR-5.1)", () => {
     for (const text of EXAMPLE_SHARED_HEADER_STRINGS) {
       expect(text.length).toBeGreaterThan(0);
     }
-    expect(PDF_DEFAULT_ADDRESSEE_HE).toContain("בעלי");
+    expect(PDF_DEFAULT_ADDRESSEE_HE).toContain("לקוח");
   });
 
   it("column preset headers match example PDF table headers", () => {

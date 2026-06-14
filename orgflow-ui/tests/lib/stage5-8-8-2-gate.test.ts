@@ -14,8 +14,8 @@ describe("stage 5.8.8.2 gate (PWA manifest - QC)", () => {
 
     expect(keys).toContain("export const ELAYOAI_MANIFEST_NAME =");
     expect(keys).toContain("export const ELAYOAI_MANIFEST_DESCRIPTION =");
-    expect(keys).toContain("בקרת איכות לפרויקטי בנייה");
-    expect(keys).toContain("דוחות שטח, מעקב ליקויים");
+    expect(keys).toContain("שטח מסודר. ניהול שקט.");
+    expect(keys).toContain("רישום ליקויים");
     expect(manifest).toContain("ELAYOAI_MANIFEST_NAME");
     expect(manifest).toContain("ELAYOAI_MANIFEST_DESCRIPTION");
     expect(manifest).toContain("short_name: ELAYOAI_APP_NAME");

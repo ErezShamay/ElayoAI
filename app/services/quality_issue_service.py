@@ -13,6 +13,7 @@ from app.exceptions.exceptions import (
 from app.repositories.field_visit_report_repository import (
     FieldVisitReportRepository,
 )
+from app.repositories.profile_repository import ProfileRepository
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.quality_issue_photo_repository import (
     QualityIssuePhotoRepository,
@@ -70,6 +71,8 @@ from app.services.quality_issue_portfolio_kpi import (
     compute_average_open_days,
     compute_closed_within_days_percent,
     count_critical_open_over_days,
+    filter_published_portfolio_issues,
+    resolve_latest_published_report_at,
 )
 from app.services.quality_issue_recurring_rankings import (
     build_contractor_recurring_rankings,
@@ -88,6 +91,13 @@ from app.services.quality_issue_photo_service import (
 )
 from app.services.quality_issue_visit_diff_service import (
     QualityIssueVisitDiffService,
+)
+from app.services.supervisor_project_scope import (
+    filter_supervised_projects,
+    project_supervised_by,
+    resolve_supervisor_email,
+    should_scope_projects_to_supervisor,
+    supervised_project_ids,
 )
 
 
@@ -129,6 +139,7 @@ class QualityIssueService:
         issue_repository: QualityIssueRepository | None = None,
         event_repository: QualityIssueEventRepository | None = None,
         project_repository: ProjectRepository | None = None,
+        profile_repository: ProfileRepository | None = None,
         report_repository: FieldVisitReportRepository | None = None,
         photo_repository: QualityIssuePhotoRepository | None = None,
         photo_service: QualityIssuePhotoService | None = None,
@@ -142,6 +153,9 @@ class QualityIssueService:
         )
         self.project_repository = (
             project_repository or ProjectRepository()
+        )
+        self.profile_repository = (
+            profile_repository or ProfileRepository()
         )
         self.report_repository = (
             report_repository or FieldVisitReportRepository()
@@ -171,7 +185,12 @@ class QualityIssueService:
         actor_id: str | None = None,
     ) -> dict:
         self._require_write_permission(actor_role)
-        self._ensure_project(organization_id, project_id)
+        self._ensure_project(
+            organization_id,
+            project_id,
+            actor_role=actor_role,
+            actor_user_id=actor_id,
+        )
 
         existing = self.issue_repository.get_by_materialization_key(
             organization_id=organization_id,
@@ -205,9 +224,15 @@ class QualityIssueService:
         project_id: str,
         query: QualityIssueListQuery | None = None,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityIssueListResponse:
         self._require_read_permission(actor_role)
-        self._ensure_project(organization_id, project_id)
+        self._ensure_project(
+            organization_id,
+            project_id,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
 
         filters = self._apply_visible_status_filter(
             query or QualityIssueListQuery(),
@@ -238,6 +263,7 @@ class QualityIssueService:
         organization_id: str,
         query: QualityIssueListQuery | None = None,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityIssueOrgListResponse:
         self._require_read_permission(actor_role)
 
@@ -249,10 +275,13 @@ class QualityIssueService:
             organization_id=organization_id,
             query=filters,
         )
-        total = self.issue_repository.count_by_organization(
+        rows = self._filter_rows_for_actor_projects(
+            rows,
             organization_id=organization_id,
-            query=filters,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
         )
+        total = len(rows)
 
         return QualityIssueOrgListResponse(
             organization_id=organization_id,
@@ -268,9 +297,15 @@ class QualityIssueService:
         organization_id: str,
         project_id: str,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityIssueOpenListResponse:
         self._require_read_permission(actor_role)
-        self._ensure_project(organization_id, project_id)
+        self._ensure_project(
+            organization_id,
+            project_id,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
 
         rows = self.issue_repository.list_open_by_project(
             organization_id=organization_id,
@@ -299,12 +334,14 @@ class QualityIssueService:
         project_id: str,
         report_id: str,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityIssueVisitDiffResponse:
         return self.visit_diff_service.get_visit_issue_diff(
             organization_id=organization_id,
             project_id=project_id,
             report_id=report_id,
             actor_role=actor_role,
+            actor_user_id=actor_user_id,
         )
 
     def suggest_matches(
@@ -314,15 +351,22 @@ class QualityIssueService:
         project_id: str,
         request: QualityIssueSuggestMatchesRequest,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityIssueSuggestMatchesResponse:
         self._require_read_permission(actor_role)
-        self._ensure_project(organization_id, project_id)
+        self._ensure_project(
+            organization_id,
+            project_id,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
 
         finding = request.to_finding_input()
         open_issues = self.list_open_issues(
             organization_id=organization_id,
             project_id=project_id,
             actor_role=actor_role,
+            actor_user_id=actor_user_id,
         )
         matcher = QualityIssueMatchingService(self.issue_repository)
         candidates = matcher.find_matches(
@@ -342,15 +386,44 @@ class QualityIssueService:
         *,
         organization_id: str,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityPortfolioSummaryResponse:
         self._require_portfolio_read_permission(actor_role)
 
-        issues = self.issue_repository.list_by_organization(
-            organization_id=organization_id,
+        issues = filter_published_portfolio_issues(
+            self.issue_repository.list_by_organization(
+                organization_id=organization_id,
+            )
         )
         projects = self.project_repository.get_projects_by_organization(
             organization_id
         )
+        projects = self._filter_projects_for_actor(
+            projects,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
+        allowed_project_ids = {
+            str(project.get("id") or "")
+            for project in projects
+            if project.get("id")
+        }
+        issues = [
+            issue
+            for issue in issues
+            if str(issue.get("project_id") or "") in allowed_project_ids
+        ]
+        deliverables: list[dict[str, Any]] = []
+        if self.report_repository.is_storage_available():
+            try:
+                deliverables = (
+                    self.report_repository.list_pdf_deliverables_by_organization(
+                        organization_id=organization_id,
+                    )
+                )
+            except Exception:
+                deliverables = []
+        last_report_at = resolve_latest_published_report_at(deliverables)
 
         now = _utc_now()
         open_issues = [
@@ -405,6 +478,7 @@ class QualityIssueService:
             critical_open_over_14_days=critical_open_over_14_days,
             average_open_days=average_open_days,
             closed_within_30_days_percent=closed_within_30_days_percent,
+            last_report_at=last_report_at,
             projects=project_summaries,
         )
 
@@ -414,19 +488,42 @@ class QualityIssueService:
         organization_id: str,
         actor_role: str | None,
         project_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> QualityTradeHeatmapResponse:
         self._require_portfolio_read_permission(actor_role)
 
         issues = self.issue_repository.list_by_organization(
             organization_id=organization_id,
         )
+        projects = self.project_repository.get_projects_by_organization(
+            organization_id
+        )
+        projects = self._filter_projects_for_actor(
+            projects,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
+        allowed_project_ids = {
+            str(project.get("id") or "")
+            for project in projects
+            if project.get("id")
+        }
 
         normalized_project_id = (project_id or "").strip() or None
         if normalized_project_id:
+            if normalized_project_id not in allowed_project_ids:
+                issues = []
+            else:
+                issues = [
+                    issue
+                    for issue in issues
+                    if str(issue.get("project_id") or "") == normalized_project_id
+                ]
+        else:
             issues = [
                 issue
                 for issue in issues
-                if str(issue.get("project_id") or "") == normalized_project_id
+                if str(issue.get("project_id") or "") in allowed_project_ids
             ]
 
         open_issues = [
@@ -448,6 +545,7 @@ class QualityIssueService:
         organization_id: str,
         actor_role: str | None,
         project_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> QualityRecurringRankingsResponse:
         self._require_portfolio_read_permission(actor_role)
 
@@ -457,18 +555,38 @@ class QualityIssueService:
         projects = self.project_repository.get_projects_by_organization(
             organization_id
         )
+        projects = self._filter_projects_for_actor(
+            projects,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
+        allowed_project_ids = {
+            str(project.get("id") or "")
+            for project in projects
+            if project.get("id")
+        }
 
         normalized_project_id = (project_id or "").strip() or None
         if normalized_project_id:
+            if normalized_project_id not in allowed_project_ids:
+                issues = []
+                projects = []
+            else:
+                issues = [
+                    issue
+                    for issue in issues
+                    if str(issue.get("project_id") or "") == normalized_project_id
+                ]
+                projects = [
+                    project
+                    for project in projects
+                    if str(project.get("id") or "") == normalized_project_id
+                ]
+        else:
             issues = [
                 issue
                 for issue in issues
-                if str(issue.get("project_id") or "") == normalized_project_id
-            ]
-            projects = [
-                project
-                for project in projects
-                if str(project.get("id") or "") == normalized_project_id
+                if str(issue.get("project_id") or "") in allowed_project_ids
             ]
 
         recurring_issues = [
@@ -496,6 +614,7 @@ class QualityIssueService:
         actor_role: str | None,
         period_days: int = 30,
         project_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> QualityPeriodicReportResponse:
         self._require_portfolio_read_permission(actor_role)
 
@@ -505,18 +624,38 @@ class QualityIssueService:
         projects = self.project_repository.get_projects_by_organization(
             organization_id
         )
+        projects = self._filter_projects_for_actor(
+            projects,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
+        allowed_project_ids = {
+            str(project.get("id") or "")
+            for project in projects
+            if project.get("id")
+        }
 
         normalized_project_id = (project_id or "").strip() or None
         if normalized_project_id:
+            if normalized_project_id not in allowed_project_ids:
+                issues = []
+                projects = []
+            else:
+                issues = [
+                    issue
+                    for issue in issues
+                    if str(issue.get("project_id") or "") == normalized_project_id
+                ]
+                projects = [
+                    project
+                    for project in projects
+                    if str(project.get("id") or "") == normalized_project_id
+                ]
+        else:
             issues = [
                 issue
                 for issue in issues
-                if str(issue.get("project_id") or "") == normalized_project_id
-            ]
-            projects = [
-                project
-                for project in projects
-                if str(project.get("id") or "") == normalized_project_id
+                if str(issue.get("project_id") or "") in allowed_project_ids
             ]
 
         enriched_issues = [
@@ -542,12 +681,14 @@ class QualityIssueService:
         actor_role: str | None,
         period_days: int = 30,
         project_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> str:
         report = self.get_portfolio_periodic_report(
             organization_id=organization_id,
             actor_role=actor_role,
             period_days=period_days,
             project_id=project_id,
+            actor_user_id=actor_user_id,
         )
         return render_periodic_report_csv(report)
 
@@ -557,11 +698,18 @@ class QualityIssueService:
         organization_id: str,
         issue_id: str,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityIssueDetailResponse:
         self._require_read_permission(actor_role)
         record = self._get_issue_for_org(
             organization_id=organization_id,
             issue_id=issue_id,
+        )
+        self._ensure_issue_project_access(
+            record,
+            organization_id=organization_id,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
         )
         self._ensure_issue_visible(record, actor_role)
 
@@ -595,6 +743,12 @@ class QualityIssueService:
         record = self._get_issue_for_org(
             organization_id=organization_id,
             issue_id=issue_id,
+        )
+        self._ensure_issue_project_access(
+            record,
+            organization_id=organization_id,
+            actor_role=actor_role,
+            actor_user_id=actor_id,
         )
         self._ensure_issue_visible(record, actor_role)
 
@@ -762,6 +916,9 @@ class QualityIssueService:
         self,
         organization_id: str,
         project_id: str,
+        *,
+        actor_role: str | None = None,
+        actor_user_id: str | None = None,
     ) -> dict:
         project = self.project_repository.get_project_by_id(project_id)
         if project is None:
@@ -776,7 +933,85 @@ class QualityIssueService:
                 resource_type="project",
                 resource_id=project_id,
             )
+        if should_scope_projects_to_supervisor(actor_role):
+            supervisor_email = resolve_supervisor_email(
+                self.profile_repository,
+                actor_user_id or "",
+            )
+            if not project_supervised_by(project, supervisor_email):
+                raise NotFoundError(
+                    message="Project not found",
+                    resource_type="project",
+                    resource_id=project_id,
+                )
         return project
+
+    def _resolve_supervisor_email(
+        self,
+        actor_user_id: str | None,
+    ) -> str | None:
+        if not actor_user_id:
+            return None
+        return resolve_supervisor_email(
+            self.profile_repository,
+            actor_user_id,
+        )
+
+    def _filter_projects_for_actor(
+        self,
+        projects: list[dict],
+        *,
+        actor_role: str | None,
+        actor_user_id: str | None,
+    ) -> list[dict]:
+        return filter_supervised_projects(
+            projects,
+            role=actor_role,
+            supervisor_email=self._resolve_supervisor_email(actor_user_id),
+        )
+
+    def _filter_rows_for_actor_projects(
+        self,
+        rows: list[dict],
+        *,
+        organization_id: str,
+        actor_role: str | None,
+        actor_user_id: str | None,
+    ) -> list[dict]:
+        if not should_scope_projects_to_supervisor(actor_role):
+            return rows
+
+        projects = self.project_repository.get_projects_by_organization(
+            organization_id
+        )
+        allowed_project_ids = supervised_project_ids(
+            projects,
+            role=actor_role,
+            supervisor_email=self._resolve_supervisor_email(actor_user_id),
+        )
+        return [
+            row
+            for row in rows
+            if str(row.get("project_id") or "") in allowed_project_ids
+        ]
+
+    def _ensure_issue_project_access(
+        self,
+        record: dict,
+        *,
+        organization_id: str,
+        actor_role: str | None,
+        actor_user_id: str | None,
+    ) -> None:
+        project_id = str(record.get("project_id") or "")
+        if not project_id:
+            return
+        self._ensure_project(
+            organization_id,
+            project_id,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
 
     def _get_issue_for_org(
         self,

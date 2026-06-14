@@ -17,8 +17,8 @@ describe("stage 5.8.3.4 gate (workflow pillars - QC portfolio)", () => {
   it("replaces automation pillar with QC portfolio severity overview", () => {
     const source = readPublicHomePage();
 
-    expect(source).toContain('value: "תיק QC"');
-    expect(source).toContain('label: "תמונת מצב לפי חומרה"');
+    expect(source).toContain('value: "תיק פיקוח"');
+    expect(source).toContain('label: "תמונת מצב למנהל"');
     expect(source).not.toContain('value: "אוטומציה"');
     expect(source).not.toContain("תורים, ניטור בריאות ו-Dead Letters");
   });

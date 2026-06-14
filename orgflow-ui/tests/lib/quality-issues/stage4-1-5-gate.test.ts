@@ -37,13 +37,13 @@ describe("stage 4.1.5 gate (QC project ranking)", () => {
     );
     const helpers = readSource("lib/quality-issues/portfolio-summary.ts");
 
-    expect(ranking).toContain("rankProjectsByQcPressure");
+    expect(ranking).toContain("rankProjectsBySupervisionPressure");
     expect(ranking).toContain("דירוג פרויקטים");
     expect(ranking).toContain("open_critical");
     expect(ranking).toContain("open_total");
     expect(portfolioPage).toContain("PortfolioProjectRanking");
     expect(portfolioPage).not.toContain("OperationalReviewPanel");
     expect(operationalReview).toContain("OPERATIONAL_REVIEW_RANKING_TITLE");
-    expect(helpers).toContain("rankProjectsByQcPressure");
+    expect(helpers).toContain("rankProjectsBySupervisionPressure");
   });
 });

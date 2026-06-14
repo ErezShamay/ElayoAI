@@ -28,12 +28,12 @@ describe("contractor route guard (4.2.4)", () => {
     expect(isContractorDeniedRoute("/settings")).toBe(false);
   });
 
-  it("evaluates access by role and redirects to issues home", () => {
+  it("evaluates access by role and redirects disabled contractor to settings", () => {
     expect(canContractorAccessRoute("CONTRACTOR", "/field-reports")).toBe(
       false
     );
     expect(canContractorAccessRoute("CONTRACTOR", "/issues")).toBe(true);
     expect(canContractorAccessRoute("SUPERVISOR", "/field-reports")).toBe(true);
-    expect(contractorDeniedRouteRedirect("CONTRACTOR")).toBe("/issues");
+    expect(contractorDeniedRouteRedirect("CONTRACTOR")).toBe("/settings");
   });
 });

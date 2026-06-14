@@ -27,15 +27,14 @@ describe("stage 4.1.3 gate (closed within 30 days KPI)", () => {
     expect(service).toContain("closed_within_30_days_percent");
   });
 
-  it("shows closed-within-30 KPI in portfolio QC panel", () => {
+  it("keeps closed-within-30 helpers for API while portfolio UI is supervision-first", () => {
     const panel = readSource(
       "components/quality-issues/PortfolioQualitySummaryPanel.tsx"
     );
     const helpers = readSource("lib/quality-issues/portfolio-summary.ts");
 
-    expect(panel).toContain("סגירה תוך 30 יום");
-    expect(panel).toContain("closed_within_30_days_percent");
-    expect(panel).toContain("formatClosedWithin30DaysCaption");
+    expect(panel).toContain("דוח אחרון");
+    expect(panel).not.toContain("סגירה תוך 30 יום");
     expect(helpers).toContain("formatClosedWithin30DaysCaption");
     expect(helpers).toContain("isClosedWithin30DaysHealthy");
   });

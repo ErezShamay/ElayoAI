@@ -118,7 +118,7 @@ export default function OrganizationIssuesPage() {
 
       <div className="mx-auto max-w-6xl space-y-6">
         <PageHeader
-          eyebrow="בקרת איכות"
+          eyebrow="פיקוח הנדסי"
           title={contractorView ? contractorIssuesPageTitle() : "ליקויים"}
           description={
             contractorView

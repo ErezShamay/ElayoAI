@@ -118,6 +118,13 @@ export function rankProjectsByQcPressure(
   });
 }
 
+/** P4 supervision portfolio ranking — published issue pressure. */
+export function rankProjectsBySupervisionPressure(
+  projects: QualityPortfolioSummaryResponse["projects"]
+): QualityPortfolioSummaryResponse["projects"] {
+  return rankProjectsByQcPressure(projects);
+}
+
 /** @deprecated Use rankProjectsByQcPressure - kept for existing imports. */
 export function sortProjectsByOpenCritical(
   projects: QualityPortfolioSummaryResponse["projects"]
@@ -157,4 +164,31 @@ export function projectQcPressureLevel(
   }
 
   return "clear";
+}
+
+/** @deprecated Use projectQcPressureLevel — supervision alias. */
+export const projectSupervisionPressureLevel = projectQcPressureLevel;
+
+export function formatLastReportAtKpi(
+  value: string | null | undefined
+): string {
+  if (!value) {
+    return "—";
+  }
+
+  try {
+    return new Date(value).toLocaleDateString("he-IL");
+  } catch {
+    return "—";
+  }
+}
+
+export function formatLastReportAtCaption(
+  value: string | null | undefined
+): string {
+  if (!value) {
+    return "אין דוח שטח שפורסם ונשמר בארכיון";
+  }
+
+  return `דוח אחרון שפורסם: ${formatLastReportAtKpi(value)}`;
 }

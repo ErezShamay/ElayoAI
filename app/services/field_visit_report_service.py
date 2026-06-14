@@ -29,6 +29,7 @@ from app.repositories.field_visit_report_repository import (
 from app.repositories.project_repository import (
     ProjectRepository,
 )
+from app.schemas.quality_issue import DEFAULT_ISSUE_VISIBILITY, IssueVisibility
 from app.services.field_report_catalog_service import (
     FieldReportCatalogService,
 )
@@ -48,7 +49,9 @@ from app.services.field_visit_report_core_adapter import (
     FieldVisitReportCoreAdapter,
 )
 from app.services.quality_issue_materialization_service import (
+    MaterializationResult,
     QualityIssueMaterializationService,
+    collect_materializable_finding_rows,
 )
 from app.services.report_processing_service import (
     ReportProcessingService,
@@ -63,6 +66,7 @@ VISIT_STATUS_LABELS_HE: dict[str, str] = {
 
 EDITABLE_STATUSES = frozenset({"IN_PROGRESS"})
 REOPENABLE_STATUSES = frozenset({"CLOSED"})
+PUBLISHABLE_STATUSES = frozenset({"CLOSED"})
 SENDABLE_STATUSES = frozenset({"CLOSED"})
 SYNCABLE_STATUSES = frozenset({
     "IN_PROGRESS",
@@ -444,6 +448,125 @@ class FieldVisitReportService:
             record,
             project_name=project.get("project_name"),
         )
+
+    def preview_publish_report(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+    ) -> dict:
+        record = self._get_org_report(
+            organization_id=organization_id,
+            report_id=report_id,
+        )
+        self._ensure_publishable(record)
+
+        current_catalog_version = (
+            self.catalog_service.get_catalog_summary().get(
+                "catalog_version"
+            )
+        )
+        lines = self._load_lines(
+            report_id,
+            current_catalog_version=current_catalog_version,
+        )
+        materializable = collect_materializable_finding_rows(
+            header_fields=record.get("header_fields") or {},
+            lines=self._lines_for_materialization(report_id),
+        )
+        close_preview = _build_close_preview(lines)
+        draft_count = sum(
+            1
+            for line in lines
+            if str(line.get("visibility") or IssueVisibility.DRAFT.value)
+            != IssueVisibility.PUBLISHED.value
+        )
+        published_count = len(lines) - draft_count
+        already_published = self._is_report_published(record, lines)
+
+        warnings = list(close_preview.get("warnings") or [])
+        if already_published:
+            warnings.append("הדוח כבר פורסם — פרסום חוזר יעדכן registry בלבד.")
+        if not materializable:
+            warnings.append(
+                "אין שורות שייווצרו מ-registry — "
+                "הדוח יפורסם לפורטל עם מה שקיים."
+            )
+
+        return {
+            "line_count": len(lines),
+            "draft_line_count": draft_count,
+            "published_line_count": published_count,
+            "materializable_line_count": len(materializable),
+            "already_published": already_published,
+            "warnings": warnings,
+            "close_preview": close_preview,
+        }
+
+    def publish_report(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        actor_id: str | None = None,
+        source_filename: str | None = None,
+        source_content: bytes | None = None,
+    ) -> dict:
+        record = self._get_org_report(
+            organization_id=organization_id,
+            report_id=report_id,
+        )
+        self._ensure_publishable(record)
+
+        published_line_count = self._publish_report_lines(report_id)
+
+        materialization = (
+            self.materialization_service.materialize_issues_from_report(
+                organization_id=organization_id,
+                report_id=report_id,
+                actor_id=actor_id,
+            )
+        )
+
+        record = self.report_repository.get_by_id(report_id) or record
+        if source_content:
+            record = self._archive_report_pdf_if_needed(
+                organization_id=organization_id,
+                report_id=report_id,
+                record=record,
+                source_filename=source_filename or "",
+                source_content=source_content,
+            )
+
+        project = self.project_repository.get_project_by_id(
+            str(record["project_id"])
+        )
+        project_name = (
+            project.get("project_name") if project else None
+        )
+
+        serialized = self._serialize_report(
+            record,
+            project_name=project_name,
+        )
+        pdf_archived = bool(record.get("pdf_storage_path"))
+        publish_warnings: list[str] = []
+        if not pdf_archived:
+            publish_warnings.append(
+                "ה-PDF לא נשמר בארכיון — הפרסום לא הושלם. "
+                "יש להעלות PDF בפרסום."
+            )
+        return {
+            **serialized,
+            "publish_result": {
+                "published_line_count": published_line_count,
+                "issue_materialization": materialization.model_dump(
+                    mode="json"
+                ),
+                "pdf_archived": pdf_archived,
+                "warnings": publish_warnings,
+            },
+        }
 
     def preview_close_report(
         self,
@@ -1517,6 +1640,7 @@ class FieldVisitReportService:
             "notes": normalized.get("notes"),
             "severity": normalized.get("severity"),
             "standard_ref": normalized.get("standard_ref"),
+            "catalog_reference_id": normalized.get("catalog_reference_id"),
             "engineering_impact": normalized.get(
                 "engineering_impact"
             ),
@@ -1530,6 +1654,11 @@ class FieldVisitReportService:
             "block_id": normalized.get("block_id"),
             "linked_issue_id": normalized.get("linked_issue_id"),
         }
+
+        if for_create:
+            payload["visibility"] = (
+                normalized.get("visibility") or DEFAULT_ISSUE_VISIBILITY.value
+            )
 
         if client_line_uuid:
             payload["client_line_uuid"] = client_line_uuid
@@ -1549,6 +1678,7 @@ class FieldVisitReportService:
                 **incoming,
                 "issue_id": None,
                 "standard_ref": None,
+                "catalog_reference_id": None,
                 "top_family": None,
                 "category_id": None,
                 "category_name_he": None,
@@ -1635,15 +1765,101 @@ class FieldVisitReportService:
         report_id: str,
         actor_id: str | None,
     ) -> dict | None:
-        if not self.materialization_service.issue_repository.is_storage_available():
+        record = self.report_repository.get_by_id(report_id)
+        if record is None or str(record.get("organization_id")) != organization_id:
             return None
 
-        result = self.materialization_service.materialize_issues_from_report(
-            organization_id=organization_id,
+        result = MaterializationResult(
             report_id=report_id,
-            actor_id=actor_id,
+            project_id=str(record.get("project_id") or ""),
+            created_count=0,
+            linked_count=0,
+            skipped_count=0,
         )
         return result.model_dump(mode="json")
+
+    def _publish_report_lines(self, report_id: str) -> int:
+        if not self.are_lines_available():
+            return 0
+
+        published_count = 0
+        for line in self.line_repository.list_by_report(report_id):
+            if (
+                str(line.get("visibility") or IssueVisibility.DRAFT.value)
+                != IssueVisibility.PUBLISHED.value
+            ):
+                self.line_repository.update(
+                    str(line["id"]),
+                    {"visibility": IssueVisibility.PUBLISHED.value},
+                )
+                published_count += 1
+        return published_count
+
+    def _lines_for_materialization(self, report_id: str) -> list[dict]:
+        if not self.are_lines_available():
+            return []
+
+        serialized: list[dict] = []
+        for line in self.line_repository.list_by_report(report_id):
+            line_id = str(line["id"])
+            photos = self._photos_for_line(line)
+            photo_ids = [str(photo["id"]) for photo in photos]
+            serialized.append(
+                {
+                    "id": line_id,
+                    "location": line.get("location"),
+                    "trade": line.get("trade"),
+                    "description": line.get("description"),
+                    "notes": line.get("notes"),
+                    "severity": line.get("severity"),
+                    "standard_ref": line.get("standard_ref"),
+                    "catalog_reference_id": line.get("catalog_reference_id"),
+                    "issue_id": line.get("issue_id"),
+                    "group_key": line.get("group_key"),
+                    "group_label_he": line.get("group_label_he"),
+                    "linked_issue_id": line.get("linked_issue_id"),
+                    "photo_ids": photo_ids,
+                    "has_photo": bool(photo_ids),
+                }
+            )
+        return serialized
+
+    @staticmethod
+    def _is_report_published(record: dict, lines: list[dict]) -> bool:
+        if lines:
+            return all(
+                str(line.get("visibility") or IssueVisibility.DRAFT.value)
+                == IssueVisibility.PUBLISHED.value
+                for line in lines
+            )
+        return bool(record.get("pdf_storage_path"))
+
+    @staticmethod
+    def _report_publish_flags(
+        *,
+        record: dict,
+        lines: list[dict],
+    ) -> dict[str, bool]:
+        status = str(record.get("status") or "")
+        is_published = FieldVisitReportService._is_report_published(
+            record,
+            lines,
+        )
+        can_publish = status in PUBLISHABLE_STATUSES and not is_published
+        return {
+            "is_published": is_published,
+            "can_publish": can_publish,
+            "pending_publish": can_publish,
+        }
+
+    @staticmethod
+    def _ensure_publishable(record: dict) -> None:
+        status = str(record.get("status") or "")
+        if status not in PUBLISHABLE_STATUSES:
+            raise ConflictError(
+                message="ניתן לפרסם רק דוח במצב סגור",
+                details={"status": status},
+            )
 
     def _load_lines(
         self,
@@ -2092,6 +2308,10 @@ class FieldVisitReportService:
             report_catalog_version=report_catalog_version,
             current_catalog_version=current_catalog_version,
         )
+        publish_flags = self._report_publish_flags(
+            record=record,
+            lines=lines,
+        )
 
         return {
             "id": report_id,
@@ -2123,6 +2343,9 @@ class FieldVisitReportService:
             "is_editable": status in EDITABLE_STATUSES,
             "can_reopen": status in REOPENABLE_STATUSES,
             "can_send_to_core": status in SENDABLE_STATUSES,
+            "can_publish": publish_flags["can_publish"],
+            "is_published": publish_flags["is_published"],
+            "pending_publish": publish_flags["pending_publish"],
             "was_closed": bool(record.get("closed_at")),
             "organization_profile_snapshot": (
                 record.get("organization_profile_snapshot")
@@ -2420,6 +2643,7 @@ class FieldVisitReportService:
             "group_label_he": record.get("group_label_he"),
             "block_id": record.get("block_id"),
             "linked_issue_id": record.get("linked_issue_id"),
+            "visibility": record.get("visibility") or IssueVisibility.DRAFT.value,
             "created_at": record.get("created_at"),
             "updated_at": record.get("updated_at"),
         }
@@ -2644,6 +2868,10 @@ def _apply_catalog_issue_defaults(
         catalog_issue.get("standard_ref")
         or catalog_issue.get("category_standard_id")
     )
+    catalog_reference_id = (
+        catalog_issue.get("catalog_reference_id")
+        or payload.get("catalog_reference_id")
+    )
     return {
         **payload,
         "trade": payload.get("trade") or catalog_issue.get(
@@ -2656,6 +2884,7 @@ def _apply_catalog_issue_defaults(
         "severity": payload.get("severity")
         or catalog_issue.get("severity"),
         "standard_ref": standard_ref,
+        "catalog_reference_id": catalog_reference_id,
         "engineering_impact": payload.get("engineering_impact")
         or catalog_issue.get("engineering_impact"),
         "top_family": catalog_issue.get("top_family"),

@@ -8,10 +8,12 @@ type Activity = {
 
 type Props = {
   activities: Activity[];
+  title?: string;
 };
 
 export default function ProjectActivityTimeline({
   activities,
+  title = "ציר דוחות וביקורים",
 }: Props) {
 
   function formatDate(
@@ -51,7 +53,7 @@ export default function ProjectActivityTimeline({
             font-bold
           "
         >
-          ציר פעילות תפעולית
+          {title}
         </h2>
 
       </div>

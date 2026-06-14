@@ -17,7 +17,9 @@ from app.exceptions.exceptions import (
 from app.auth.roles import (
     ORG_ADMIN_ROLE,
     PLATFORM_ADMIN_ROLE,
+    RESIDENT_ROLE,
     can_assign_role,
+    can_invite_resident,
     is_org_admin,
     is_platform_admin,
     ORG_SCOPED_INVITE_ROLES,
@@ -265,6 +267,7 @@ class UserManagementService:
         role: str,
         invited_by: str,
         inviter_role: str,
+        _allow_resident: bool = False,
     ) -> dict:
         normalized_email = email.strip().lower()
         normalized_role = role.strip().upper()
@@ -291,6 +294,13 @@ class UserManagementService:
             raise ForbiddenError(
                 message=(
                     "Global admin accounts cannot be created via invitation"
+                ),
+            )
+
+        if normalized_role == RESIDENT_ROLE and not _allow_resident:
+            raise ValidationError(
+                message=(
+                    "חשבונות דיירים נוצרים דרך מנהל הדיירים בלבד"
                 ),
             )
 
@@ -382,9 +392,35 @@ class UserManagementService:
 
         return {
             "user": profile,
+            "profile_id": user_id,
+            "invite_link": invite_link,
             "email_status": email_status,
             "email_error": email_error,
         }
+
+    def invite_resident_user(
+        self,
+        *,
+        organization_id: str,
+        email: str,
+        full_name: str,
+        invited_by: str,
+        inviter_role: str,
+    ) -> dict:
+        if not can_invite_resident(inviter_role):
+            raise ValidationError(
+                message="אין הרשאה להזמין דיירים",
+            )
+
+        return self.invite_user(
+            organization_id=organization_id,
+            email=email,
+            full_name=full_name,
+            role=RESIDENT_ROLE,
+            invited_by=invited_by,
+            inviter_role=inviter_role,
+            _allow_resident=True,
+        )
 
     def resend_invite(
         self,

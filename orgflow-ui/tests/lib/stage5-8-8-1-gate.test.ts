@@ -8,13 +8,13 @@ const ROOT_LAYOUT = path.join(UI_ROOT, "app/layout.tsx");
 const ELAYOAI_KEYS = path.join(UI_ROOT, "lib/elayoai/keys.ts");
 
 describe("stage 5.8.8.1 gate (metadata description - QC)", () => {
-  it("describes quality control platform instead of construction management", () => {
+  it("describes engineering supervision platform instead of construction management", () => {
     const layout = readFileSync(ROOT_LAYOUT, "utf8");
     const keys = readFileSync(ELAYOAI_KEYS, "utf8");
 
     expect(keys).toContain("export const ELAYOAI_APP_DESCRIPTION =");
     expect(keys).toContain(
-      "Quality Control Platform for Construction Projects"
+      "Field visit reports, defect tracking, and engineering deliverables"
     );
     expect(layout).toContain("ELAYOAI_APP_DESCRIPTION");
     expect(layout).toContain("description: ELAYOAI_APP_DESCRIPTION");

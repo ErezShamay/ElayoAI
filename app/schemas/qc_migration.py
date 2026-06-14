@@ -166,3 +166,41 @@ def quality_issue_photos_migration_path() -> Path:
 
 def read_quality_issue_photos_migration_sql() -> str:
     return quality_issue_photos_migration_path().read_text(encoding="utf-8")
+
+
+ISSUE_VISIBILITY_MIGRATION_VERSION = "2026061401"
+ISSUE_VISIBILITY_MIGRATION_FILENAME = (
+    f"{ISSUE_VISIBILITY_MIGRATION_VERSION}_issue_visibility.sql"
+)
+
+
+def issue_visibility_migration_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[2]
+        / "db"
+        / "migrations"
+        / ISSUE_VISIBILITY_MIGRATION_FILENAME
+    )
+
+
+def read_issue_visibility_migration_sql() -> str:
+    return issue_visibility_migration_path().read_text(encoding="utf-8")
+
+
+CATALOG_REFERENCE_ID_MIGRATION_VERSION = "2026061402"
+CATALOG_REFERENCE_ID_MIGRATION_FILENAME = (
+    f"{CATALOG_REFERENCE_ID_MIGRATION_VERSION}_catalog_reference_id.sql"
+)
+
+
+def catalog_reference_id_migration_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[2]
+        / "db"
+        / "migrations"
+        / CATALOG_REFERENCE_ID_MIGRATION_FILENAME
+    )
+
+
+def read_catalog_reference_id_migration_sql() -> str:
+    return catalog_reference_id_migration_path().read_text(encoding="utf-8")

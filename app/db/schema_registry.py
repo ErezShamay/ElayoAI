@@ -42,7 +42,7 @@ class TableSchema:
     audited: bool = True
 
 
-SCHEMA_VERSION = "2026061010"
+SCHEMA_VERSION = "2026061401"
 
 # Matches deploy/sql/20260604_enable_rls_best_practice.sql (authenticated SELECT + service_role bypass).
 ORGFLOW_TENANT_ISOLATION = (
@@ -299,6 +299,10 @@ TABLES: dict[str, TableSchema] = {
                 ("client_line_uuid",),
                 unique=True,
             ),
+            IndexDef(
+                "field_visit_report_lines_report_visibility_idx",
+                ("report_id", "visibility"),
+            ),
         ),
         rls_policies=(
             RlsPolicyDef(
@@ -388,6 +392,10 @@ TABLES: dict[str, TableSchema] = {
             IndexDef(
                 "quality_issues_project_matching_idx",
                 ("project_id", "group_key", "trade", "location"),
+            ),
+            IndexDef(
+                "quality_issues_org_project_visibility_idx",
+                ("organization_id", "project_id", "visibility"),
             ),
         ),
         rls_policies=(
@@ -544,6 +552,37 @@ TABLES: dict[str, TableSchema] = {
             ),
         ),
         audited=False,
+    ),
+    "project_apartments": TableSchema(
+        name="project_apartments",
+        tenant_column="organization_id",
+        soft_delete_column=None,
+        foreign_keys=(
+            ForeignKeyDef("organization_id", "organizations"),
+            ForeignKeyDef("project_id", "projects", on_delete="CASCADE"),
+            ForeignKeyDef(
+                "resident_profile_id",
+                "profiles",
+                on_delete="SET NULL",
+            ),
+        ),
+        indexes=(
+            IndexDef("project_apartments_pkey", ("id",), unique=True),
+            IndexDef(
+                "project_apartments_project_apartment_key",
+                ("project_id", "apartment_number"),
+                unique=True,
+            ),
+            IndexDef("project_apartments_org_idx", ("organization_id",)),
+            IndexDef("project_apartments_project_idx", ("project_id",)),
+        ),
+        rls_policies=(
+            RlsPolicyDef(
+                name="project_apartments_tenant_isolation",
+                command="SELECT",
+                using_expression=ORGFLOW_TENANT_ISOLATION,
+            ),
+        ),
     ),
     "automation_locks": TableSchema(
         name="automation_locks",
@@ -753,6 +792,22 @@ MIGRATION_SCRIPTS: list[dict] = [
             "Persistent dedup keys for scheduled SLA and QC alert delivery"
         ),
         "tables": ["scheduled_alert_dedups"],
+    },
+    {
+        "version": "2026061201",
+        "name": "project_apartments",
+        "description": (
+            "Apartment registry for tenant manager and resident portal"
+        ),
+        "tables": ["project_apartments", "profiles"],
+    },
+    {
+        "version": "2026061401",
+        "name": "issue_visibility",
+        "description": (
+            "Draft/Published visibility on quality issues and field report lines"
+        ),
+        "tables": ["quality_issues", "field_visit_report_lines"],
     },
 ]
 

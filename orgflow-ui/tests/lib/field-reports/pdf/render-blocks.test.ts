@@ -170,6 +170,52 @@ describe("renderFindingsTable", () => {
     });
   });
 
+  it("renders catalog reference alongside standard ref", () => {
+    const block: FindingsTableBlock = {
+      id: "f-catalog",
+      kind: "findings_table",
+      title_he: "ממצאים",
+      column_preset: "rich",
+      rows: [
+        {
+          id: "1",
+          issue_id: "STR-1",
+          standard_ref: 'ת"י 949',
+          catalog_reference_id: "IL-STD-949-WATER",
+          severity: "HIGH",
+          description: "רטיבות",
+        },
+      ],
+    };
+
+    const texts = collectTexts(renderFindingsTable(block));
+    expect(texts).toContain('ת"י 949 (IL-STD-949-WATER)');
+  });
+
+  it("limits inline photo thumbnails to two per row", () => {
+    const block: FindingsTableBlock = {
+      id: "f-max-photos",
+      kind: "findings_table",
+      title_he: "ממצאים",
+      column_preset: "simple",
+      rows: [
+        {
+          id: "line-multi",
+          description: "פגם",
+          photo_ids: ["p1", "p2", "p3"],
+        },
+      ],
+    };
+
+    const content = renderFindingsTable(block, [
+      { lineId: "line-multi", photoId: "p1", dataUrl: "data:image/png;base64,a" },
+      { lineId: "line-multi", photoId: "p2", dataUrl: "data:image/png;base64,b" },
+      { lineId: "line-multi", photoId: "p3", dataUrl: "data:image/png;base64,c" },
+    ]);
+
+    expect(collectImages(content)).toHaveLength(2);
+  });
+
   it("renders multiple inline thumbnails for one row", () => {
     const block: FindingsTableBlock = {
       id: "f-multi",

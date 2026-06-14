@@ -6,9 +6,12 @@ import { createPortal } from "react-dom";
 import Button from "@/components/ui/Button";
 import { useLockBackgroundScrollWhileOverlay } from "@/hooks/useLockBodyScroll";
 import {
-  catalogFamilyLabelHe,
-  catalogSeverityLabelHe,
-} from "@/lib/field-reports/catalog-labels";
+  CATALOG_FAST_PATH_AUTO_CONFIRM,
+  filterIssuesForSupervisionCategory,
+  listSupervisionCategories,
+  supervisionCategoryLabelHe,
+} from "@/lib/field-reports/catalog-fast-path";
+import { catalogSeverityLabelHe } from "@/lib/field-reports/catalog-labels";
 import {
   FR_TOUCH_BUTTON,
   FR_TOUCH_INPUT,
@@ -31,6 +34,7 @@ export type CatalogIssue = {
   issue_id: string;
   issue_name_he: string;
   standard_ref?: string | null;
+  catalog_reference_id?: string | null;
   top_family: string;
   category_id: string;
   category_name_he: string;
@@ -49,7 +53,6 @@ type CatalogIssuePickerProps = {
 
 export default function CatalogIssuePicker({
   families,
-  categories,
   issues,
   disabled = false,
   onClose,
@@ -58,15 +61,14 @@ export default function CatalogIssuePicker({
   const [selectedFamily, setSelectedFamily] = useState<string | null>(
     null
   );
-  const [selectedCategoryId, setSelectedCategoryId] = useState<
-    string | null
-  >(null);
-  const [selectedIssue, setSelectedIssue] = useState<CatalogIssue | null>(
-    null
-  );
   const [search, setSearch] = useState("");
 
   useLockBackgroundScrollWhileOverlay(true);
+
+  const supervisionCategories = useMemo(
+    () => listSupervisionCategories(families),
+    [families]
+  );
 
   const searchResults = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -78,8 +80,10 @@ export default function CatalogIssuePicker({
       .filter((issue) => {
         const haystack = [
           issue.issue_id,
+          issue.catalog_reference_id || "",
           issue.issue_name_he,
           issue.category_name_he,
+          supervisionCategoryLabelHe(issue.top_family),
           issue.standard_ref || "",
           catalogSeverityLabelHe(issue.severity),
           issue.severity || "",
@@ -91,51 +95,42 @@ export default function CatalogIssuePicker({
       .slice(0, 30);
   }, [issues, search]);
 
-  const visibleCategories = useMemo(() => {
+  const visibleIssues = useMemo(() => {
     if (!selectedFamily) {
       return [];
     }
 
-    return categories.filter(
-      (category) => category.top_family === selectedFamily
-    );
-  }, [categories, selectedFamily]);
-
-  const visibleIssues = useMemo(() => {
-    if (!selectedCategoryId) {
-      return [];
-    }
-
-    return issues.filter(
-      (issue) => issue.category_id === selectedCategoryId
-    );
-  }, [issues, selectedCategoryId]);
+    return filterIssuesForSupervisionCategory(issues, selectedFamily);
+  }, [issues, selectedFamily]);
 
   function selectFamily(topFamily: string) {
     setSelectedFamily(topFamily);
-    setSelectedCategoryId(null);
-    setSelectedIssue(null);
     setSearch("");
   }
 
-  function selectCategory(categoryId: string) {
-    setSelectedCategoryId(categoryId);
-    setSelectedIssue(null);
-    setSearch("");
+  function handleIssueSelect(issue: CatalogIssue) {
+    if (disabled) {
+      return;
+    }
+
+    if (CATALOG_FAST_PATH_AUTO_CONFIRM) {
+      onConfirm(issue);
+      return;
+    }
+
+    onConfirm(issue);
   }
 
   const pickerBody = (
-  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       <input
         className={FR_TOUCH_INPUT}
-        placeholder="חיפוש לפי מזהה, שם, קטגוריה או תקן"
+        placeholder="חיפוש לפי שם, קטגוריה, תקן או מזהה"
         value={search}
         onChange={(event) => {
           setSearch(event.target.value);
           if (event.target.value.trim()) {
             setSelectedFamily(null);
-            setSelectedCategoryId(null);
-            setSelectedIssue(null);
           }
         }}
       />
@@ -149,21 +144,20 @@ export default function CatalogIssuePicker({
               <li key={issue.issue_id}>
                 <IssueListButton
                   issue={issue}
-                  active={selectedIssue?.issue_id === issue.issue_id}
                   disabled={disabled}
-                  onSelect={() => setSelectedIssue(issue)}
+                  onSelect={() => handleIssueSelect(issue)}
                 />
               </li>
             ))
           )}
         </ul>
       ) : (
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain lg:grid-cols-3">
-          <PickerColumn title="משפחה">
-            {families.map((family) => {
-              const active = selectedFamily === family.top_family;
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain md:grid-cols-2">
+          <PickerColumn title="קטגוריה">
+            {supervisionCategories.map((category) => {
+              const active = selectedFamily === category.top_family;
               return (
-                <div key={family.top_family}>
+                <div key={category.top_family}>
                   <button
                     type="button"
                     className={
@@ -171,108 +165,36 @@ export default function CatalogIssuePicker({
                         ? `${FR_TOUCH_LIST_BUTTON} border-brand bg-brand text-white`
                         : `${FR_TOUCH_LIST_BUTTON} border-zinc-200 bg-white hover:border-brand dark:border-zinc-700 dark:bg-zinc-900`
                     }
-                    onClick={() => selectFamily(family.top_family)}
+                    onClick={() => selectFamily(category.top_family)}
                     disabled={disabled}
                   >
-                    {catalogFamilyLabelHe(
-                      family.top_family,
-                      family.label_he
-                    )}
-                    {family.issue_count != null ? (
-                      <span className="block text-xs opacity-80">
-                        {family.issue_count} ממצאים
-                      </span>
-                    ) : null}
+                    {category.label_he}
+                    <span className="block text-xs opacity-80">
+                      {category.issue_count} ממצאים
+                    </span>
                   </button>
                 </div>
               );
             })}
           </PickerColumn>
 
-          <PickerColumn title="קטגוריה">
-            {!selectedFamily ? (
-              <p className="text-sm text-zinc-500">בחר משפחה תחילה.</p>
-            ) : (
-              visibleCategories.map((category) => {
-                const active =
-                  selectedCategoryId === category.category_id;
-                return (
-                  <div key={category.category_id}>
-                    <button
-                      type="button"
-                      className={
-                        active
-                          ? `${FR_TOUCH_LIST_BUTTON} border-brand bg-brand text-white`
-                          : `${FR_TOUCH_LIST_BUTTON} border-zinc-200 bg-white hover:border-brand dark:border-zinc-700 dark:bg-zinc-900`
-                      }
-                      onClick={() =>
-                        selectCategory(category.category_id)
-                      }
-                      disabled={disabled}
-                    >
-                      {category.category_name_he}
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </PickerColumn>
-
           <PickerColumn title="ממצא">
-            {!selectedCategoryId ? (
+            {!selectedFamily ? (
               <p className="text-sm text-zinc-500">בחר קטגוריה תחילה.</p>
             ) : (
               visibleIssues.map((issue) => (
-                <li key={issue.issue_id}>
+                <div key={issue.issue_id}>
                   <IssueListButton
                     issue={issue}
-                    active={selectedIssue?.issue_id === issue.issue_id}
                     disabled={disabled}
-                    onSelect={() => setSelectedIssue(issue)}
+                    onSelect={() => handleIssueSelect(issue)}
                   />
-                </li>
+                </div>
               ))
             )}
           </PickerColumn>
         </div>
       )}
-
-      {selectedIssue ? (
-        <div className="shrink-0 space-y-3 rounded-xl border border-zinc-200 bg-white p-4 text-sm dark:bg-zinc-900">
-          <p className="font-medium">{selectedIssue.issue_name_he}</p>
-          <p className="text-zinc-600">
-            {selectedIssue.issue_id} · {selectedIssue.category_name_he}
-          </p>
-          {selectedIssue.standard_ref ? (
-            <p>
-              <span className="font-medium">תקן: </span>
-              {selectedIssue.standard_ref}
-            </p>
-          ) : (
-            <p className="text-zinc-500">ללא תקן במפרט</p>
-          )}
-          {selectedIssue.severity ? (
-            <p>
-              <span className="font-medium">חומרה: </span>
-              {catalogSeverityLabelHe(selectedIssue.severity)}
-            </p>
-          ) : null}
-          {selectedIssue.description ? (
-            <p className="whitespace-pre-wrap text-zinc-700">
-              {selectedIssue.description}
-            </p>
-          ) : null}
-          <Button
-            type="button"
-            size="lg"
-            className={`w-full ${FR_TOUCH_BUTTON}`}
-            disabled={disabled}
-            onClick={() => onConfirm(selectedIssue)}
-          >
-            אישור והוספה לדוח
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 
@@ -290,7 +212,7 @@ export default function CatalogIssuePicker({
             className="fixed inset-0 z-[60] flex h-dvh max-h-dvh flex-col bg-zinc-50 dark:bg-zinc-950 lg:hidden"
             role="dialog"
             aria-modal="true"
-            aria-label="בחירת ממצא מהמפרט"
+            aria-label="בחירת ממצא מהקטלוג"
           >
             <header className="shrink-0 border-b border-zinc-200 bg-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-zinc-800 dark:bg-zinc-900">
               <PickerHeader disabled={disabled} onClose={onClose} />
@@ -321,7 +243,7 @@ function PickerHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-lg font-semibold lg:text-base lg:font-medium">
-        בחירת ממצא מהמפרט
+        בחירת ממצא מהקטלוג
       </h3>
       <Button
         variant="secondary"
@@ -356,23 +278,17 @@ function PickerColumn({
 
 function IssueListButton({
   issue,
-  active,
   disabled,
   onSelect,
 }: {
   issue: CatalogIssue;
-  active: boolean;
   disabled: boolean;
   onSelect: () => void;
 }) {
   return (
     <button
       type="button"
-      className={
-        active
-          ? `${FR_TOUCH_LIST_BUTTON} border-brand bg-brand/10`
-          : `${FR_TOUCH_LIST_BUTTON} border-zinc-200 bg-white hover:border-brand dark:border-zinc-700 dark:bg-zinc-900`
-      }
+      className={`${FR_TOUCH_LIST_BUTTON} border-zinc-200 bg-white hover:border-brand dark:border-zinc-700 dark:bg-zinc-900`}
       onClick={onSelect}
       disabled={disabled}
     >

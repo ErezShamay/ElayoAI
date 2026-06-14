@@ -60,6 +60,7 @@ function normalizeLine(
     notes: line.notes ?? null,
     severity: line.severity ?? null,
     standard_ref: line.standard_ref ?? null,
+    catalog_reference_id: line.catalog_reference_id ?? null,
     issue_id: line.issue_id ?? null,
     group_key: line.group_key ?? null,
     group_label_he: line.group_label_he ?? null,

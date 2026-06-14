@@ -175,6 +175,30 @@ class FieldVisitReportRepository:
 
         return response.data or []
 
+    def list_pdf_deliverables_by_organization(
+        self,
+        *,
+        organization_id: str,
+    ) -> list[dict]:
+        """Field visit reports with an archived PDF (publish or core send)."""
+        if not self.is_storage_available():
+            return []
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .select(
+                "id, project_id, visit_date, visit_type, status, "
+                "pdf_storage_path, pdf_filename, locked_at, closed_at"
+            )
+            .eq("organization_id", organization_id)
+            .not_.is_("pdf_storage_path", "null")
+            .order("visit_date", desc=True)
+            .execute()
+        )
+
+        return response.data or []
+
     def get_open_for_project(
         self,
         *,

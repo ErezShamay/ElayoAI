@@ -17,7 +17,7 @@ describe("stage 5.8.1.1 gate (hero badge - QC positioning)", () => {
   it("shows QC badge instead of AI operations tagline", () => {
     const source = readPublicHomePage();
 
-    expect(source).toContain("בקרת איכות לפרויקטי בנייה");
+    expect(source).toContain("דוחות ביקור, ליקויים ומסמכים");
     expect(source).not.toContain("מערכת תפעול הנדסי מבוססת AI");
   });
 });

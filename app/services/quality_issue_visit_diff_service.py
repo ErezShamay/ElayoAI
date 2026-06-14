@@ -6,6 +6,7 @@ from app.exceptions.exceptions import NotFoundError
 from app.repositories.field_visit_report_repository import (
     FieldVisitReportRepository,
 )
+from app.repositories.profile_repository import ProfileRepository
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.quality_issue_repository import (
     OPEN_ISSUE_STATUSES,
@@ -22,6 +23,11 @@ from app.schemas.quality_issue import (
     QualityIssueVisitDiffEntry,
     QualityIssueVisitDiffResponse,
     parse_quality_issue_row,
+)
+from app.services.supervisor_project_scope import (
+    project_supervised_by,
+    resolve_supervisor_email,
+    should_scope_projects_to_supervisor,
 )
 
 _EVENT_CATEGORY_PRIORITY: dict[QualityIssueEventType, int] = {
@@ -46,6 +52,7 @@ class QualityIssueVisitDiffService:
         event_repository: QualityIssueEventRepository | None = None,
         report_repository: FieldVisitReportRepository | None = None,
         project_repository: ProjectRepository | None = None,
+        profile_repository: ProfileRepository | None = None,
     ) -> None:
         self.issue_repository = (
             issue_repository or QualityIssueRepository()
@@ -59,6 +66,9 @@ class QualityIssueVisitDiffService:
         self.project_repository = (
             project_repository or ProjectRepository()
         )
+        self.profile_repository = (
+            profile_repository or ProfileRepository()
+        )
 
     def get_visit_issue_diff(
         self,
@@ -67,9 +77,15 @@ class QualityIssueVisitDiffService:
         project_id: str,
         report_id: str,
         actor_role: str | None,
+        actor_user_id: str | None = None,
     ) -> QualityIssueVisitDiffResponse:
         self._require_read_permission(actor_role)
-        self._ensure_project(organization_id, project_id)
+        self._ensure_project(
+            organization_id,
+            project_id,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
         self._ensure_report(
             organization_id=organization_id,
             project_id=project_id,
@@ -188,6 +204,9 @@ class QualityIssueVisitDiffService:
         self,
         organization_id: str,
         project_id: str,
+        *,
+        actor_role: str | None = None,
+        actor_user_id: str | None = None,
     ) -> dict:
         project = self.project_repository.get_project_by_id(project_id)
         if project is None:
@@ -202,6 +221,17 @@ class QualityIssueVisitDiffService:
                 resource_type="project",
                 resource_id=project_id,
             )
+        if should_scope_projects_to_supervisor(actor_role):
+            supervisor_email = resolve_supervisor_email(
+                self.profile_repository,
+                actor_user_id or "",
+            )
+            if not project_supervised_by(project, supervisor_email):
+                raise NotFoundError(
+                    message="Project not found",
+                    resource_type="project",
+                    resource_id=project_id,
+                )
         return project
 
     def _ensure_report(

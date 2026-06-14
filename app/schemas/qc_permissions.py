@@ -40,6 +40,7 @@ QC_PERMISSIONS: tuple[str, ...] = (
     "quality_portfolio:read",
     "field_reports:read",
     "field_reports:write",
+    "field_reports:publish",
     "field_reports:admin",
     "tenant_manager:admin",
     "projects:read",
@@ -58,6 +59,7 @@ _SYSTEM_ROLE_TO_QC_PERSONA: dict[str, QCPersona] = {
     "MANAGER": QCPersona.SUPERVISOR,
     "VIEWER": QCPersona.DEVELOPER,
     "ANALYST": QCPersona.DEVELOPER,
+    "RESIDENT": QCPersona.DEVELOPER,
 }
 
 _QC_PERMISSION_MATRIX: dict[QCPersona, frozenset[str]] = {
@@ -97,6 +99,7 @@ _QC_PERMISSION_MATRIX: dict[QCPersona, frozenset[str]] = {
             "quality_portfolio:read",
             "field_reports:read",
             "field_reports:write",
+            "field_reports:publish",
             "field_reports:admin",
             "projects:read",
             "projects:write",

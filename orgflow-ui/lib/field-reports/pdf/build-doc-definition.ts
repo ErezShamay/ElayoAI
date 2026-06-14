@@ -41,8 +41,10 @@ import {
   resolvePdfIssueMarkerForLine,
   type PdfLineIssueMarkerMap,
 } from "./pdf-issue-markers";
+import { formatCatalogStandardCell } from "./format-catalog-standard-cell";
 
 export { formatHeaderContact, formatOrgAddress, resolveStringList };
+export { formatCatalogStandardCell } from "./format-catalog-standard-cell";
 
 
 const LINE_STATUS_LABELS: Record<string, string> = {
@@ -55,7 +57,9 @@ export function buildFindingsTableColumns(
   lines: PdfReportLine[],
   lineIssueMarkers?: PdfLineIssueMarkerMap
 ): string[] {
-  const hasCatalogLines = lines.some((line) => Boolean(line.issue_id));
+  const hasCatalogLines = lines.some(
+    (line) => Boolean(line.issue_id || line.catalog_reference_id)
+  );
   const columns = ["מיקום", "מלאכה", "סטטוס / הערות", "תיאור"];
   if (hasCatalogLines) {
     columns.push("תקן", "חומרה");
@@ -94,7 +98,7 @@ export function buildFindingsTableBody(
       ];
 
       if (includeStandard) {
-        row.push(line.issue_id ? line.standard_ref || "" : "");
+        row.push(formatCatalogStandardCell(line));
         row.push(line.issue_id ? line.severity || "" : "");
       }
 

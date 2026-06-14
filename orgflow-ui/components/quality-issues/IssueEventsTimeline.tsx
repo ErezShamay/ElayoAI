@@ -27,7 +27,7 @@ export default function IssueEventsTimeline({
       <div className="mb-6">
         <h2 className="text-xl font-bold">היסטוריה</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          אירועי מעקב מה-registry
+          אירועי מעקב מרישום הליקויים
         </p>
       </div>
 

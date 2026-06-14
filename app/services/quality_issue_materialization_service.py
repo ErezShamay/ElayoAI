@@ -22,6 +22,7 @@ from app.repositories.quality_issue_repository import (
 )
 from app.schemas.field_report_document import FindingRow
 from app.schemas.quality_issue import (
+    IssueVisibility,
     QualityIssueCreateRequest,
     QualityIssueEventType,
     QualityIssueStatus,
@@ -62,6 +63,7 @@ class _MaterializableRow:
     group_key: str | None
     group_label_he: str | None
     standard_ref: str | None
+    catalog_reference_id: str | None
     catalog_issue_id: str | None
     row_severity: str | None
     photo_ids: list[str]
@@ -170,6 +172,11 @@ class QualityIssueMaterializationService:
                 if catalog_issue
                 else None
             )
+            catalog_reference_id = row.catalog_reference_id or (
+                catalog_issue.get("catalog_reference_id")
+                if catalog_issue
+                else None
+            )
             trade = row.trade or (
                 catalog_issue.get("trade") if catalog_issue else None
             )
@@ -195,6 +202,7 @@ class QualityIssueMaterializationService:
                     row_severity=row.row_severity,
                 ),
                 catalog_issue_id=row.catalog_issue_id,
+                catalog_reference_id=catalog_reference_id,
                 first_seen_report_id=report_id,
                 first_seen_line_id=row.line_id,
                 first_seen_at=seen_at,
@@ -203,6 +211,7 @@ class QualityIssueMaterializationService:
                 last_seen_at=seen_at,
                 photo_ids=row.photo_ids,
                 materialization_key=materialization_key,
+                visibility=IssueVisibility.PUBLISHED,
             )
 
             issue = self.issue_repository.create(
@@ -358,6 +367,7 @@ class QualityIssueMaterializationService:
                     "notes": line.get("notes"),
                     "severity": line.get("severity"),
                     "standard_ref": line.get("standard_ref"),
+                    "catalog_reference_id": line.get("catalog_reference_id"),
                     "issue_id": line.get("issue_id"),
                     "group_key": line.get("group_key"),
                     "group_label_he": line.get("group_label_he"),
@@ -438,6 +448,9 @@ def collect_materializable_finding_rows(
             group_key=line_row.group_key or existing.group_key,
             group_label_he=line_row.group_label_he or existing.group_label_he,
             standard_ref=line_row.standard_ref or existing.standard_ref,
+            catalog_reference_id=(
+                line_row.catalog_reference_id or existing.catalog_reference_id
+            ),
             catalog_issue_id=line_row.catalog_issue_id or existing.catalog_issue_id,
             row_severity=line_row.row_severity or existing.row_severity,
             photo_ids=line_row.photo_ids or existing.photo_ids,
@@ -528,6 +541,7 @@ def _materializable_row_from_finding(
         group_key=finding.group_key,
         group_label_he=finding.group_label_he,
         standard_ref=finding.standard_ref,
+        catalog_reference_id=finding.catalog_reference_id,
         catalog_issue_id=catalog_issue_id,
         row_severity=finding.severity,
         photo_ids=photo_ids,
@@ -556,6 +570,7 @@ def _normalize_line_row(line: dict[str, Any], index: int) -> dict[str, Any]:
         "notes": line.get("notes"),
         "severity": line.get("severity"),
         "standard_ref": line.get("standard_ref"),
+        "catalog_reference_id": line.get("catalog_reference_id"),
         "issue_id": line.get("issue_id"),
         "group_key": line.get("group_key"),
         "group_label_he": line.get("group_label_he"),

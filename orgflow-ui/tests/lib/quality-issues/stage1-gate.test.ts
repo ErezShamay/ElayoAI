@@ -96,11 +96,11 @@ describe("stage 1 gate UI wiring", () => {
     expect(portfolioPanel).toContain("getPortfolioQualitySummary");
     expect(portfolioPanel).toContain("ליקויים פתוחים");
     expect(portfolioPanel).toContain("קריטיים פתוחים");
-    expect(portfolioPanel).toContain("ממוצע ימים פתוח");
+    expect(portfolioPanel).toContain("דוח אחרון");
     expect(portfolioPage).toContain("PortfolioQualitySummaryPanel");
     expect(portfolioPage).toContain("PortfolioProjectRanking");
     expect(portfolioPage).not.toContain("PortfolioLegacySection");
-    expect(portfolioPage).toContain("PORTFOLIO_QC_PAGE_EYEBROW");
-    expect(portfolioHelpers).toContain("rankProjectsByQcPressure");
+    expect(portfolioPage).toContain("PORTFOLIO_SUPERVISION_PAGE_EYEBROW");
+    expect(portfolioHelpers).toContain("rankProjectsBySupervisionPressure");
   });
 });

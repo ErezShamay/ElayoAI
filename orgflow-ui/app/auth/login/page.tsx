@@ -20,6 +20,7 @@ import {
 import {
   logAuthError,
   logAuthInfo,
+  normalizeAuthLogError,
 } from "@/lib/auth/logger";
 import {
   describeMobileAuthConfig,
@@ -140,11 +141,7 @@ export default function LoginPage() {
         apiBaseUrl: getApiBaseUrl(),
       });
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Login failed"
-      );
+      setError(normalizeAuthLogError(err).message);
     } finally {
       if (!redirectPending) {
         setLoading(false);

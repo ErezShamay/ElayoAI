@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import TenantExportCards from "@/components/tenants/TenantExportCards";
 import TenantFileUploader from "@/components/tenants/TenantFileUploader";
@@ -10,18 +10,102 @@ import TenantTable from "@/components/tenants/TenantTable";
 import Button from "@/components/ui/Button";
 import LoadingState from "@/components/ui/LoadingState";
 import { useTenantManagerModule } from "@/hooks/useTenantManagerModule";
+import {
+  bulkUpsertProjectApartments,
+  inviteAllApartmentResidents,
+} from "@/lib/apartments/api";
+import { apiFetch } from "@/lib/api/client";
 import type { Tenant } from "@/lib/tenants/types";
 
 type UploadMode = "single" | "merge";
+
+type ProjectOption = {
+  id: string;
+  project_name: string;
+};
 
 export default function TenantsPage() {
   const { isEnabled, loading, error, reload } = useTenantManagerModule();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [projectAddress, setProjectAddress] = useState("פינלס 9 תל אביב");
   const [mode, setMode] = useState<UploadMode>("single");
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isEnabled) return;
+
+    void apiFetch<{ projects: ProjectOption[] }>("/projects")
+      .then((response) => {
+        const items = response.projects ?? [];
+        setProjects(items);
+        if (items.length === 1) {
+          setSelectedProjectId(items[0]!.id);
+        }
+      })
+      .catch(() => {
+        setProjects([]);
+      });
+  }, [isEnabled]);
 
   const withPhone = tenants.filter((t) => t.phone).length;
   const withEmail = tenants.filter((t) => t.email).length;
+
+  const handleSaveToProject = async () => {
+    if (!selectedProjectId) {
+      setActionError("יש לבחור פרויקט לפני שמירה");
+      return;
+    }
+
+    setSaving(true);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const result = await bulkUpsertProjectApartments(
+        selectedProjectId,
+        tenants
+      );
+      setActionMessage(
+        `נשמרו ${result.apartments.length} דירות (${result.created} חדשות, ${result.updated} עודכנו)`
+      );
+    } catch (saveError) {
+      setActionError(
+        saveError instanceof Error ? saveError.message : "שגיאה בשמירת הדיירים"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInviteAll = async () => {
+    if (!selectedProjectId) {
+      setActionError("יש לבחור פרויקט לפני שליחת הזמנות");
+      return;
+    }
+
+    setInviting(true);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      await bulkUpsertProjectApartments(selectedProjectId, tenants);
+      const result = await inviteAllApartmentResidents(selectedProjectId);
+      setActionMessage(
+        `נשלחו ${result.invited_count} הזמנות לדיירים (דולגו ${result.skipped_count})`
+      );
+    } catch (inviteError) {
+      setActionError(
+        inviteError instanceof Error
+          ? inviteError.message
+          : "שגיאה בשליחת הזמנות"
+      );
+    } finally {
+      setInviting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -51,7 +135,7 @@ export default function TenantsPage() {
           להפעלה.
         </p>
         <Link href="/portfolio" className="text-sm text-brand hover:underline">
-          חזרה לתיק QC
+          חזרה לתיק פיקוח
         </Link>
       </div>
     );
@@ -62,8 +146,8 @@ export default function TenantsPage() {
       <header>
         <h1 className="of-page-title text-2xl md:text-3xl">מנהל דיירים</h1>
         <p className="of-page-desc max-w-2xl text-sm">
-          העלה קובץ Excel של רשימת דיירים - המערכת תחלץ את הנתונים, תאפשר עריכה,
-          ותפיק 4 קבצי ייבוא: טלפון (VCF), מייל (CSV), דירות לזוהו, אנשי קשר
+          העלה קובץ Excel של רשימת דיירים, ערוך את הנתונים, שמור לפרויקט ושלח
+          לדיירים הזמנה עם סיסמה זמנית לאזור האישי. ניתן גם לייצא קבצי VCF/CSV
           לזוהו.
         </p>
       </header>
@@ -117,7 +201,57 @@ export default function TenantsPage() {
           </section>
 
           <section>
-            <SectionTitle step="3" title="כתובת הפרויקט" />
+            <SectionTitle step="3" title="שיוך לפרויקט ושמירה" />
+            <div className="of-card of-card-p6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium">פרויקט</label>
+                <select
+                  value={selectedProjectId}
+                  onChange={(event) => setSelectedProjectId(event.target.value)}
+                  className="of-input of-focus-ring w-full px-3 py-2 text-sm"
+                >
+                  <option value="">בחר פרויקט...</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.project_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => void handleSaveToProject()}
+                  disabled={saving || inviting}
+                >
+                  {saving ? "שומר..." : "שמור דירות בפרויקט"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void handleInviteAll()}
+                  disabled={saving || inviting}
+                >
+                  {inviting ? "שולח הזמנות..." : "שמור ושלח הזמנות לדיירים"}
+                </Button>
+                {selectedProjectId ? (
+                  <Link
+                    href={`/projects/${selectedProjectId}/apartments`}
+                    className="inline-flex items-center text-sm text-brand hover:underline"
+                  >
+                    צפייה ברשימת הדירות בפרויקט
+                  </Link>
+                ) : null}
+              </div>
+              {actionMessage ? (
+                <p className="text-sm text-emerald-700">{actionMessage}</p>
+              ) : null}
+              {actionError ? (
+                <p className="text-sm text-red-600">{actionError}</p>
+              ) : null}
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle step="4" title="כתובת לייצוא" />
             <div className="of-card of-card-p6">
               <label className="mb-2 block text-sm font-medium">
                 כתובת הפרויקט (תופיע בכל איש קשר ב-VCF ובייצוא לזוהו)
@@ -133,7 +267,7 @@ export default function TenantsPage() {
           </section>
 
           <section>
-            <SectionTitle step="4" title="הפקת הקבצים" />
+            <SectionTitle step="5" title="הפקת הקבצים" />
             <TenantExportCards
               tenants={tenants}
               projectAddress={projectAddress}

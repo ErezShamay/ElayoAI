@@ -47,11 +47,17 @@ describe("stage 6.4 gate (catalog supplement)", () => {
       REPO_ROOT,
       "app/config/field_report_catalog_supplement.py"
     );
+    const seed = readSource(
+      REPO_ROOT,
+      "app/config/field_report_catalog_supervision_seed.py"
+    );
 
     expect(parser).toContain("merge_catalog_supplement");
     expect(parser).toContain("SUPPLEMENT_ISSUES");
-    expect(supplement).toContain("QC-STR-001");
-    expect(supplement).toContain("QC-FIN-001");
+    expect(supplement).toContain("SUPERVISION_CATALOG_ISSUES");
+    expect(seed).toContain("QC-STR-001");
+    expect(seed).toContain("catalog_reference_id");
+    expect(seed).toContain("IL-STD-949-WATER");
   });
 });
 

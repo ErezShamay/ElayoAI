@@ -7,6 +7,7 @@ from app.schemas.field_report_document import (
     HEADER_FIELDS_DOC,
     warn_unknown_header_field_keys,
 )
+from app.schemas.quality_issue import DEFAULT_ISSUE_VISIBILITY, IssueVisibility
 
 
 class FieldReportModuleStatus(BaseModel):
@@ -85,6 +86,7 @@ class FieldVisitReportSyncLineRequest(BaseModel):
     notes: str | None = None
     severity: str | None = None
     standard_ref: str | None = None
+    catalog_reference_id: str | None = None
     engineering_impact: str | None = None
     issue_id: str | None = None
     catalog_version: str | None = None
@@ -96,6 +98,7 @@ class FieldVisitReportSyncLineRequest(BaseModel):
     group_label_he: str | None = Field(default=None, max_length=120)
     block_id: str | None = Field(default=None, max_length=120)
     linked_issue_id: str | None = None
+    visibility: IssueVisibility = DEFAULT_ISSUE_VISIBILITY
 
 
 class FieldVisitReportSyncRequest(BaseModel):
@@ -152,6 +155,7 @@ class FieldVisitReportLineCreateRequest(BaseModel):
     notes: str | None = None
     severity: str | None = None
     standard_ref: str | None = None
+    catalog_reference_id: str | None = None
     engineering_impact: str | None = None
     issue_id: str | None = None
     catalog_version: str | None = None
@@ -185,6 +189,7 @@ class FieldVisitReportLineCreateRequest(BaseModel):
         default=None,
         description="Optional link to an existing quality_issues.id (QC matching)",
     )
+    visibility: IssueVisibility = DEFAULT_ISSUE_VISIBILITY
 
 
 class FieldVisitReportLineUpdateRequest(BaseModel):
@@ -195,6 +200,7 @@ class FieldVisitReportLineUpdateRequest(BaseModel):
     notes: str | None = None
     severity: str | None = None
     standard_ref: str | None = None
+    catalog_reference_id: str | None = None
     engineering_impact: str | None = None
     issue_id: str | None = None
     catalog_version: str | None = None
@@ -209,6 +215,7 @@ class FieldVisitReportLineUpdateRequest(BaseModel):
         default=None,
         description="Optional link to an existing quality_issues.id (QC matching)",
     )
+    visibility: IssueVisibility = DEFAULT_ISSUE_VISIBILITY
 
 
 class FieldVisitReportSummary(BaseModel):
@@ -234,6 +241,9 @@ class FieldVisitReportSummary(BaseModel):
     is_editable: bool = True
     can_reopen: bool = False
     can_send_to_core: bool = False
+    can_publish: bool = False
+    is_published: bool = False
+    pending_publish: bool = False
     was_closed: bool = False
     organization_profile_snapshot: dict | None = None
 
@@ -244,6 +254,24 @@ class FieldVisitReportClosePreview(BaseModel):
     empty_line_ids: list[str] = Field(default_factory=list)
     catalog_warning_count: int = 0
     warnings: list[str] = Field(default_factory=list)
+
+
+class FieldVisitReportPublishPreview(BaseModel):
+    line_count: int = 0
+    draft_line_count: int = 0
+    published_line_count: int = 0
+    materializable_line_count: int = 0
+    already_published: bool = False
+    warnings: list[str] = Field(default_factory=list)
+    close_preview: FieldVisitReportClosePreview = Field(
+        default_factory=FieldVisitReportClosePreview,
+    )
+
+
+class FieldVisitReportPublishResult(BaseModel):
+    published_line_count: int = 0
+    issue_materialization: dict = Field(default_factory=dict)
+    pdf_archived: bool = False
 
 
 class FieldVisitReportLineSummary(BaseModel):
@@ -258,6 +286,7 @@ class FieldVisitReportLineSummary(BaseModel):
     notes: str | None = None
     severity: str | None = None
     standard_ref: str | None = None
+    catalog_reference_id: str | None = None
     engineering_impact: str | None = None
     issue_id: str | None = None
     catalog_version: str | None = None
@@ -278,6 +307,7 @@ class FieldVisitReportLineSummary(BaseModel):
     block_id: str | None = None
     created_at: datetime | str | None = None
     updated_at: datetime | str | None = None
+    visibility: IssueVisibility = DEFAULT_ISSUE_VISIBILITY
 
 
 class OpenReportReminderDelivery(BaseModel):

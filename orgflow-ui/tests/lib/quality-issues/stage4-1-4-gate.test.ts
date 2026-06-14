@@ -28,15 +28,14 @@ describe("stage 4.1.4 gate (average open days KPI)", () => {
     expect(service).toContain("average_open_days_by_project");
   });
 
-  it("shows average open days KPI in portfolio QC panel", () => {
+  it("keeps average-open-days helpers for API while portfolio UI is supervision-first", () => {
     const panel = readSource(
       "components/quality-issues/PortfolioQualitySummaryPanel.tsx"
     );
     const helpers = readSource("lib/quality-issues/portfolio-summary.ts");
 
-    expect(panel).toContain("ממוצע ימים פתוח");
-    expect(panel).toContain("average_open_days");
-    expect(panel).toContain("formatAverageOpenDaysCaption");
+    expect(panel).toContain("ליקויים פתוחים");
+    expect(panel).not.toContain("ממוצע ימים פתוח");
     expect(helpers).toContain("formatAverageOpenDaysCaption");
     expect(helpers).toContain("isAverageOpenDaysHealthy");
   });

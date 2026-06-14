@@ -28,6 +28,11 @@ class QualityIssueSeverity(StrEnum):
         return _SEVERITY_LABELS_HE[self]
 
 
+class IssueVisibility(StrEnum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+
+
 class QualityIssueStatus(StrEnum):
     OPEN = "OPEN"
     IN_REMEDIATION = "IN_REMEDIATION"
@@ -75,6 +80,18 @@ CATALOG_SEVERITY_TO_REGISTRY: dict[str, QualityIssueSeverity] = {
 
 DEFAULT_QUALITY_ISSUE_SEVERITY = QualityIssueSeverity.MEDIUM
 DEFAULT_QUALITY_ISSUE_STATUS = QualityIssueStatus.OPEN
+DEFAULT_ISSUE_VISIBILITY = IssueVisibility.DRAFT
+
+
+def is_visible_to_resident(visibility: IssueVisibility | str | None) -> bool:
+    if visibility is None:
+        return True
+    normalized = (
+        visibility.value
+        if isinstance(visibility, IssueVisibility)
+        else str(visibility).strip().upper()
+    )
+    return normalized == IssueVisibility.PUBLISHED.value
 
 QUALITY_ISSUE_STATUS_TRANSITIONS: dict[
     QualityIssueStatus,
@@ -227,8 +244,10 @@ class QualityIssue(BaseModel):
 
     severity: QualityIssueSeverity = DEFAULT_QUALITY_ISSUE_SEVERITY
     status: QualityIssueStatus = DEFAULT_QUALITY_ISSUE_STATUS
+    visibility: IssueVisibility = DEFAULT_ISSUE_VISIBILITY
 
     catalog_issue_id: str | None = None
+    catalog_reference_id: str | None = None
 
     first_seen_report_id: str
     first_seen_line_id: str | None = None
@@ -387,7 +406,9 @@ class QualityIssueCreateRequest(BaseModel):
     group_label_he: str | None = Field(default=None, max_length=200)
     standard_ref: str | None = Field(default=None, max_length=200)
     severity: QualityIssueSeverity = DEFAULT_QUALITY_ISSUE_SEVERITY
+    visibility: IssueVisibility = DEFAULT_ISSUE_VISIBILITY
     catalog_issue_id: str | None = Field(default=None, max_length=120)
+    catalog_reference_id: str | None = Field(default=None, max_length=120)
     first_seen_report_id: str
     first_seen_line_id: str | None = None
     first_seen_at: datetime
@@ -621,6 +642,7 @@ class QualityPortfolioSummaryResponse(BaseModel):
     critical_open_over_14_days: int = Field(ge=0)
     average_open_days: float | None = None
     closed_within_30_days_percent: float | None = None
+    last_report_at: datetime | None = None
     projects: list[QualityPortfolioProjectSummary] = Field(default_factory=list)
 
 
@@ -813,6 +835,8 @@ def _normalize_db_row(row: dict[str, Any]) -> dict[str, Any]:
         normalized["photo_ids"] = []
     if normalized.get("payload") is None:
         normalized["payload"] = {}
+    if normalized.get("visibility") is None:
+        normalized["visibility"] = IssueVisibility.PUBLISHED.value
     return normalized
 
 

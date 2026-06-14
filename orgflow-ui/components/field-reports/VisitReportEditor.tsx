@@ -612,6 +612,7 @@ export default function VisitReportEditor({
           description: issue.issue_name_he,
           severity: issue.severity ?? null,
           standard_ref: issue.standard_ref ?? null,
+          catalog_reference_id: issue.catalog_reference_id ?? null,
           ...lineGroupFieldsFromSelection(pendingLineGroup),
         });
 

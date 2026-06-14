@@ -12,7 +12,7 @@ from app.services.rls_policy_service import RlsPolicyService
 
 
 def test_schema_version_includes_quality_issue_migrations() -> None:
-    assert SCHEMA_VERSION == "2026061010"
+    assert SCHEMA_VERSION == "2026061401"
 
 
 def test_quality_issues_registered_in_tables() -> None:
@@ -71,6 +71,13 @@ def test_migrations_registered_in_schema_registry() -> None:
     dedup_entry = versions["2026061010"]
     assert dedup_entry["name"] == "scheduled_alert_dedups"
     assert dedup_entry["tables"] == ["scheduled_alert_dedups"]
+
+    visibility_entry = versions["2026061401"]
+    assert visibility_entry["name"] == "issue_visibility"
+    assert visibility_entry["tables"] == [
+        "quality_issues",
+        "field_visit_report_lines",
+    ]
 
 
 def test_rls_coverage_includes_quality_issues() -> None:

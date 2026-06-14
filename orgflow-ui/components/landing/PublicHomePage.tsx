@@ -26,7 +26,7 @@ const FEATURES = [
     icon: AlertTriangle,
     title: "מעקב ליקויים",
     description:
-      "registry חי בין ביקורים - חומרה, מיקום, מלאכה ומעקב סטטוס לכל ליקוי.",
+      "רישום ליקויים חי בין ביקורים - חומרה, מיקום, מלאכה ומעקב סטטוס לכל ליקוי.",
     accent: "from-brand-gold to-amber-500",
   },
   {
@@ -45,16 +45,16 @@ const FEATURES = [
   },
   {
     icon: CheckCircle2,
-    title: "סגירת ליקויים",
+    title: "אישור ופרסום",
     description:
-      "מעקב ביקור לביקור - תיקון קבלן, אימות מפקח וסימון ליקוי חוזר.",
+      "הפרדה בין טיוטת שטח למידע שמגיע לרוכש — אישור מנהל, רישום ליקויים, PDF ופורטל.",
     accent: "from-brand-gold to-brand-gold-dark",
   },
   {
     icon: Layers,
-    title: "תיק בקרת איכות",
+    title: "תיק פיקוח הנדסי",
     description:
-      "דירוג פרויקטים לפי ליקויים פתוחים, חומרה ולחץ QC - תמונת מצב ליזם ומפקח.",
+      "דירוג פרויקטים לפי ליקויים שפורסמו וחומרה — תמונת מצב למנהל הפיקוח.",
     accent: "from-brand-dark to-brand",
   },
 ] as const;
@@ -69,56 +69,63 @@ const WORKFLOW_STEPS = [
   },
   {
     step: "02",
-    title: "סגירת דוח → ליקויים ב-registry",
+    title: "סגירת דוח — טיוטה פנימית",
     description:
-      "בסגירת דוח הביקור, כל ממצא הופך לליקוי חי "
-      + "ב-registry - עם חומרה, מיקום ותמונות.",
+      "המפקח סוגר את הדוח בשטח. הממצאים נשארים טיוטה — "
+      + "מוסתרים מהדייר עד אישור מנהל.",
   },
   {
     step: "03",
-    title: "מעקב סגירה - קבלן ומפקח",
+    title: "אשר ופרסם — רישום ליקויים + PDF",
     description:
-      "הקבלן מעלה תמונת תיקון; המפקח מאמת בביקור הבא "
-      + "ומסמן ליקוי כסגור - או חוזר.",
+      "מנהל הפיקוח מאשר ומפרסם: עדכון רישום הליקויים, "
+      + "PDF ללקוח וחשיפה בפורטל הרוכש.",
   },
   {
     step: "04",
-    title: "תיק QC - תמונת מצב",
+    title: "תיק פיקוח — תמונת מצב",
     description:
-      "דירוג פרויקטים לפי ליקויים קריטיים, KPIs של סגירה "
-      + "ודוחות ביקור - תמונת מצב ליזם ומפקח.",
+      "דירוג פרויקטים לפי ליקויים שפורסמו, KPIs של מעקב "
+      + "ודוחות ביקור — לניהול תיק הפיקוח.",
   },
 ] as const;
 
 const WORKFLOW_PILLARS = [
   { value: "דוחות שטח", label: "עריכה offline, PDF" },
-  { value: "ליקויים", label: "מעקב חי בין ביקורים" },
-  { value: "סגירה ואימות", label: "קבלן + מפקח" },
-  { value: "תיק QC", label: "תמונת מצב לפי חומרה" },
+  { value: "ליקויים", label: "רישום ליקויים בין ביקורים" },
+  { value: "אישור ופרסום", label: "טיוטה → רוכש" },
+  { value: "תיק פיקוח", label: "תמונת מצב למנהל" },
 ] as const;
 
 const PLATFORM_BULLETS = [
-  "ליקויים פתוחים לפי חומרה",
-  "דוחות PDF",
-  "מעקב בין ביקורים",
-  "עבודה offline",
+  "ליקויים שפורסמו לפי חומרה",
+  "PDF לוועד בלי Word",
+  "פורטל שקיפות לרוכש",
+  "עבודה offline בשטח",
 ] as const;
 
 const PLATFORM_FIELD_CARD = {
-  eyebrow: "בקרת איכות בשטח",
+  eyebrow: "דוחות ביקור בשטח",
   title: "מוכן לשטח",
   description:
-    "דוחות ביקור, צילום ממצאים ומעקב ליקויים - "
+    "דוחות ביקור, קטלוג ליקויים ישראלי ומעקב רישום ליקויים — "
     + "גם offline, ישירות מהאתר.",
   status: "מחובר ופעיל",
 } as const;
 
-const FINAL_CTA = {
-  headline: "מוכנים לשלוט באיכות?",
-  subheadline: "התחברו וצרו דוח ביקור ראשון",
+const HERO_BADGE = "דוחות ביקור, ליקויים ומסמכים" as const;
+
+const HERO_HEADLINE = {
+  lead: "שטח מסודר.",
+  accent: "ניהול שקט.",
 } as const;
 
-const FOOTER_TAGLINE = "בקרת איכות לפרויקטי בנייה" as const;
+const FINAL_CTA = {
+  headline: "מוכנים לניהול שקט?",
+  subheadline: "התחילו עם דוח ביקור ראשון",
+} as const;
+
+const FOOTER_TAGLINE = "שטח מסודר. ניהול שקט." as const;
 
 export default function PublicHomePage() {
   return (
@@ -185,7 +192,7 @@ export default function PublicHomePage() {
               "
             >
               <Sparkles className="h-4 w-4" />
-              בקרת איכות לפרויקטי בנייה
+              {HERO_BADGE}
             </div>
 
             <h1
@@ -199,14 +206,14 @@ export default function PublicHomePage() {
                 lg:text-7xl
               "
             >
-              בקרת איכות
+              {HERO_HEADLINE.lead}
               <span
                 className="
                   of-landing-gradient-text
                   block
                 "
               >
-                בשטח
+                {HERO_HEADLINE.accent}
               </span>
             </h1>
 
@@ -221,8 +228,8 @@ export default function PublicHomePage() {
                 md:text-xl
               "
             >
-              מדוח ביקור בשטח → ליקויים חיים בין ביקורים →
-              סגירה ואימות → תיק בקרת איכות לכל הפרויקטים.
+              מדוח ביקור בשטח → אישור ופרסום → רישום ליקויים →
+              דוח ללקוח → פורטל לרוכש.
             </p>
 
             <div
@@ -375,8 +382,8 @@ export default function PublicHomePage() {
                 dark:text-zinc-400
               "
             >
-              פיקוח שמתחיל בשטח - מדוח ביקור וליקויים
-              ועד סגירה ותיק QC לפרויקטים מורכבים.
+              מדוח ביקור וליקויים ועד אישור, PDF
+              ותיק פיקוח הנדסי.
             </p>
           </div>
 
@@ -511,7 +518,7 @@ export default function PublicHomePage() {
               "
             >
               אותו מסלול שעוברים בו במערכת: דוח ביקור בשטח →
-              ליקויים ב-registry → סגירה ואימות → תיק QC.
+              אישור ופרסום → רישום ליקויים → PDF ופורטל רוכש.
             </p>
           </div>
 
@@ -626,7 +633,7 @@ export default function PublicHomePage() {
               "
             >
               ElayoAI -
-              פלטפורמת בקרת איכות
+              פלטפורמה לניהול ביקורים וליקויים
             </h2>
             <p
               className="
@@ -637,8 +644,8 @@ export default function PublicHomePage() {
                 dark:text-zinc-400
               "
             >
-              ממשק אחיד לדוחות שטח, מעקב ליקויים,
-              סגירה ואימות ותיק בקרת איכות - מהביקור
+              ממשק אחיד לדוחות שטח, רישום ליקויים,
+              PDF ללקוח, תיק פיקוח ושקיפות לרוכש — מהביקור
               הראשון ועד תמונת מצב לכל הפרויקטים.
             </p>
 

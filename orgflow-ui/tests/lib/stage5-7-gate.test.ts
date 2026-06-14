@@ -14,7 +14,7 @@ function readSource(relativePath: string): string {
 describe("stage 5.7 gate (findings upload → quality_issues)", () => {
   it("documents ai_upload_pipeline replacement as field reports + registry", () => {
     const surface = getFrozenSurface("ai_upload_pipeline");
-    expect(surface?.qcReplacement).toContain("registry");
+    expect(surface?.qcReplacement).toContain("רישום ליקויים");
   });
 
   it("wires upload finding materialization into report processing", () => {

@@ -12,6 +12,7 @@ import {
 import FinishReportDialog, {
   type ClosePreview,
 } from "@/components/field-reports/FinishReportDialog";
+import PublishReportDialog from "@/components/field-reports/PublishReportDialog";
 import VisitReportAlerts from "@/components/field-reports/VisitReportAlerts";
 import SendToCoreDialog from "@/components/field-reports/SendToCoreDialog";
 import VisitReportPdfActions from "@/components/field-reports/VisitReportPdfActions";
@@ -20,6 +21,7 @@ import VisitReportEditor from "@/components/field-reports/VisitReportEditor";
 import VisitReportIssueDiffPanel from "@/components/quality-issues/VisitReportIssueDiffPanel";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectiveRole } from "@/hooks/useEffectiveRole";
 import { useFieldReportDataSource } from "@/hooks/useFieldReportDataSource";
 import { useFieldReportEditSession } from "@/hooks/useFieldReportEditSession";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
@@ -35,6 +37,13 @@ import {
   type VisitReportView,
 } from "@/lib/field-reports/visit-report-view";
 import { buildClosePreview } from "@/lib/field-reports/close-preview";
+import { canPublishFieldReports } from "@/lib/field-reports/publish-access";
+import {
+  fetchPublishPreview,
+  publishVisitReport,
+  resolvePublishPdfBlob,
+  type PublishPreview,
+} from "@/lib/field-reports/publish-api";
 import { processPendingSendRequest } from "@/lib/field-reports/process-send-queue";
 import { downloadVisitReportPdf } from "@/lib/field-reports/pdf/generate-visit-report-pdf";
 import {
@@ -69,6 +78,8 @@ export default function FieldVisitReportPage() {
   const organizationId = moduleStatus?.organization_id || "";
   const { isOnline } = useOffline();
   const { profile } = useAuth();
+  const effectiveRole = useEffectiveRole();
+  const canPublishReport = canPublishFieldReports(effectiveRole);
   const editSession = useFieldReportEditSession(
     organizationId,
     reportId
@@ -105,6 +116,12 @@ export default function FieldVisitReportPage() {
   const [sendNotice, setSendNotice] = useState("");
   const [pendingSendEntry, setPendingSendEntry] =
     useState<PendingSendRequest | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [publishError, setPublishError] = useState("");
+  const [publishNotice, setPublishNotice] = useState("");
+  const [publishPreview, setPublishPreview] =
+    useState<PublishPreview | null>(null);
   const localPendingSend = Boolean(pendingSendEntry);
   const pendingSendPhase = pendingSendEntry?.syncPhase
     ? pendingSendPhaseLabelHe(pendingSendEntry.syncPhase)
@@ -369,6 +386,85 @@ export default function FieldVisitReportPage() {
     }
   }
 
+  async function openPublishDialog() {
+    if (!report?.can_publish || !canPublishReport) {
+      return;
+    }
+
+    setPublishOpen(true);
+    setPublishError("");
+    setPublishLoading(true);
+
+    try {
+      const serverId = serverVisitReportId(report);
+      if (!serverId) {
+        throw new Error("פרסום דורש דוח שסונכרן לשרת");
+      }
+
+      setPublishPreview(await fetchPublishPreview(serverId));
+    } catch (err: unknown) {
+      setPublishError(
+        err instanceof Error ? err.message : "טעינת תצוגה מקדימה נכשלה"
+      );
+    } finally {
+      setPublishLoading(false);
+    }
+  }
+
+  async function confirmPublishReport() {
+    if (!report?.can_publish || !canPublishReport) {
+      return;
+    }
+
+    if (!isOnline) {
+      setPublishError("פרסום לפורטל דורש חיבור לרשת");
+      return;
+    }
+
+    const serverId = serverVisitReportId(report);
+    if (!serverId) {
+      setPublishError("פרסום דורש דוח שסונכרן לשרת");
+      return;
+    }
+
+    try {
+      setPublishLoading(true);
+      setPublishError("");
+
+      const pdf = await resolvePublishPdfBlob(report, {
+        full_name: profile?.full_name,
+      });
+      const published = await publishVisitReport(serverId, pdf);
+
+      setReport({
+        ...report,
+        ...published,
+        client_report_uuid: clientVisitReportUuid(report),
+        server_report_id: serverId,
+      });
+      setPublishOpen(false);
+      const pdfArchived = published.publish_result?.pdf_archived ?? false;
+      const publishWarnings = published.publish_result?.warnings ?? [];
+      if (pdfArchived) {
+        setPublishNotice(
+          `הדוח פורסם לפורטל. נוצרו ${published.publish_result?.issue_materialization.created_count ?? 0} ליקויים ברישום. ה-PDF נשמר בארכיון המסירות.`
+        );
+      } else {
+        setPublishNotice(
+          publishWarnings[0]
+            || "הדוח פורסם אך ה-PDF לא נשמר בארכיון — יש להעלות PDF מחדש."
+        );
+      }
+      setHasLocalPdf(true);
+    } catch (err: unknown) {
+      setPublishError(
+        err instanceof Error ? err.message : "פרסום הדוח לפורטל נכשל"
+      );
+    } finally {
+      setPublishLoading(false);
+    }
+  }
+
   async function confirmReopenReport() {
     if (!report?.can_reopen) {
       return;
@@ -555,11 +651,23 @@ export default function FieldVisitReportPage() {
           {fieldReportDataSourceModeLabelHe(dataSourceMode)}
           {pinging ? " · בודק חיבור..." : ""}
         </p>
+        {publishNotice ? (
+          <p className="text-sm text-emerald-700 dark:text-emerald-300">
+            {publishNotice}
+          </p>
+        ) : null}
+        {publishError && !publishOpen ? (
+          <p className="text-sm text-red-600">{publishError}</p>
+        ) : null}
         <p className="text-sm">
           <span className="rounded-full bg-zinc-100 px-3 py-1 font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
             {showPendingSendState
               ? "ממתין לשליחה"
-              : report.status_label_he}
+              : report.is_published
+                ? "פורסם לפורטל"
+                : report.pending_publish
+                  ? "ממתין לפרסום"
+                  : report.status_label_he}
           </span>
         </p>
         {report.is_editable && !editSession.blockingSession ? (
@@ -599,6 +707,23 @@ export default function FieldVisitReportPage() {
               onConfirmReopenReport={() => void confirmReopenReport()}
               onOpenSendDialog={openSendDialog}
             />
+            {canPublishReport && report.can_publish ? (
+              <div className="pt-2">
+                <Button
+                  size="lg"
+                  className="min-h-12"
+                  onClick={() => void openPublishDialog()}
+                  disabled={!isOnline || publishLoading}
+                >
+                  אשר ופרסם לפורטל
+                </Button>
+              </div>
+            ) : null}
+            {report.is_published ? (
+              <p className="pt-2 text-sm text-emerald-700 dark:text-emerald-300">
+                פורסם לפורטל הרוכש
+              </p>
+            ) : null}
           </div>
         ) : null}
         <VisitReportPdfActions
@@ -638,6 +763,20 @@ export default function FieldVisitReportPage() {
           }
         }}
         onConfirm={() => void confirmFinishReport()}
+      />
+
+      <PublishReportDialog
+        open={publishOpen}
+        loading={publishLoading}
+        preview={publishPreview}
+        error={publishError}
+        onCancel={() => {
+          if (!publishLoading) {
+            setPublishOpen(false);
+            setPublishError("");
+          }
+        }}
+        onConfirm={() => void confirmPublishReport()}
       />
 
       <SendToCoreDialog

@@ -8,12 +8,31 @@ from app.services.field_report_catalog_service import (
     FieldReportCatalogService,
 )
 
+MIN_CATALOG_ISSUE_COUNT = 30
+
 
 def test_catalog_loads_with_supplement() -> None:
     catalog = load_catalog_from_directory()
+    assert catalog["issue_count"] >= MIN_CATALOG_ISSUE_COUNT
     assert catalog["issue_count"] >= len(SUPPLEMENT_ISSUES)
     assert catalog["supplement_issue_count"] == len(SUPPLEMENT_ISSUES)
     assert catalog["errors"]
+
+
+def test_catalog_has_thirty_plus_items_and_four_supervision_families() -> None:
+    catalog = load_catalog_from_directory()
+    assert catalog["issue_count"] >= MIN_CATALOG_ISSUE_COUNT
+
+    families = {item["top_family"] for item in catalog["issues"]}
+    assert "STRUCTURAL_WORKS" in families
+    assert "FINISHING_WORKS" in families
+    assert "MECHANICAL_ELECTRICAL_SYSTEMS" in families
+    assert "SYSTEM_WATERPROOFING_AND_INSULATION" in families
+
+    for issue in catalog["issues"]:
+        assert issue.get("catalog_reference_id")
+        assert issue.get("standard_ref")
+        assert issue.get("description")
 
 
 def test_catalog_filters_by_visit_type() -> None:

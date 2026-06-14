@@ -27,6 +27,15 @@ CLIENT_ADMIN_INVITE_ROLES = (
 
 PLATFORM_INVITE_ROLES = ORG_SCOPED_INVITE_ROLES
 
+RESIDENT_ROLE = "RESIDENT"
+
+RESIDENT_INVITE_ROLES = (
+    PLATFORM_ADMIN_ROLE,
+    ORG_ADMIN_ROLE,
+    "SUPERVISOR",
+    "MANAGER",
+)
+
 
 def normalize_role(role: str | None) -> str:
     return (role or "").strip().upper()
@@ -56,6 +65,15 @@ def can_assign_role(
     actor_role: str | None,
     target_role: str | None,
 ) -> bool:
-    return normalize_role(target_role) in set(
-        inviteable_roles(actor_role)
-    )
+    normalized_target = normalize_role(target_role)
+    if normalized_target == RESIDENT_ROLE:
+        return can_invite_resident(actor_role)
+    return normalized_target in set(inviteable_roles(actor_role))
+
+
+def can_invite_resident(actor_role: str | None) -> bool:
+    return normalize_role(actor_role) in set(RESIDENT_INVITE_ROLES)
+
+
+def is_resident_role(role: str | None) -> bool:
+    return normalize_role(role) == RESIDENT_ROLE

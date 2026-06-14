@@ -22,6 +22,21 @@ export const QUALITY_ISSUE_STATUSES = [
 
 export type QualityIssueStatus = (typeof QUALITY_ISSUE_STATUSES)[number];
 
+export const ISSUE_VISIBILITIES = ["DRAFT", "PUBLISHED"] as const;
+
+export type IssueVisibility = (typeof ISSUE_VISIBILITIES)[number];
+
+export const DEFAULT_ISSUE_VISIBILITY: IssueVisibility = "DRAFT";
+
+export function isVisibleToResident(
+  visibility: IssueVisibility | string | null | undefined
+): boolean {
+  if (!visibility) {
+    return true;
+  }
+  return String(visibility).trim().toUpperCase() === "PUBLISHED";
+}
+
 export const QUALITY_ISSUE_SEVERITY_LABELS_HE: Record<
   QualityIssueSeverity,
   string
@@ -71,6 +86,7 @@ export type QualityIssue = {
 
   severity: QualityIssueSeverity;
   status: QualityIssueStatus;
+  visibility: IssueVisibility;
 
   catalog_issue_id?: string | null;
 
@@ -362,6 +378,7 @@ export type QualityIssueCreateRequest = {
   group_label_he?: string | null;
   standard_ref?: string | null;
   severity?: QualityIssueSeverity;
+  visibility?: IssueVisibility;
   catalog_issue_id?: string | null;
   first_seen_report_id: string;
   first_seen_line_id?: string | null;
@@ -539,6 +556,7 @@ export type QualityPortfolioSummaryResponse = {
   critical_open_over_14_days: number;
   average_open_days: number | null;
   closed_within_30_days_percent: number | null;
+  last_report_at: string | null;
   projects: QualityPortfolioProjectSummary[];
 };
 
@@ -647,6 +665,13 @@ export type QualityIssueCatalogLink = {
   category_standard_id: string | null;
 };
 
+function isIssueVisibility(value: unknown): value is IssueVisibility {
+  return (
+    typeof value === "string" &&
+    (ISSUE_VISIBILITIES as readonly string[]).includes(value)
+  );
+}
+
 function isQualityIssueSeverity(value: unknown): value is QualityIssueSeverity {
   return (
     typeof value === "string" &&
@@ -695,6 +720,7 @@ export function parseQualityIssue(row: unknown): QualityIssue {
   const record = row as Record<string, unknown>;
   const severity = record.severity;
   const status = record.status;
+  const visibilityRaw = record.visibility;
 
   if (!isQualityIssueSeverity(severity)) {
     throw new Error(`Invalid quality issue severity: ${String(severity)}`);
@@ -702,6 +728,10 @@ export function parseQualityIssue(row: unknown): QualityIssue {
   if (!isQualityIssueStatus(status)) {
     throw new Error(`Invalid quality issue status: ${String(status)}`);
   }
+
+  const visibility = isIssueVisibility(visibilityRaw)
+    ? visibilityRaw
+    : "PUBLISHED";
 
   const recurrenceCount = record.recurrence_count;
   const parsedRecurrence =
@@ -725,6 +755,7 @@ export function parseQualityIssue(row: unknown): QualityIssue {
       record.standard_ref == null ? null : String(record.standard_ref),
     severity,
     status,
+    visibility,
     catalog_issue_id:
       record.catalog_issue_id == null
         ? null
@@ -1043,6 +1074,10 @@ export function parseQualityPortfolioSummaryResponse(
       typeof record.closed_within_30_days_percent === "number"
         ? record.closed_within_30_days_percent
         : null,
+    last_report_at:
+      typeof record.last_report_at === "string"
+        ? record.last_report_at
+        : null,
     projects,
   };
 }
@@ -1304,6 +1339,7 @@ export function withCreateRequestDefaults(
       request.last_seen_line_id ?? request.first_seen_line_id ?? null,
     last_seen_at: request.last_seen_at ?? request.first_seen_at,
     severity: request.severity ?? DEFAULT_QUALITY_ISSUE_SEVERITY,
+    visibility: request.visibility ?? DEFAULT_ISSUE_VISIBILITY,
     photo_ids: request.photo_ids ?? [],
   };
 }

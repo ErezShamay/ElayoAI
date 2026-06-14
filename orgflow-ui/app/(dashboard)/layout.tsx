@@ -1,6 +1,7 @@
 import Sidebar from "@/app/components/sidebar";
 
 import ContractorRouteGuard from "@/components/auth/ContractorRouteGuard";
+import ResidentRouteGuard from "@/components/auth/ResidentRouteGuard";
 import UserMenu from "@/components/auth/UserMenu";
 import DashboardProviders from "@/components/dashboard/DashboardProviders";
 import WorkspaceContextBar from "@/components/layout/WorkspaceContextBar";
@@ -40,7 +41,9 @@ export default function DashboardLayout({
         </header>
 
         <main className="of-dashboard-main flex-1 overflow-auto">
-          <ContractorRouteGuard>{children}</ContractorRouteGuard>
+          <ContractorRouteGuard>
+            <ResidentRouteGuard>{children}</ResidentRouteGuard>
+          </ContractorRouteGuard>
         </main>
       </div>
     </div>

@@ -24,6 +24,7 @@ export type VisitReportLineView = {
   notes?: string | null;
   severity?: string | null;
   standard_ref?: string | null;
+  catalog_reference_id?: string | null;
   issue_id?: string | null;
   has_catalog_issue?: boolean;
   has_photo?: boolean;
@@ -62,6 +63,9 @@ export type VisitReportView = {
   is_editable: boolean;
   can_reopen?: boolean;
   can_send_to_core?: boolean;
+  can_publish?: boolean;
+  is_published?: boolean;
+  pending_publish?: boolean;
   was_closed?: boolean;
 };
 
@@ -111,6 +115,7 @@ export function localLineToView(line: LocalVisitReportLine): VisitReportLineView
     notes: line.notes ?? null,
     severity: line.severity ?? null,
     standard_ref: line.standard_ref ?? null,
+    catalog_reference_id: line.catalog_reference_id ?? null,
     issue_id: line.issue_id ?? null,
     has_catalog_issue: Boolean(line.issue_id),
     has_photo: line.has_photo,

@@ -155,9 +155,16 @@ def test_stage3_gate_quick_photo_line_close_materializes_issue_with_photo(
     )
 
     assert closed["status"] == "CLOSED"
-    materialization = closed["issue_materialization"]
-    assert materialization["created_count"] == 1
-    assert materialization["linked_count"] == 0
+    assert closed["issue_materialization"]["created_count"] == 0
+    materialization = (
+        visit_service.materialization_service.materialize_issues_from_report(
+            organization_id="org-1",
+            report_id="report-quick-field",
+            actor_id="profile-1",
+        )
+    )
+    assert materialization.created_count == 1
+    assert materialization.linked_count == 0
     assert len(issues.records) == 1
 
     issue_id = next(iter(issues.records))
@@ -242,7 +249,16 @@ def test_stage3_gate_close_is_idempotent_for_quick_field_visit(
         report_id="report-quick-idempotent",
         actor_id="profile-1",
     )
-    assert first_close["issue_materialization"]["created_count"] == 1
+    assert first_close["issue_materialization"]["created_count"] == 0
+
+    first_publish = (
+        visit_service.materialization_service.materialize_issues_from_report(
+            organization_id="org-1",
+            report_id="report-quick-idempotent",
+            actor_id="profile-1",
+        )
+    )
+    assert first_publish.created_count == 1
 
     repeat = visit_service.materialization_service.materialize_issues_from_report(
         organization_id="org-1",

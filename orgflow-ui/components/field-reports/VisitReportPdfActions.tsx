@@ -2,11 +2,18 @@
 
 import GenerateVisitReportPdfButton, {
 } from "@/components/field-reports/GenerateVisitReportPdfButton";
+import Button from "@/components/ui/Button";
 import type { VisitReportPdfDownloadSource } from "@/lib/field-reports/pdf/generate-visit-report-pdf";
 import type { PdfVisitReport } from "@/lib/field-reports/pdf/types";
+import { downloadFieldVisitReportPdf } from "@/lib/deliverable-reports/api";
 
 type VisitReportPdfActionsProps = {
-  report: PdfVisitReport & { is_editable: boolean; status: string };
+  report: PdfVisitReport & {
+    is_editable: boolean;
+    status: string;
+    is_published?: boolean;
+    server_report_id?: string | null;
+  };
   isReopenedForEdit: boolean;
   showPendingSendState: boolean;
   hasLocalPdf: boolean;
@@ -24,6 +31,8 @@ export default function VisitReportPdfActions({
   onSetNotice,
   onSetError,
 }: VisitReportPdfActionsProps) {
+  const serverReportId = report.server_report_id?.trim() || null;
+  const canDownloadArchivedPdf = Boolean(report.is_published && serverReportId);
   if (report.is_editable && isReopenedForEdit) {
     return (
       <div className="space-y-1.5">
@@ -63,6 +72,29 @@ export default function VisitReportPdfActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2.5 pt-1">
+      {canDownloadArchivedPdf ? (
+        <Button
+          type="button"
+          className="min-h-12"
+          onClick={() => {
+            void downloadFieldVisitReportPdf(serverReportId!, report.project_name
+              ? `דוח-מפקח-${report.project_name}-${report.visit_date}.pdf`
+              : undefined)
+              .then(() => {
+                onSetNotice("ה-PDF הורד מהארכיון בשרת.");
+                onSetError("");
+              })
+              .catch((err: unknown) => {
+                onSetError(
+                  err instanceof Error ? err.message : "הורדת ה-PDF מהארכיון נכשלה"
+                );
+                onSetNotice("");
+              });
+          }}
+        >
+          הורד PDF מהארכיון
+        </Button>
+      ) : null}
       <GenerateVisitReportPdfButton
         report={report}
         className="min-h-12"

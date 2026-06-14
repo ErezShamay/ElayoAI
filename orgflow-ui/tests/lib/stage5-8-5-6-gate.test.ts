@@ -13,14 +13,14 @@ function readPublicHomePage(): string {
   return readFileSync(PUBLIC_HOME_PAGE, "utf8");
 }
 
-describe("stage 5.8.5.6 gate (how-it-works subtitle - QC flow)", () => {
-  it("replaces AI and operational actions path with QC workflow", () => {
+describe("stage 5.8.5.6 gate (how-it-works subtitle - supervision flow)", () => {
+  it("describes supervision publish workflow without AI ops path", () => {
     const source = readPublicHomePage();
 
     expect(source).toContain("דוח ביקור בשטח");
-    expect(source).toContain("ליקויים ב-registry");
-    expect(source).toContain("סגירה ואימות");
-    expect(source).toContain("תיק QC");
+    expect(source).toContain("אישור ופרסום");
+    expect(source).toContain("רישום ליקויים");
+    expect(source).toContain("פורטל רוכש");
     expect(source).not.toContain("ביקורת AI");
     expect(source).not.toContain("פעולות תפעוליות → מעקב והסלמה");
   });

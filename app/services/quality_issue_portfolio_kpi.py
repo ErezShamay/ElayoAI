@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.schemas.quality_issue import (
+    IssueVisibility,
     QualityIssueSeverity,
     QualityPortfolioProjectSummary,
 )
@@ -33,6 +34,39 @@ def _parse_timestamp(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed
+
+
+def is_published_portfolio_issue(issue: dict[str, Any]) -> bool:
+    """P4 portfolio KPIs — published registry issues only."""
+    visibility = str(
+        issue.get("visibility") or IssueVisibility.DRAFT.value
+    )
+    return visibility == IssueVisibility.PUBLISHED.value
+
+
+def filter_published_portfolio_issues(
+    issues: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        issue for issue in issues if is_published_portfolio_issue(issue)
+    ]
+
+
+def resolve_latest_published_report_at(
+    reports: list[dict[str, Any]],
+) -> datetime | None:
+    """Latest archived/published field visit report date for portfolio KPI."""
+    latest: datetime | None = None
+
+    for report in reports:
+        for key in ("visit_date", "locked_at", "closed_at"):
+            parsed = _parse_timestamp(report.get(key))
+            if parsed is None:
+                continue
+            if latest is None or parsed > latest:
+                latest = parsed
+
+    return latest
 
 
 def days_open_for_issue(
@@ -272,7 +306,7 @@ def build_open_issues_per_project_summaries(
             )
         )
 
-    return rank_portfolio_projects_by_qc_pressure(summaries)
+    return rank_portfolio_projects_by_supervision_pressure(summaries)
 
 
 def rank_portfolio_projects_by_qc_pressure(
@@ -288,6 +322,13 @@ def rank_portfolio_projects_by_qc_pressure(
         ),
         reverse=True,
     )
+
+
+def rank_portfolio_projects_by_supervision_pressure(
+    projects: list[QualityPortfolioProjectSummary],
+) -> list[QualityPortfolioProjectSummary]:
+    """P4 — supervision portfolio ranking (published issue pressure)."""
+    return rank_portfolio_projects_by_qc_pressure(projects)
 
 
 def count_projects_with_open_critical(

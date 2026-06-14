@@ -182,7 +182,7 @@ export default function VisitReportIssueDiffPanel({
           שינויי ליקויים בביקור זה
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          השוואה ל-registry - ליקויים חדשים, נסגרו, עדיין פתוחים או חוזרים.
+          השוואה לרישום הליקויים — ליקויים חדשים, נסגרו, עדיין פתוחים או חוזרים.
         </p>
       </div>
 

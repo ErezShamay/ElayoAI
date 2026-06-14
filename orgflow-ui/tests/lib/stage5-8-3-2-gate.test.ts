@@ -18,7 +18,7 @@ describe("stage 5.8.3.2 gate (workflow pillars - issues)", () => {
     const source = readPublicHomePage();
 
     expect(source).toContain('value: "ליקויים"');
-    expect(source).toContain('label: "מעקב חי בין ביקורים"');
+    expect(source).toContain('label: "רישום ליקויים בין ביקורים"');
     expect(source).not.toContain('value: "פעולות תפעוליות"');
     expect(source).not.toContain("מעקב סטטוס, השלמה וחסימה");
   });

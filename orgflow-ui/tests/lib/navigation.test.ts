@@ -24,28 +24,26 @@ import {
 } from "@/lib/navigation";
 import { shouldHideFromPrimaryNav } from "@/lib/qc-freeze";
 
-describe("navigation (stage 5.1 - QC primary nav)", () => {
-  it("defines QC items in GLOBAL_NAV_LINKS including operational review", () => {
-    expect(GLOBAL_NAV_LINKS).toHaveLength(5);
+describe("navigation (supervision pivot — stage A)", () => {
+  it("defines supervision items in GLOBAL_NAV_LINKS without operational review", () => {
+    expect(GLOBAL_NAV_LINKS).toHaveLength(4);
     expect(GLOBAL_NAV_LINKS.map((link) => link.label)).toEqual([
-      "תיק QC",
-      "סקירה תפעולית",
-      "פרויקטים",
       "דוחות שטח",
       "ליקויים",
+      "תיק פיקוח הנדסי",
+      "פרויקטים",
     ]);
     expect(GLOBAL_NAV_LINKS.map((link) => link.href)).toEqual([
-      "/portfolio",
-      "/operational-review",
-      "/projects",
       "/field-reports",
       "/issues",
+      "/portfolio",
+      "/projects",
     ]);
   });
 
-  it("uses QC field reports label", () => {
+  it("uses field reports label as first nav item", () => {
     expect(FIELD_REPORTS_ROUTE.label).toBe("דוחות שטח");
-    expect(GLOBAL_NAV_LINKS[3]).toEqual(FIELD_REPORTS_ROUTE);
+    expect(GLOBAL_NAV_LINKS[0]).toEqual(FIELD_REPORTS_ROUTE);
   });
 
   it("keeps remaining legacy PM links on public home navbar until stage 5.8", () => {

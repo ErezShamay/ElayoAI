@@ -17,7 +17,7 @@ const HOME_PAGE_SOURCE_FILES = [
 const REQUIRED_QC_HOME_PAGE_TERMS = [
   "ליקוי",
   "דוח שטח",
-  "בקרת איכות",
+  "פיקוח הנדסי",
 ] as const;
 
 function readHomePageSources(): string {
@@ -27,7 +27,7 @@ function readHomePageSources(): string {
 }
 
 describe("stage 5.8.9.2 gate (home page - QC messaging present)", () => {
-  it("home page sources include issue tracking, field reports and quality control", () => {
+  it("home page sources include issue tracking, field reports and engineering supervision", () => {
     const source = readHomePageSources();
 
     for (const term of REQUIRED_QC_HOME_PAGE_TERMS) {

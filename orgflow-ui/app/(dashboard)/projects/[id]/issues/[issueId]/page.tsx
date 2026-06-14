@@ -78,7 +78,7 @@ export default function ProjectIssueDetailPage({ params }: Props) {
 
       <div className="mx-auto max-w-4xl space-y-6">
         <PageHeader
-          eyebrow="בקרת איכות"
+          eyebrow="פיקוח הנדסי"
           title={issue?.title ?? "פרטי ליקוי"}
           description="מעקב מלא על ליקוי בודד - תוכן, סטטוס והיסטוריית אירועים"
           actions={

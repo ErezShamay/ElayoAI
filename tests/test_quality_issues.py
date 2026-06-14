@@ -913,6 +913,7 @@ def test_portfolio_quality_summary_success(client: TestClient) -> None:
             title="קריטי",
             severity="CRITICAL",
             materialization_key="k1",
+            visibility="PUBLISHED",
         ),
     )
     client.post(
@@ -921,6 +922,7 @@ def test_portfolio_quality_summary_success(client: TestClient) -> None:
         json=_issue_payload(
             title="פתוח",
             materialization_key="k2",
+            visibility="PUBLISHED",
         ),
     )
 

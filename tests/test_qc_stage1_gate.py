@@ -24,6 +24,7 @@ from tests.quality_issues_test_support import (
     InMemoryQualityIssueEventRepository,
     InMemoryQualityIssueRepository,
     qc_create_request,
+    qc_published_create_request,
     qc_now,
 )
 from tests.test_field_visit_reports import (
@@ -138,7 +139,14 @@ def test_stage1_gate_close_report_materializes_five_issues_with_photos(
     )
 
     assert closed["status"] == "CLOSED"
-    assert closed["issue_materialization"]["created_count"] == 5
+    assert closed["issue_materialization"]["created_count"] == 0
+
+    published = visit_service.materialization_service.materialize_issues_from_report(
+        organization_id="org-1",
+        report_id="report-gate",
+        actor_id="profile-1",
+    )
+    assert published.created_count == 5
     assert len(issues.records) == 5
 
     list_response = client.get(
@@ -169,7 +177,7 @@ def test_stage1_gate_portfolio_quality_summary_kpis(
     issues.create(
         organization_id="org-1",
         project_id="proj-1",
-        request=qc_create_request(
+        request=qc_published_create_request(
             title="קריטי",
             severity="CRITICAL",
             materialization_key="gate-critical",
@@ -179,7 +187,7 @@ def test_stage1_gate_portfolio_quality_summary_kpis(
     issues.create(
         organization_id="org-1",
         project_id="proj-1",
-        request=qc_create_request(
+        request=qc_published_create_request(
             title="גבוה",
             severity="HIGH",
             materialization_key="gate-high",
@@ -189,7 +197,7 @@ def test_stage1_gate_portfolio_quality_summary_kpis(
     issues.create(
         organization_id="org-1",
         project_id="proj-1",
-        request=qc_create_request(
+        request=qc_published_create_request(
             title="סגור",
             severity="MEDIUM",
             materialization_key="gate-closed",

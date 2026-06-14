@@ -14,11 +14,11 @@ function readPublicHomePage(): string {
 }
 
 describe("stage 5.8.7.1 gate (final CTA headline - QC)", () => {
-  it("replaces project control headline with quality control", () => {
+  it("replaces project control headline with engineering supervision", () => {
     const source = readPublicHomePage();
 
     expect(source).toContain("const FINAL_CTA = {");
-    expect(source).toContain('headline: "מוכנים לשלוט באיכות?"');
+    expect(source).toContain('headline: "מוכנים לניהול שקט?"');
     expect(source).toContain("FINAL_CTA.headline");
     expect(source).not.toContain("מוכנים לשלוט בפרויקט?");
   });

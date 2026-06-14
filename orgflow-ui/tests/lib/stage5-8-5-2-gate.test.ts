@@ -13,13 +13,12 @@ function readPublicHomePage(): string {
   return readFileSync(PUBLIC_HOME_PAGE, "utf8");
 }
 
-describe("stage 5.8.5.2 gate (workflow step 02 - report close to registry)", () => {
-  it("replaces AI review with closed report materializing issues into registry", () => {
+describe("stage 5.8.5.2 gate (workflow step 02 - draft close)", () => {
+  it("describes internal draft close before manager publish", () => {
     const source = readPublicHomePage();
 
-    expect(source).toContain('title: "סגירת דוח → ליקויים ב-registry"');
-    expect(source).toContain("registry");
-    expect(source).toContain("ליקוי חי");
+    expect(source).toContain('title: "סגירת דוח — טיוטה פנימית"');
+    expect(source).toContain("מוסתרים מהדייר");
     expect(source).not.toContain('title: "ממצאים וביקורת AI"');
     expect(source).not.toContain("ה-AI מחלץ ממצאים");
     expect(source).not.toContain("בלוח ביקורות AI");

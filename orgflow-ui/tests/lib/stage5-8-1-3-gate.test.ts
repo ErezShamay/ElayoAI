@@ -18,7 +18,7 @@ describe("stage 5.8.1.3 gate (hero subtitle - QC flow)", () => {
     const source = readPublicHomePage();
 
     expect(source).toMatch(
-      /<h1[\s\S]*?<\/h1>[\s\S]*?דוח ביקור[\s\S]*?ליקויים חיים[\s\S]*?סגירה[\s\S]*?תיק בקרת איכות/
+      /<h1[\s\S]*?<\/h1>[\s\S]*?דוח ביקור בשטח[\s\S]*?אישור ופרסום[\s\S]*?רישום ליקויים[\s\S]*?PDF/
     );
     expect(source).not.toContain("פלטפורמת AI לתפעול פיקוח הנדסי");
     expect(source).not.toContain("מדוחות וחריגות");

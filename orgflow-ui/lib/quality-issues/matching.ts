@@ -1,5 +1,5 @@
 /**
- * Client-side matching for open registry issues (mirrors backend matching service).
+ * Client-side matching for open issue records (mirrors backend matching service).
  * Used when suggest-matches API is unavailable offline.
  */
 

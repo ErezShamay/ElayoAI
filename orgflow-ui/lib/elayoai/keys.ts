@@ -4,19 +4,19 @@ export const ELAYOAI_APP_ID = "com.elayoai.app";
 export const ELAYOAI_APP_NAME = "ElayoAI";
 
 /** תגית משנה מתחת ללוגו (עברית). */
-export const ELAYOAI_APP_TAGLINE = "בקרת איכות לפרויקטי בנייה";
+export const ELAYOAI_APP_TAGLINE = "שטח מסודר. ניהול שקט.";
 
-/** תיאור SEO - פלטפורמת בקרת איכות (אנגלית). */
+/** תיאור SEO (אנגלית). */
 export const ELAYOAI_APP_DESCRIPTION =
-  "Quality Control Platform for Construction Projects";
+  "Field visit reports, defect tracking, and engineering deliverables";
 
 /** שם מלא ל-PWA manifest (עברית). */
 export const ELAYOAI_MANIFEST_NAME =
-  "ElayoAI - בקרת איכות לפרויקטי בנייה";
+  "ElayoAI - שטח מסודר. ניהול שקט.";
 
 /** תיאור PWA manifest (עברית). */
 export const ELAYOAI_MANIFEST_DESCRIPTION =
-  "דוחות שטח, מעקב ליקויים, סגירה ואימות ותיק בקרת איכות";
+  "דוחות שטח, רישום ליקויים, PDF ללקוח, תיק פיקוח ושקיפות לרוכש";
 
 /** מפתחות localStorage / sessionStorage (ElayoAI). */
 export const ELAYOAI_THEME_KEY = "elayoai-theme";

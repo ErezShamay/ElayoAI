@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 import pytest
 
 from app.exceptions.exceptions import NotFoundError, ValidationError
-from app.schemas.quality_issue import QualityIssueEventType, QualityIssueStatus
+from app.schemas.quality_issue import (
+    IssueVisibility,
+    QualityIssueEventType,
+    QualityIssueStatus,
+)
 from app.services.field_visit_report_service import FieldVisitReportService
 from app.services.quality_issue_materialization_service import (
     MaterializationResult,
@@ -397,7 +401,7 @@ def _visit_service_with_materialization(
     )
 
 
-def test_close_report_materializes_five_findings_from_blocks() -> None:
+def test_close_report_does_not_materialize_findings_from_blocks() -> None:
     reports = FakeVisitReportRepository()
     issues = InMemoryQualityIssueRepository()
     events = InMemoryQualityIssueEventRepository()
@@ -441,8 +445,17 @@ def test_close_report_materializes_five_findings_from_blocks() -> None:
     )
 
     assert closed["status"] == "CLOSED"
-    assert closed["issue_materialization"]["created_count"] == 5
-    assert closed["issue_materialization"]["skipped_count"] == 0
+    assert closed["issue_materialization"]["created_count"] == 0
+    assert len(issues.records) == 0
+
+    materialized = service.materialization_service.materialize_issues_from_report(
+        organization_id="org-1",
+        report_id="report-1",
+        actor_id="profile-1",
+    )
+
+    assert materialized.created_count == 5
+    assert materialized.skipped_count == 0
     assert len(issues.records) == 5
     assert len(
         [
@@ -486,7 +499,13 @@ def test_close_report_materialization_is_idempotent_on_repeat() -> None:
         organization_id="org-1",
         report_id="report-1",
     )
-    assert first_close["issue_materialization"]["created_count"] == 1
+    assert first_close["issue_materialization"]["created_count"] == 0
+
+    first_publish = service.materialization_service.materialize_issues_from_report(
+        organization_id="org-1",
+        report_id="report-1",
+    )
+    assert first_publish.created_count == 1
 
     repeat = service.materialization_service.materialize_issues_from_report(
         organization_id="org-1",
@@ -562,3 +581,55 @@ def test_materialize_links_existing_issue_when_line_has_linked_issue_id() -> Non
     assert len(linked_events) == 1
     assert linked_events[0]["line_id"] == line["id"]
     assert linked_events[0]["payload"]["match_source"] == "manual"
+
+
+def test_publish_report_materializes_after_close_without_materializing_on_close() -> None:
+    reports = FakeVisitReportRepository()
+    lines = FakeVisitReportLineRepository()
+    issues = InMemoryQualityIssueRepository()
+
+    reports.records["report-1"] = {
+        "id": "report-1",
+        "organization_id": "org-1",
+        "project_id": "project-1",
+        "status": "IN_PROGRESS",
+        "visit_type": "STRUCTURE_SITE",
+        "visit_date": "2026-06-01",
+        "created_by_profile_id": "profile-1",
+        "header_fields": {},
+    }
+    lines.create(
+        {
+            "report_id": "report-1",
+            "organization_id": "org-1",
+            "sort_order": 0,
+            "description": "ליקוי לפרסום",
+            "visibility": IssueVisibility.DRAFT.value,
+        }
+    )
+
+    service = _visit_service_with_materialization(
+        reports=reports,
+        lines=lines,
+        issues=issues,
+    )
+    closed = service.close_report(
+        organization_id="org-1",
+        report_id="report-1",
+        actor_id="admin-1",
+    )
+    assert closed["issue_materialization"]["created_count"] == 0
+    assert len(issues.records) == 0
+
+    published = service.publish_report(
+        organization_id="org-1",
+        report_id="report-1",
+        actor_id="admin-1",
+    )
+
+    assert published["is_published"] is True
+    assert published["publish_result"]["issue_materialization"]["created_count"] == 1
+    assert len(issues.records) == 1
+    assert lines.list_by_report("report-1")[0]["visibility"] == (
+        IssueVisibility.PUBLISHED.value
+    )
