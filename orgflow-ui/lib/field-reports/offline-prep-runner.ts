@@ -18,7 +18,13 @@ export type OfflinePrepFetchResult = {
 
 function extractProjectIds(bundle: OfflinePrepBundle): string[] {
   return (bundle.projects ?? [])
-    .map((project) => project.id?.trim())
+    .map((project) => {
+      if (!project || typeof project !== "object") {
+        return "";
+      }
+      const id = (project as Record<string, unknown>).id;
+      return typeof id === "string" ? id.trim() : "";
+    })
     .filter((projectId): projectId is string => Boolean(projectId));
 }
 

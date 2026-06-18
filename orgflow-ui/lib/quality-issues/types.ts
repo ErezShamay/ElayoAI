@@ -184,6 +184,17 @@ export type DetectedEventPayload = {
   group_key?: string | null;
 };
 
+export type CreatedFromFieldEventPayload = {
+  materialization_key: string;
+  severity: QualityIssueSeverity;
+  title: string;
+  catalog_issue_id?: string | null;
+  checklist_item_id?: string | null;
+  location?: string | null;
+  trade?: string | null;
+  group_key?: string | null;
+};
+
 export type LinkedEventPayload = {
   match_key?: string | null;
   match_source?: "auto" | "manual";
@@ -219,6 +230,7 @@ export type StatusChangedEventPayload = {
 
 export type QualityIssueEventPayloadByType = {
   DETECTED: DetectedEventPayload;
+  CREATED_FROM_FIELD: CreatedFromFieldEventPayload;
   LINKED: LinkedEventPayload;
   REMEDIATION_SUBMITTED: RemediationSubmittedEventPayload;
   VERIFIED_CLOSED: VerifiedClosedEventPayload;

@@ -89,7 +89,7 @@ export function connectPortfolioLiveUpdates(
   }
 ): PortfolioLiveConnection {
   let stopped = false;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let pollTimer: number | null = null;
   let abortController: AbortController | null = null;
 
   const notifyError = (error: unknown) => {

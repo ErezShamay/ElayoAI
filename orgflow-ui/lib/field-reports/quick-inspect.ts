@@ -18,19 +18,30 @@ type SupervisionMetaSource =
   | null
   | undefined;
 
-function readDocumentType(source: SupervisionMetaSource): FieldReportDocumentType {
-  const raw = source && typeof source === "object" ? source.document_type : null;
+function asSupervisionMetaRecord(
+  source: SupervisionMetaSource | unknown
+): Record<string, unknown> | null {
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+  return source as Record<string, unknown>;
+}
+
+function readDocumentType(
+  source: SupervisionMetaSource | unknown
+): FieldReportDocumentType {
+  const raw = asSupervisionMetaRecord(source)?.document_type;
   return raw === "handover_protocol" ? "handover_protocol" : "weekly_inspection";
 }
 
-function readInspectMode(source: SupervisionMetaSource): InspectMode | null {
-  const raw = source && typeof source === "object" ? source.inspect_mode : null;
+function readInspectMode(source: SupervisionMetaSource | unknown): InspectMode | null {
+  const raw = asSupervisionMetaRecord(source)?.inspect_mode;
   return raw === "standard" || raw === "quick" ? raw : null;
 }
 
 /** weekly_inspection → quick; handover_protocol → standard; explicit meta wins. */
 export function resolveInspectMode(
-  source: SupervisionMetaSource
+  source: SupervisionMetaSource | unknown
 ): InspectMode {
   const explicit = readInspectMode(source);
   if (explicit) {

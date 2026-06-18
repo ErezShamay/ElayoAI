@@ -183,7 +183,7 @@ export function applySupervisionDefectLinesToReport(
       };
     }
 
-    if (existingLine && item.status !== "DEFECT") {
+    if (existingLine) {
       lines = lines.map((line) =>
         line.client_line_uuid === existingLine.client_line_uuid
           ? cancelLinkedFindingLine(line)

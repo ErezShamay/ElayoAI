@@ -98,8 +98,11 @@ export async function requestDefectDraftMaterialization(params: {
   );
 
   if (!response.ok) {
-    const message = await readApiErrorMessage(response);
-    throw new Error(message || "יצירת ליקוי טיוטה נכשלה");
+    const message = await readApiErrorMessage(
+      response,
+      "יצירת ליקוי טיוטה נכשלה"
+    );
+    throw new Error(message);
   }
 
   const payload = (await response.json()) as {
