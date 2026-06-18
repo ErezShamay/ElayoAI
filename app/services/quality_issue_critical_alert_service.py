@@ -11,6 +11,7 @@ from app.repositories.quality_issue_repository import (
     QualityIssueRepository,
 )
 from app.schemas.quality_issue import (
+    NewCriticalIssueAlertResponse,
     QualityCriticalStaleAlertDelivery,
     QualityCriticalStaleAlertResponse,
 )
@@ -207,6 +208,98 @@ class QualityIssueCriticalAlertService:
             organization_id=organization_id,
             threshold_days=threshold,
             stale_issue_count=len(stale_issues),
+            digest_count=len(digests),
+            skipped_issue_ids=skipped_issue_ids,
+            deliveries=deliveries,
+        )
+
+    def run_for_new_critical_issues(
+        self,
+        *,
+        organization_id: str,
+        project_id: str,
+        report_id: str,
+        issue_ids: list[str],
+        now: datetime | None = None,
+        send_email: bool = True,
+    ) -> NewCriticalIssueAlertResponse:
+        """Alert on newly materialized CRITICAL issues from a finalized report (N02)."""
+        current_time = now or datetime.now(UTC)
+        issues = [
+            issue
+            for issue_id in issue_ids
+            if (issue := self.issue_repository.get_by_id(issue_id)) is not None
+        ]
+        critical_issues = [
+            issue
+            for issue in issues
+            if str(issue.get("severity") or "").upper() == "CRITICAL"
+            and issue.get("status") in OPEN_ISSUE_STATUSES
+        ]
+
+        project = self.project_repository.get_project_by_id(project_id) or {}
+        projects_by_id = {project_id: project}
+
+        issues_to_notify: list[dict[str, Any]] = []
+        skipped_issue_ids: list[str] = []
+        for issue in critical_issues:
+            issue_id = str(issue.get("id") or "")
+            if not issue_id:
+                continue
+            if self.dedup_store.should_notify_once(issue_id):
+                issues_to_notify.append(issue)
+            else:
+                skipped_issue_ids.append(issue_id)
+
+        digests = build_supervisor_digests(
+            issues_to_notify,
+            projects_by_id=projects_by_id,
+            now=current_time,
+        )
+        reminders = self.notification_tool.build_new_critical_issue_messages(
+            digests,
+            report_id=report_id,
+        )
+
+        deliveries: list[QualityCriticalStaleAlertDelivery] = []
+        if send_email and reminders:
+            sent_results = self.notification_tool.send_reminders(reminders)
+            for reminder, result in zip(reminders, sent_results, strict=False):
+                issue_ids_sent = [
+                    str(item.get("issue_id") or "")
+                    for item in reminder.get("issues", [])
+                    if item.get("issue_id")
+                ]
+                for issue_id in issue_ids_sent:
+                    self.dedup_store.mark_notified_once(issue_id)
+                deliveries.append(
+                    QualityCriticalStaleAlertDelivery(
+                        to=result.get("to"),
+                        status=str(result.get("status") or "UNKNOWN"),
+                        issue_ids=issue_ids_sent,
+                        error=result.get("error"),
+                    )
+                )
+        elif reminders:
+            for reminder in reminders:
+                issue_ids_sent = [
+                    str(item.get("issue_id") or "")
+                    for item in reminder.get("issues", [])
+                    if item.get("issue_id")
+                ]
+                deliveries.append(
+                    QualityCriticalStaleAlertDelivery(
+                        to=reminder.get("to"),
+                        status="DRY_RUN",
+                        issue_ids=issue_ids_sent,
+                    )
+                )
+
+        return NewCriticalIssueAlertResponse(
+            organization_id=organization_id,
+            project_id=project_id,
+            report_id=report_id,
+            critical_issue_count=len(critical_issues),
             digest_count=len(digests),
             skipped_issue_ids=skipped_issue_ids,
             deliveries=deliveries,

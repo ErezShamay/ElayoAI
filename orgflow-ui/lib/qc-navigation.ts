@@ -1,6 +1,6 @@
 /**
  * Supervision platform navigation — PRODUCT-SPEC-LOCKED.md §11.
- * PR tag: [supervision-pivot]
+ * PR tag: [finalize-pipeline]
  */
 
 import { isResidentRole } from "@/lib/auth/resident-access";

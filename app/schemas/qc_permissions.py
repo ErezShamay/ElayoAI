@@ -1,7 +1,7 @@
 """
 QC Spec 0.3 - Personas, permissions, and access rules for the QC platform.
 
-See docs/qc-spec/qc-personas-permissions.md.
+See docs/PRODUCT-SPEC-LOCKED.md §5.
 """
 
 from __future__ import annotations

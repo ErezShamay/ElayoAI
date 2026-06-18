@@ -456,7 +456,8 @@ function resolveSchemeLabelHe(
   if (
     scheme === "TAMA38_STRENGTHENING" ||
     scheme === "TAMA38_DEMOLITION_REBUILD" ||
-    scheme === "TAMA38_RELOCATED_BUILD"
+    scheme === "TAMA38_RELOCATED_BUILD" ||
+    scheme === "NEW_CONSTRUCTION"
   ) {
     return projectSchemeLabelHe(scheme);
   }

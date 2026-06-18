@@ -1,6 +1,6 @@
 /**
  * QC Spec 0.5 - Freeze list for QC pivot (mirrors app/schemas/qc_freeze.py).
- * See docs/qc-spec/qc-freeze-list.md.
+ * See docs/PRODUCT-SPEC-LOCKED.md §5.
  */
 
 export const QC_FREEZE_CATEGORIES = [

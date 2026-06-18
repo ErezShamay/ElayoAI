@@ -1,4 +1,7 @@
-import { apiFetch } from "@/lib/api/client";
+import {
+  finalizeVisitReport,
+  waitForFinalizeReportStatus,
+} from "@/lib/field-reports/finalize-api";
 import {
   loadVisitReportPdfLocally,
 } from "@/lib/field-reports/pdf/visit-report-pdf-store";
@@ -22,57 +25,6 @@ export type SendQueueItemResult = {
 export type ProcessSendQueueResult = {
   processed: SendQueueItemResult[];
 };
-
-function buildRequestSendErrorMessage(payload: unknown): string {
-  const apiPayload = (payload || {}) as {
-    error?: {
-      message?: string;
-      details?: {
-        error_code?: string;
-      };
-    };
-    message?: string;
-  };
-  const apiMessage =
-    apiPayload.error?.message
-    || apiPayload.message
-    || "שליחה לליבה נכשלה";
-  const apiErrorCode = apiPayload.error?.details?.error_code;
-  if (!apiErrorCode) {
-    return apiMessage;
-  }
-  return `${apiMessage} (${apiErrorCode})`;
-}
-
-async function requestSendToCore(
-  reportId: string,
-  idempotencyKey: string,
-  pdf: { blob: Blob; filename: string }
-) {
-  const formData = new FormData();
-  formData.set("file", pdf.blob, pdf.filename || `${reportId}.pdf`);
-  const response = await apiFetch(
-    `/field-reports/visits/${reportId}/request-send`,
-    {
-      method: "POST",
-      headers: {
-        "X-Idempotency-Key": idempotencyKey,
-      },
-      body: formData,
-    }
-  );
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(buildRequestSendErrorMessage(payload));
-  }
-
-  const payload = await response.json();
-  if (payload?.status !== "LOCKED") {
-    throw new Error("השרת לא אישר נעילת דוח לאחר שליחה לליבה");
-  }
-  return payload;
-}
 
 export async function processPendingSendRequest(
   request: PendingSendRequest
@@ -112,14 +64,26 @@ export async function processPendingSendRequest(
     await setPhase("pdf");
     const storedPdf = await loadVisitReportPdfLocally(reportId);
     if (!storedPdf?.blob) {
-      throw new Error("PDF לא נמצא במכשיר - יש להפיק מחדש לפני שליחה");
+      throw new Error("PDF לא נמצא במכשיר - יש להפיק מחדש לפני עיבוד");
     }
 
-    await setPhase("request_send");
-    await requestSendToCore(reportId, idempotencyKey, {
-      blob: storedPdf.blob,
-      filename: storedPdf.filename || `${reportId}.pdf`,
-    });
+    await setPhase("finalize");
+    await finalizeVisitReport(
+      reportId,
+      {
+        blob: storedPdf.blob,
+        filename: storedPdf.filename || `${reportId}.pdf`,
+      },
+      {
+        idempotencyKey,
+        clientReportUuid: request.clientReportUuid,
+      }
+    );
+
+    const status = await waitForFinalizeReportStatus(reportId);
+    if (status.status === "FINALIZE_FAILED") {
+      throw new Error("עיבוד הדוח נכשל לאחר סנכרון");
+    }
 
     await purgeFieldReportAfterCoreSend({
       organizationId,

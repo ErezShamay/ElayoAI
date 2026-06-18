@@ -1,4 +1,4 @@
-"""תוויות עברית לסוג פרויקט תמ״א - mirrors orgflow-ui project-scheme-labels (FR-4.3)."""
+"""תוויות עברית לסוגי פרויקט בנייה - mirrors orgflow-ui project-scheme-labels (FR-4.3)."""
 
 from __future__ import annotations
 
@@ -8,12 +8,14 @@ ProjectScheme = Literal[
     "TAMA38_STRENGTHENING",
     "TAMA38_DEMOLITION_REBUILD",
     "TAMA38_RELOCATED_BUILD",
+    "NEW_CONSTRUCTION",
 ]
 
 PROJECT_SCHEME_SHORT_LABELS: dict[ProjectScheme, str] = {
     "TAMA38_STRENGTHENING": "חיזוק",
     "TAMA38_DEMOLITION_REBUILD": "הריסה ובניה",
     "TAMA38_RELOCATED_BUILD": "פינוי בינוי",
+    "NEW_CONSTRUCTION": "בנייה חדשה",
 }
 
 VALID_PROJECT_SCHEMES: frozenset[str] = frozenset(
@@ -26,6 +28,8 @@ def is_valid_project_scheme(value: str | None) -> bool:
 
 
 def project_scheme_label_he(scheme: str) -> str:
+    if scheme == "NEW_CONSTRUCTION":
+        return "בנייה חדשה"
     short = PROJECT_SCHEME_SHORT_LABELS.get(scheme)  # type: ignore[arg-type]
     if not short:
         return ""

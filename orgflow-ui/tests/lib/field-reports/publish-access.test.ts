@@ -1,46 +1,43 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canFinalizeFieldReports,
   canPublishFieldReports,
-  PUBLISH_REPORT_CTA_LABEL,
 } from "@/lib/field-reports/publish-access";
 import {
   fieldReportListStatusLabel,
   isFieldReportPendingPublish,
 } from "@/lib/field-reports/publish-list";
 
-describe("field report publish access", () => {
-  it("allows ADMIN, MANAGER, and PLATFORM_ADMIN to publish", () => {
-    expect(canPublishFieldReports("ADMIN")).toBe(true);
-    expect(canPublishFieldReports("MANAGER")).toBe(true);
-    expect(canPublishFieldReports("PLATFORM_ADMIN")).toBe(true);
+describe("field report finalize access", () => {
+  it("allows SUPERVISOR only to finalize", () => {
+    expect(canFinalizeFieldReports("SUPERVISOR")).toBe(true);
+    expect(canFinalizeFieldReports("MANAGER")).toBe(false);
+    expect(canFinalizeFieldReports("ADMIN")).toBe(false);
+    expect(canFinalizeFieldReports("VIEWER")).toBe(false);
   });
 
-  it("denies SUPERVISOR and VIEWER publish", () => {
+  it("removes legacy manager publish access", () => {
+    expect(canPublishFieldReports("ADMIN")).toBe(false);
+    expect(canPublishFieldReports("MANAGER")).toBe(false);
     expect(canPublishFieldReports("SUPERVISOR")).toBe(false);
-    expect(canPublishFieldReports("VIEWER")).toBe(false);
-    expect(canPublishFieldReports("RESIDENT")).toBe(false);
-  });
-
-  it("uses locked publish CTA label from spec", () => {
-    expect(PUBLISH_REPORT_CTA_LABEL).toBe("אשר ופרסם לפורטל");
   });
 });
 
-describe("field report publish list helpers", () => {
-  it("detects pending publish from API flags", () => {
+describe("field report list helpers", () => {
+  it("detects closed reports waiting for PDF finalize", () => {
     expect(
       isFieldReportPendingPublish({
         status: "CLOSED",
-        pending_publish: true,
-        can_publish: true,
+        pending_publish: false,
+        can_publish: false,
         is_published: false,
       })
     ).toBe(true);
 
     expect(
       isFieldReportPendingPublish({
-        status: "CLOSED",
+        status: "FINALIZED",
         pending_publish: false,
         can_publish: false,
         is_published: true,
@@ -48,23 +45,23 @@ describe("field report publish list helpers", () => {
     ).toBe(false);
   });
 
-  it("labels closed reports waiting for publish", () => {
+  it("labels finalize pipeline states", () => {
     expect(
       fieldReportListStatusLabel({
-        status: "CLOSED",
+        status: "FINALIZING",
         status_label_he: "סגור",
-        pending_publish: true,
+        pending_publish: false,
         is_published: false,
       })
-    ).toBe("ממתין לפרסום");
+    ).toBe("מעבד...");
 
     expect(
       fieldReportListStatusLabel({
-        status: "CLOSED",
+        status: "FINALIZED",
         status_label_he: "סגור",
         pending_publish: false,
         is_published: true,
       })
-    ).toBe("פורסם לפורטל");
+    ).toBe("נשלח בהצלחה");
   });
 });

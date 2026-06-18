@@ -24,6 +24,7 @@ export type PendingSendSyncPhase =
   | "photos"
   | "close"
   | "pdf"
+  | "finalize"
   | "request_send";
 
 export type PendingSendRequest = {
@@ -262,8 +263,10 @@ export function pendingSendPhaseLabelHe(
       return "מעלה תמונות...";
     case "pdf":
       return "מאמת PDF...";
+    case "finalize":
+      return "מעבד דוח ושולח במייל...";
     case "request_send":
-      return "שולח לליבה...";
+      return "מעבד דוח ושולח במייל...";
     case "queued":
     default:
       return "ממתין לסנכרון";

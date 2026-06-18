@@ -6,9 +6,14 @@ import Button from "@/components/ui/Button";
 import VisitReportPdfPreviewDialog from "@/components/field-reports/VisitReportPdfPreviewDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  finalizeVisitReport,
+  waitForFinalizeReportStatus,
+} from "@/lib/field-reports/finalize-api";
+import {
   downloadVisitReportPdf,
   generateVisitReportPdf,
   saveAndDownloadVisitReportPdf,
+  buildPdfFilename,
   type VisitReportPdfDownloadSource,
 } from "@/lib/field-reports/pdf/generate-visit-report-pdf";
 import type { PdfVisitReport } from "@/lib/field-reports/pdf/types";
@@ -25,9 +30,17 @@ type GenerateVisitReportPdfButtonProps = {
   className?: string;
   /** Regenerate from current report data and replace the single cached copy. */
   forceRegenerate?: boolean;
+  serverReportId?: string | null;
+  reportStatus?: string;
+  canFinalize?: boolean;
+  isOnline?: boolean;
+  clientReportUuid?: string;
   onComplete?: (source: VisitReportPdfDownloadSource) => void;
   onError?: (message: string) => void;
   onCacheChange?: (hasCachedPdf: boolean) => void;
+  onFinalizeStart?: () => void;
+  onFinalizeComplete?: () => void;
+  onFinalizeError?: (message: string) => void;
 };
 
 export default function GenerateVisitReportPdfButton({
@@ -36,12 +49,21 @@ export default function GenerateVisitReportPdfButton({
   label,
   className = "",
   forceRegenerate = false,
+  serverReportId,
+  reportStatus,
+  canFinalize = false,
+  isOnline = true,
+  clientReportUuid,
   onComplete,
   onError,
   onCacheChange,
+  onFinalizeStart,
+  onFinalizeComplete,
+  onFinalizeError,
 }: GenerateVisitReportPdfButtonProps) {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [hasCachedPdf, setHasCachedPdf] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -83,11 +105,13 @@ export default function GenerateVisitReportPdfButton({
 
   const buttonLabel =
     label
-    ?? (forceRegenerate
-      ? "עדכן PDF"
-      : hasCachedPdf
-        ? "הורד PDF"
-        : "הפק PDF");
+    ?? (finalizing
+      ? "מעבד דוח..."
+      : forceRegenerate
+        ? "עדכן PDF"
+        : hasCachedPdf
+          ? "הורד PDF"
+          : "הפק PDF");
 
   function clearPreviewState() {
     if (previewUrl?.startsWith("blob:")) {
@@ -99,6 +123,53 @@ export default function GenerateVisitReportPdfButton({
     setPreviewLoading(false);
     setPreviewConfirming(false);
     setPreviewOpen(false);
+  }
+
+  async function triggerFinalize(blob: Blob) {
+    const resolvedServerId = serverReportId?.trim() || null;
+    const shouldFinalize =
+      canFinalize
+      && isOnline
+      && resolvedServerId
+      && (reportStatus === "CLOSED" || reportStatus === "FINALIZE_FAILED");
+
+    if (!shouldFinalize) {
+      return;
+    }
+
+    try {
+      setFinalizing(true);
+      onFinalizeStart?.();
+
+      await finalizeVisitReport(
+        resolvedServerId,
+        {
+          blob,
+          filename: buildPdfFilename(report),
+        },
+        {
+          clientReportUuid,
+          idempotencyKey: clientReportUuid
+            ? `finalize:${clientReportUuid}`
+            : `finalize:${resolvedServerId}`,
+        }
+      );
+
+      const result = await waitForFinalizeReportStatus(resolvedServerId);
+
+      if (result.status === "FINALIZE_FAILED") {
+        throw new Error("עיבוד הדוח נכשל — נסה שוב");
+      }
+
+      onFinalizeComplete?.();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "עיבוד הדוח נכשל";
+      onFinalizeError?.(message);
+      throw error;
+    } finally {
+      setFinalizing(false);
+    }
   }
 
   async function openPreviewDialog() {
@@ -139,6 +210,16 @@ export default function GenerateVisitReportPdfButton({
       onCacheChange?.(true);
       onComplete?.("generated");
       clearPreviewState();
+
+      try {
+        await triggerFinalize(blob);
+      } catch (finalizeError: unknown) {
+        const message =
+          finalizeError instanceof Error
+            ? finalizeError.message
+            : "עיבוד הדוח נכשל";
+        onError?.(message);
+      }
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "שמירת PDF נכשלה";
@@ -180,7 +261,7 @@ export default function GenerateVisitReportPdfButton({
         type="button"
         variant={variant}
         className={className}
-        disabled={loading || previewOpen}
+        disabled={loading || finalizing || previewOpen}
         onClick={() => void handleGenerate()}
       >
         {loading
@@ -195,12 +276,12 @@ export default function GenerateVisitReportPdfButton({
       <VisitReportPdfPreviewDialog
         open={previewOpen}
         loading={previewLoading}
-        confirming={previewConfirming}
+        confirming={previewConfirming || finalizing}
         previewUrl={previewUrl}
         error={previewError}
         isRegenerate={forceRegenerate}
         onCancel={() => {
-          if (!previewLoading && !previewConfirming) {
+          if (!previewLoading && !previewConfirming && !finalizing) {
             clearPreviewState();
           }
         }}

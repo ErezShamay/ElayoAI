@@ -15,6 +15,7 @@ import {
 } from "@/lib/field-reports/supervision-catalog";
 import type {
   ConstructionStage,
+  FieldReportDocumentType,
   PublicAreaId,
   SupervisionCatalog,
   SupervisionReportMeta,
@@ -99,6 +100,7 @@ export type CreateSupervisionLocalReportParams = {
   catalog: SupervisionCatalog;
   constructionStage: ConstructionStage;
   visitScope: VisitScope;
+  documentType?: FieldReportDocumentType;
   apartmentId?: string | null;
   apartmentNumber?: string | null;
   ownerName?: string | null;
@@ -117,6 +119,7 @@ function buildSupervisionMeta(
   );
 
   return {
+    document_type: params.documentType ?? "weekly_inspection",
     construction_stage: params.constructionStage,
     visit_scope: params.visitScope,
     apartment_id: params.apartmentId ?? null,

@@ -24,6 +24,7 @@ const VALID_SCHEMES = new Set<ProjectScheme>([
   "TAMA38_STRENGTHENING",
   "TAMA38_DEMOLITION_REBUILD",
   "TAMA38_RELOCATED_BUILD",
+  "NEW_CONSTRUCTION",
 ]);
 
 function pickText(...values: Array<string | null | undefined>): string {

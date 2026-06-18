@@ -1,6 +1,6 @@
 /**
  * QC Spec 4.2.4 - Contractors must not access field reports or catalog routes.
- * See docs/qc-spec/qc-personas-permissions.md §2.2.
+ * See docs/PRODUCT-SPEC-LOCKED.md §5.
  */
 
 import { recommendedPostLoginRoute } from "@/lib/qc-navigation";

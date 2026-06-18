@@ -12,6 +12,7 @@ export const CONSTRUCTION_STAGE_LABELS: Record<ConstructionStage, string> = {
 export const VISIT_SCOPE_LABELS: Record<VisitScope, string> = {
   APARTMENT: "דירה",
   PUBLIC_AREA: "שטחים ציבוריים",
+  HANDOVER: "פרוטוקול מסירה",
 };
 
 export function constructionStageLabelHe(stage: ConstructionStage): string {

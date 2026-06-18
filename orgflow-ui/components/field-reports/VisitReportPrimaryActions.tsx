@@ -5,7 +5,6 @@ import Button from "@/components/ui/Button";
 type VisitReportPrimaryActionsReport = {
   is_editable: boolean;
   can_reopen?: boolean;
-  can_send_to_core?: boolean;
 };
 
 type VisitReportPrimaryActionsProps = {
@@ -15,11 +14,9 @@ type VisitReportPrimaryActionsProps = {
   canCloseOffline?: boolean;
   isReopenedForEdit: boolean;
   reopenLoading: boolean;
-  hasLocalPdf: boolean;
   compact?: boolean;
   onOpenFinishDialog: () => void;
   onConfirmReopenReport: () => void;
-  onOpenSendDialog: () => void;
 };
 
 export default function VisitReportPrimaryActions({
@@ -28,11 +25,9 @@ export default function VisitReportPrimaryActions({
   canCloseOffline = false,
   isReopenedForEdit,
   reopenLoading,
-  hasLocalPdf,
   compact = false,
   onOpenFinishDialog,
   onConfirmReopenReport,
-  onOpenSendDialog,
 }: VisitReportPrimaryActionsProps) {
   if (report.is_editable) {
     return (
@@ -66,24 +61,10 @@ export default function VisitReportPrimaryActions({
       >
         {reopenLoading ? "פותח לעריכה..." : "ערוך שוב"}
       </Button>
-      {!compact && report.can_send_to_core ? (
-        <Button
-          variant="secondary"
-          size="lg"
-          className="min-h-12"
-          onClick={onOpenSendDialog}
-          disabled={!hasLocalPdf}
-        >
-          שלח לליבה
-        </Button>
-      ) : null}
-      {!isOnline ? (
+      {!isOnline && !compact ? (
         <span className="self-center text-sm text-amber-800">
           עריכה מחדש דורשת רשת
         </span>
-      ) : null}
-      {!compact && !hasLocalPdf && report.can_send_to_core ? (
-        <span className="text-sm text-amber-800">הפק PDF לפני שליחה לליבה</span>
       ) : null}
     </div>
   );

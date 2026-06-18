@@ -1,23 +1,16 @@
-# OrgFlow Agent
+# ElayoAI (OrgFlow Agent)
 
-Internal organizational workflow agent MVP.
+One Stop Shop לניהול פרויקט בנייה — FastAPI + Next.js.
 
-## Current capabilities
+## מסמכי מקור
 
-- Intent detection
-- Entity extraction
-- Planner
-- Step executor
-- Workflow history
-- Human confirmation flow
-- Rule-based + LLM mock fallback
-- Optional OpenAI adapter
-- FastAPI endpoints
-- Pytest coverage
-
-## Deploy to cloud (preview, ~$0/month)
-
-See [docs/deploy-preview-cloud.md](docs/deploy-preview-cloud.md) - Vercel (UI) + Render (API) + Supabase (DB).
+| מסמך | תפקיד |
+|------|--------|
+| [`docs/PRODUCT-SPEC-LOCKED.md`](docs/PRODUCT-SPEC-LOCKED.md) | מוצר נעול (מה/למה) |
+| [`docs/FIELD-REPORT-FINALIZE-PIPELINE.md`](docs/FIELD-REPORT-FINALIZE-PIPELINE.md) | מימוש Finalize + PROGRESS |
+| [`docs/FIELD-REPORT-CHECKLISTS.md`](docs/FIELD-REPORT-CHECKLISTS.md) | צ'קליסטים |
+| [`docs/HANDOFF-AGENT-PROMPT.md`](docs/HANDOFF-AGENT-PROMPT.md) | handoff לסוכן |
+| [`docs/PILOT-CHECKLIST.md`](docs/PILOT-CHECKLIST.md) | פיילוט שטח |
 
 ## Run locally
 

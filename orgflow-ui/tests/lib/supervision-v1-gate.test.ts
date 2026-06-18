@@ -147,25 +147,19 @@ describe("supervision v1 gate (§10 + §17)", () => {
     expect(checklist).toContain("מפקח אמיתי");
   });
 
-  it("§17 Gate I closeout docs — PILOT-REPORT + RELEASE-v1.0", () => {
-    const pilotReport = readRepoSource("docs/PILOT-REPORT.md");
-    const release = readRepoSource("docs/RELEASE-v1.0.md");
+  it("§17 Gate I closeout docs — pilot checklist + finalize pipeline", () => {
+    const pipeline = readRepoSource("docs/FIELD-REPORT-FINALIZE-PIPELINE.md");
     const checklist = readRepoSource("docs/PILOT-CHECKLIST.md");
 
-    expect(existsSync(path.join(REPO_ROOT, "docs/PILOT-REPORT.md"))).toBe(true);
-    expect(existsSync(path.join(REPO_ROOT, "docs/RELEASE-v1.0.md"))).toBe(true);
+    expect(existsSync(path.join(REPO_ROOT, "docs/FIELD-REPORT-FINALIZE-PIPELINE.md"))).toBe(true);
+    expect(existsSync(path.join(REPO_ROOT, "docs/PILOT-CHECKLIST.md"))).toBe(true);
 
-    expect(checklist).toContain("PILOT-REPORT.md");
-    expect(pilotReport).toContain("Kill question");
-    expect(pilotReport).toContain("§17.2");
-    expect(pilotReport).toContain("§18");
-    expect(pilotReport).toContain("אני לא חוזר ל-Word");
-    expect(pilotReport).toContain("Go / No-Go");
-
-    expect(release).toContain("supervision-v1-gate.test.ts");
-    expect(release).toContain("test_supervision_v1_e2e.py");
-    expect(release).toContain("PILOT-CHECKLIST.md");
-    expect(release).toContain("מוכן בקוד");
+    expect(checklist).toContain("Kill question");
+    expect(checklist).toContain("אני לא חוזר ל-Word");
+    expect(checklist).toContain("Finalize");
+    expect(pipeline).toContain("F1");
+    expect(pipeline).toContain("PROGRESS");
+    expect(pipeline).toContain("Pilot Readiness");
   });
 
   it("§14 avoids forbidden QC/PM messaging on active surfaces", () => {

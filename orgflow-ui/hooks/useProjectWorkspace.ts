@@ -33,6 +33,13 @@ type Project = {
   housing_units_count?: number | null;
   illustration_url?: string | null;
   illustration_source_he?: string | null;
+  developer_email?: string | null;
+  developer_pm_email?: string | null;
+  site_manager_email?: string | null;
+  contractor_email?: string | null;
+  lawyer_email?: string | null;
+  accompanying_lawyer_email?: string | null;
+  architect_email?: string | null;
   status: string;
   created_at: string;
 };

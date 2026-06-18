@@ -39,6 +39,9 @@ from app.services.field_report_catalog_service import (
 
 LEGACY_LINE_PHOTO_ID = "legacy"
 CLOSED_REPORT_STATUS = "CLOSED"
+MATERIALIZE_ELIGIBLE_REPORT_STATUSES = frozenset(
+    {"CLOSED", "FINALIZING"}
+)
 
 
 class MaterializationResult(BaseModel):
@@ -342,7 +345,7 @@ class QualityIssueMaterializationService:
             )
 
         status = str(record.get("status") or "")
-        if status != CLOSED_REPORT_STATUS:
+        if status not in MATERIALIZE_ELIGIBLE_REPORT_STATUSES:
             raise ValidationError(
                 message="Issues can only be materialized from closed reports",
                 details={"report_id": report_id, "status": status},

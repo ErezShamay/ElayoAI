@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.config.settings import settings
 
 import resend
@@ -174,6 +176,67 @@ class NotificationTool:
                     "subject": subject,
                     "body": body,
                     "reports": reports,
+                }
+            )
+
+        return reminders
+
+    def build_new_critical_issue_messages(
+        self,
+        digests: list[dict[str, Any]],
+        *,
+        report_id: str,
+    ) -> list[dict[str, Any]]:
+        reminders = []
+
+        for digest in digests:
+            supervisor_email = digest.get("supervisor_email")
+            supervisor_name = digest.get("supervisor_name") or "מפקח"
+            issues = digest.get("issues") or []
+
+            if not issues:
+                continue
+
+            lines = []
+            for issue in issues:
+                location = issue.get("location")
+                trade = issue.get("trade")
+                detail_parts = [
+                    part
+                    for part in (
+                        f"מיקום: {location}" if location else None,
+                        f"מלאכה: {trade}" if trade else None,
+                    )
+                    if part
+                ]
+                detail_suffix = (
+                    f" ({', '.join(detail_parts)})" if detail_parts else ""
+                )
+                lines.append(
+                    f"- {issue.get('project_name')}: "
+                    f"{issue.get('title')}{detail_suffix}"
+                )
+
+            issue_count = len(issues)
+            subject = (
+                f"ליקוי קריטי חדש מדוח ביקור - {issue_count} ליקוי/ים"
+            )
+            body = (
+                f"שלום {supervisor_name},\n\n"
+                f"בעקבות Finalize של דוח ביקור ({report_id}), "
+                f"זוהו {issue_count} ליקוי/ים קריטיים חדשים:\n\n"
+                f"{chr(10).join(lines)}\n\n"
+                f"אנא טפלו בליקויים בהקדם.\n\n"
+                f"תודה,\n"
+                f"OrgFlow QC"
+            )
+
+            reminders.append(
+                {
+                    "to": supervisor_email,
+                    "subject": subject,
+                    "body": body,
+                    "issues": issues,
                 }
             )
 

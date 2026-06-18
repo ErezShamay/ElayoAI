@@ -1,6 +1,6 @@
 /**
  * QC Spec 0.3 - Personas and permissions (mirrors app/schemas/qc_permissions.py).
- * See docs/qc-spec/qc-personas-permissions.md.
+ * See docs/PRODUCT-SPEC-LOCKED.md §5.
  */
 
 import type { QualityIssueStatus } from "@/lib/quality-issues/types";

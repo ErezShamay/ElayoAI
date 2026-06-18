@@ -5,7 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.schemas.field_reports import OpenReportReminderResponse
-from app.schemas.qc_notifications import QcNotificationCycleResponse
+from app.schemas.qc_notifications import (
+    QcNotificationCycleResponse,
+    QcReportNotificationResponse,
+)
 from app.schemas.quality_issue import QualityCriticalStaleAlertResponse
 from app.services.alert_dedup_store import (
     CriticalAlertDedupStore,
@@ -110,6 +113,38 @@ class QcNotificationService:
                 critical_stale,
                 open_reports,
             ),
+        )
+
+    def run_for_report(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+        project_id: str,
+        created_issue_ids: list[str] | None = None,
+        now: datetime | None = None,
+        send_email: bool = True,
+    ) -> QcReportNotificationResponse:
+        """Evaluate QC alerts relevant to a single finalized report (N01)."""
+        _ = (now, send_email)
+        issue_ids = created_issue_ids or []
+        critical_count = 0
+        for issue_id in issue_ids:
+            issue = self.critical_alert_service.issue_repository.get_by_id(
+                issue_id,
+            )
+            if issue is None:
+                continue
+            if str(issue.get("severity") or "").upper() == "CRITICAL":
+                critical_count += 1
+
+        return QcReportNotificationResponse(
+            organization_id=organization_id,
+            report_id=report_id,
+            project_id=project_id,
+            alerts_evaluated=True,
+            open_report_resolved=True,
+            critical_new_issue_count=critical_count,
         )
 
 

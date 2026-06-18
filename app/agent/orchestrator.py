@@ -3,7 +3,7 @@ import uuid
 """
 QC freeze (stage 5.6): Agent Orchestrator is FROZEN - no new tools, intents,
 or UX. Use field visit reports + quality_issue materialization instead.
-See docs/qc-spec/qc-freeze-list.md and app/schemas/qc_freeze.py.
+See app/schemas/qc_freeze.py and docs/PRODUCT-SPEC-LOCKED.md §12.
 """
 
 from app.agent.intent_detector import IntentDetector

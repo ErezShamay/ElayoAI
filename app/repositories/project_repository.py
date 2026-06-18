@@ -31,6 +31,14 @@ OPTIONAL_PROJECT_WRITE_COLUMNS = (
     "structure_documentation_date",
     "illustration_url",
     "illustration_source_he",
+    "developer_email",
+    "developer_pm_email",
+    "site_manager_email",
+    "contractor_email",
+    "lawyer_email",
+    "accompanying_lawyer_email",
+    "architect_email",
+    "stakeholder_emails",
 )
 
 

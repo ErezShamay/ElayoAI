@@ -1,7 +1,7 @@
 """
 QC Spec 0.5 - Freeze list: surfaces not developed during QC pivot.
 
-See docs/qc-spec/qc-freeze-list.md.
+See docs/PRODUCT-SPEC-LOCKED.md §5.
 """
 
 from __future__ import annotations

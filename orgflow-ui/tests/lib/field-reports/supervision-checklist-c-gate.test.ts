@@ -20,7 +20,7 @@ describe("supervision checklist stage C gate (§16.C)", () => {
     );
 
     expect(page).toContain("ConstructionStagePicker");
-    expect(page).toContain("VisitScopePicker");
+    expect(page).toContain("DocumentKindPicker");
     expect(page).toContain("ApartmentPicker");
     expect(page).toContain("PublicAreaPicker");
     expect(page).toContain("createSupervisionLocalReport");
@@ -55,7 +55,7 @@ describe("supervision checklist stage C gate (§16.C)", () => {
   it("picker components exist under components/field-reports/supervision", () => {
     for (const file of [
       "ConstructionStagePicker.tsx",
-      "VisitScopePicker.tsx",
+      "DocumentKindPicker.tsx",
       "ApartmentPicker.tsx",
       "PublicAreaPicker.tsx",
     ]) {

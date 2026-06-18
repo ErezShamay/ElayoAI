@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 
 const UI_ROOT = path.resolve(__dirname, "../../..");
 const REPO_ROOT = path.resolve(UI_ROOT, "..");
-const QC_SPEC_ROOT = path.join(REPO_ROOT, "docs", "qc-spec");
 
 const STAGE_GATE_TESTS = [
   "tests/lib/field-reports/supervision-checklist-a-gate.test.ts",
@@ -37,17 +36,17 @@ function readRepoSource(relativePath: string): string {
 }
 
 describe("supervision checklist final gate (§16.H + §17)", () => {
-  it("spec document exists and is registered in qc_spec.py", () => {
+  it("canonical checklist doc exists and is registered in qc_spec.py", () => {
     const specPath = path.join(
-      QC_SPEC_ROOT,
-      "field-supervision-checklist-spec.md"
+      REPO_ROOT,
+      "docs/FIELD-REPORT-CHECKLISTS.md"
     );
     const qcSpec = readRepoSource("app/schemas/qc_spec.py");
     const readme = readUiSource("README.md");
 
     expect(existsSync(specPath)).toBe(true);
-    expect(qcSpec).toContain("field-supervision-checklist-spec.md");
-    expect(readme).toContain("field-supervision-checklist-spec.md");
+    expect(qcSpec).toContain("FIELD-REPORT-CHECKLISTS.md");
+    expect(readme).toContain("FIELD-REPORT-CHECKLISTS.md");
     expect(readme).toContain("supervision-checklist-gate.test.ts");
   });
 

@@ -20,18 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Field supervision checklist (v1)
+## Field reports & Finalize Pipeline
 
-מפרט מאושר: [`docs/qc-spec/field-supervision-checklist-spec.md`](../docs/qc-spec/field-supervision-checklist-spec.md) — זרימת מפקח בשטח (צ'קליסט supervision, offline, PDF).
+מסמכי מקור:
+
+- [`docs/PRODUCT-SPEC-LOCKED.md`](../docs/PRODUCT-SPEC-LOCKED.md) — מוצר נעול
+- [`docs/FIELD-REPORT-FINALIZE-PIPELINE.md`](../docs/FIELD-REPORT-FINALIZE-PIPELINE.md) — מימוש + PROGRESS
+- [`docs/FIELD-REPORT-CHECKLISTS.md`](../docs/FIELD-REPORT-CHECKLISTS.md) — צ'קליסטים
 
 Gate tests (Vitest):
 
-- `tests/lib/field-reports/supervision-checklist-gate.test.ts` — סגירת מימוש §17
+- `tests/lib/field-reports/supervision-checklist-gate.test.ts` — סגירת מימוש
+- `tests/lib/finalize-pipeline-gate.test.ts` — Finalize UI
 - `tests/lib/field-reports/supervision-checklist-a-gate.test.ts` … `supervision-checklist-pdf-gate.test.ts` — שלבים A–G
 
-E2E (pytest): `tests/test_supervision_checklist_e2e.py` — offline prep → sync → close → publish.
+E2E (pytest): `tests/test_supervision_checklist_e2e.py`, `tests/test_field_report_finalize_e2e.py`
 
-רישום spec: `app/schemas/qc_spec.py` (`field-supervision-checklist-spec.md`).
+רישום מסמכים: `app/schemas/qc_spec.py` (`CANONICAL_DOCS`).
 
 ## Learn More
 

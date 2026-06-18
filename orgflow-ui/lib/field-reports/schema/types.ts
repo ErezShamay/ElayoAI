@@ -8,6 +8,7 @@ export const PROJECT_SCHEMES = [
   "TAMA38_STRENGTHENING",
   "TAMA38_DEMOLITION_REBUILD",
   "TAMA38_RELOCATED_BUILD",
+  "NEW_CONSTRUCTION",
 ] as const;
 
 /** מזהה סוג פרויקט (חיזוק / הריסה ובניה / פינוי בינוי). */
@@ -184,10 +185,19 @@ export const CONSTRUCTION_STAGES = [
 
 export type ConstructionStage = (typeof CONSTRUCTION_STAGES)[number];
 
-/** היקף ביקור — דירה או שטחים ציבוריים. */
-export const VISIT_SCOPES = ["APARTMENT", "PUBLIC_AREA"] as const;
+/** היקף ביקור — דירה, שטחים ציבוריים, או מסירה (עתידי). */
+export const VISIT_SCOPES = ["APARTMENT", "PUBLIC_AREA", "HANDOVER"] as const;
 
 export type VisitScope = (typeof VISIT_SCOPES)[number];
+
+/** סוג מסמך במודול — FIELD-REPORT-CHECKLISTS.md §2. */
+export const FIELD_REPORT_DOCUMENT_TYPES = [
+  "weekly_inspection",
+  "handover_protocol",
+] as const;
+
+export type FieldReportDocumentType =
+  (typeof FIELD_REPORT_DOCUMENT_TYPES)[number];
 
 /** סטטוס פריט בצ'קליסט מפקח. */
 export const CHECKLIST_ITEM_STATUSES = [
@@ -224,6 +234,7 @@ export type PublicAreaId = PublicAreaDefinition["id"];
 
 /** מטא-דאטה לדוח מפקח בשטח (header_fields.supervision_meta). */
 export type SupervisionReportMeta = {
+  document_type?: FieldReportDocumentType;
   construction_stage: ConstructionStage;
   visit_scope: VisitScope;
   apartment_id?: string | null;

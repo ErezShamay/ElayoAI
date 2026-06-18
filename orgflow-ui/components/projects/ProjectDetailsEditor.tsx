@@ -23,6 +23,13 @@ export type EditableProjectDetails = {
   housing_units_count?: number | null;
   illustration_url?: string | null;
   illustration_source_he?: string | null;
+  developer_email?: string | null;
+  developer_pm_email?: string | null;
+  site_manager_email?: string | null;
+  contractor_email?: string | null;
+  lawyer_email?: string | null;
+  accompanying_lawyer_email?: string | null;
+  architect_email?: string | null;
 };
 
 type ProjectDetailsEditorProps = {
@@ -44,6 +51,13 @@ type FormState = {
   site_manager_name: string;
   city: string;
   housing_units_count: string;
+  developer_email: string;
+  developer_pm_email: string;
+  site_manager_email: string;
+  contractor_email: string;
+  lawyer_email: string;
+  accompanying_lawyer_email: string;
+  architect_email: string;
 };
 
 function toFormState(project: EditableProjectDetails): FormState {
@@ -63,6 +77,13 @@ function toFormState(project: EditableProjectDetails): FormState {
       project.housing_units_count != null
         ? String(project.housing_units_count)
         : "",
+    developer_email: project.developer_email?.trim() ?? "",
+    developer_pm_email: project.developer_pm_email?.trim() ?? "",
+    site_manager_email: project.site_manager_email?.trim() ?? "",
+    contractor_email: project.contractor_email?.trim() ?? "",
+    lawyer_email: project.lawyer_email?.trim() ?? "",
+    accompanying_lawyer_email: project.accompanying_lawyer_email?.trim() ?? "",
+    architect_email: project.architect_email?.trim() ?? "",
   };
 }
 
@@ -146,6 +167,13 @@ export default function ProjectDetailsEditor({
           site_manager_name: form.site_manager_name.trim() || null,
           city: form.city.trim() || null,
           housing_units_count,
+          developer_email: form.developer_email.trim() || null,
+          developer_pm_email: form.developer_pm_email.trim() || null,
+          site_manager_email: form.site_manager_email.trim() || null,
+          contractor_email: form.contractor_email.trim() || null,
+          lawyer_email: form.lawyer_email.trim() || null,
+          accompanying_lawyer_email: form.accompanying_lawyer_email.trim() || null,
+          architect_email: form.architect_email.trim() || null,
         }),
       });
 
@@ -171,7 +199,7 @@ export default function ProjectDetailsEditor({
             <h2 className="text-2xl font-bold">פרטי הפרויקט</h2>
             <p className="mt-2 text-sm leading-relaxed text-zinc-500">
               {canEdit
-                ? "יזם, קבלן, עורכי דין, מפקח ושאר אנשי הקשר בפרויקט"
+                ? "יזם, קבלן, עורכי דין, מפקח ואנשי קשר — כולל מיילים לשליחת דוחות אוטומטית אחרי Finalize"
                 : "צפייה בלבד - לעריכה נדרשת הרשאת מנהל, מפקח או מנהל תפעול"}
             </p>
           </div>
@@ -212,18 +240,38 @@ export default function ProjectDetailsEditor({
 
           <DetailsSection title="יזם וקבלן">
             <InfoCard title="שם היזם" value={displayValue(project.developer_name)} />
+            <InfoCard
+              title="אימייל יזם"
+              value={project.developer_email?.trim() || "-"}
+            />
             <InfoCard title="שם הקבלן" value={displayValue(project.contractor_name)} />
+            <InfoCard
+              title="אימייל קבלן"
+              value={project.contractor_email?.trim() || "-"}
+            />
             <InfoCard
               title="מנהל פרויקט מטעם יזם"
               value={displayValue(project.developer_pm_name)}
+            />
+            <InfoCard
+              title="אימייל מנהל פרויקט (יזם)"
+              value={project.developer_pm_email?.trim() || "-"}
             />
           </DetailsSection>
 
           <DetailsSection title="ייעוץ משפטי">
             <InfoCard title="עו״ד מלווה" value={displayValue(project.lawyer_name)} />
             <InfoCard
+              title="אימייל עו״ד מלווה"
+              value={project.lawyer_email?.trim() || "-"}
+            />
+            <InfoCard
               title="עו״ד מלווה (נוסף)"
               value={displayValue(project.accompanying_lawyer)}
+            />
+            <InfoCard
+              title="אימייל עו״ד מלווה (נוסף)"
+              value={project.accompanying_lawyer_email?.trim() || "-"}
             />
           </DetailsSection>
 
@@ -235,8 +283,16 @@ export default function ProjectDetailsEditor({
             />
             <InfoCard title="אדריכל" value={displayValue(project.architect_name)} />
             <InfoCard
+              title="אימייל אדריכל"
+              value={project.architect_email?.trim() || "-"}
+            />
+            <InfoCard
               title="מנהל עבודה"
               value={displayValue(project.site_manager_name)}
+            />
+            <InfoCard
+              title="אימייל מנהל עבודה"
+              value={project.site_manager_email?.trim() || "-"}
             />
           </DetailsSection>
         </div>
@@ -252,7 +308,7 @@ export default function ProjectDetailsEditor({
       <div className="mb-8">
         <h2 className="text-2xl font-bold">עריכת פרטי הפרויקט</h2>
         <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-          עדכון יזם, קבלן, עורכי דין, מפקח ושאר אנשי הקשר
+          עדכון אנשי קשר ומיילים — נמעני דוחות אוטומטיים אחרי Finalize (בנוסף לדיירים במודול דירות)
         </p>
       </div>
 
@@ -295,6 +351,14 @@ export default function ProjectDetailsEditor({
             required
           />
           <Field
+            label="אימייל יזם"
+            value={form.developer_email}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, developer_email: value }))
+            }
+            type="email"
+          />
+          <Field
             label="שם הקבלן"
             value={form.contractor_name}
             onChange={(value) =>
@@ -303,11 +367,27 @@ export default function ProjectDetailsEditor({
             required
           />
           <Field
+            label="אימייל קבלן"
+            value={form.contractor_email}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, contractor_email: value }))
+            }
+            type="email"
+          />
+          <Field
             label="מנהל פרויקט מטעם יזם"
             value={form.developer_pm_name}
             onChange={(value) =>
               setForm((current) => ({ ...current, developer_pm_name: value }))
             }
+          />
+          <Field
+            label="אימייל מנהל פרויקט (יזם)"
+            value={form.developer_pm_email}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, developer_pm_email: value }))
+            }
+            type="email"
           />
         </DetailsSection>
 
@@ -321,11 +401,30 @@ export default function ProjectDetailsEditor({
             required
           />
           <Field
+            label="אימייל עו״ד מלווה"
+            value={form.lawyer_email}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, lawyer_email: value }))
+            }
+            type="email"
+          />
+          <Field
             label="עו״ד מלווה (נוסף)"
             value={form.accompanying_lawyer}
             onChange={(value) =>
               setForm((current) => ({ ...current, accompanying_lawyer: value }))
             }
+          />
+          <Field
+            label="אימייל עו״ד מלווה (נוסף)"
+            value={form.accompanying_lawyer_email}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                accompanying_lawyer_email: value,
+              }))
+            }
+            type="email"
           />
         </DetailsSection>
 
@@ -354,11 +453,27 @@ export default function ProjectDetailsEditor({
             }
           />
           <Field
+            label="אימייל אדריכל"
+            value={form.architect_email}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, architect_email: value }))
+            }
+            type="email"
+          />
+          <Field
             label="מנהל עבודה"
             value={form.site_manager_name}
             onChange={(value) =>
               setForm((current) => ({ ...current, site_manager_name: value }))
             }
+          />
+          <Field
+            label="אימייל מנהל עבודה"
+            value={form.site_manager_email}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, site_manager_email: value }))
+            }
+            type="email"
           />
         </DetailsSection>
       </div>

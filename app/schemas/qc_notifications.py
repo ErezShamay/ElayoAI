@@ -15,3 +15,14 @@ class QcNotificationCycleResponse(BaseModel):
     critical_stale: QualityCriticalStaleAlertResponse
     open_reports: OpenReportReminderResponse
     total_emails_sent: int = Field(ge=0)
+
+
+class QcReportNotificationResponse(BaseModel):
+    """Per-report QC alert evaluation triggered from Finalize (N01)."""
+
+    organization_id: str
+    report_id: str
+    project_id: str
+    alerts_evaluated: bool = True
+    open_report_resolved: bool = False
+    critical_new_issue_count: int = Field(default=0, ge=0)

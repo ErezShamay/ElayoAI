@@ -33,7 +33,7 @@ export const REVIEWS_GLOBAL_LEGACY_ROUTE = {
 
 /**
  * Routes removed from primary navigation (stage 5.2+).
- * See docs/qc-spec/qc-freeze-list.md - DEPRECATED surfaces.
+ * See docs/PRODUCT-SPEC-LOCKED.md §7 — deprecated surfaces.
  */
 export const PRIMARY_NAV_HIDDEN_ROUTES: readonly string[] = [
   UPLOAD_LEGACY_ROUTE.href,

@@ -144,6 +144,13 @@ class ProjectService:
         structure_documentation_date: str | None = None,
         illustration_url: str | None = None,
         illustration_source_he: str | None = None,
+        developer_email: str | None = None,
+        developer_pm_email: str | None = None,
+        site_manager_email: str | None = None,
+        contractor_email: str | None = None,
+        lawyer_email: str | None = None,
+        accompanying_lawyer_email: str | None = None,
+        architect_email: str | None = None,
     ):
         updates = {
             "project_name": project_name,
@@ -165,6 +172,13 @@ class ProjectService:
             "structure_documentation_date": structure_documentation_date,
             "illustration_url": illustration_url,
             "illustration_source_he": illustration_source_he,
+            "developer_email": developer_email,
+            "developer_pm_email": developer_pm_email,
+            "site_manager_email": site_manager_email,
+            "contractor_email": contractor_email,
+            "lawyer_email": lawyer_email,
+            "accompanying_lawyer_email": accompanying_lawyer_email,
+            "architect_email": architect_email,
         }
         return self.project_repository.update_project(project_id, updates)
 

@@ -8,8 +8,8 @@ import ApartmentPicker, {
   type ApartmentSelection,
 } from "@/components/field-reports/supervision/ApartmentPicker";
 import ConstructionStagePicker from "@/components/field-reports/supervision/ConstructionStagePicker";
+import DocumentKindPicker from "@/components/field-reports/supervision/DocumentKindPicker";
 import PublicAreaPicker from "@/components/field-reports/supervision/PublicAreaPicker";
-import VisitScopePicker from "@/components/field-reports/supervision/VisitScopePicker";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFieldReportDataSource } from "@/hooks/useFieldReportDataSource";
@@ -28,11 +28,16 @@ import { listApartmentsFromOfflineBundle } from "@/lib/field-reports/offline-pre
 import { projectPrefillSourceFromRecord } from "@/lib/field-reports/project-header-prefill";
 import { isExpired } from "@/lib/field-reports/repositories/catalog-repository";
 import { fieldReportDetailPath } from "@/lib/field-reports/routes";
+import {
+  type DocumentWizardKind,
+  documentTypeFromWizardKind,
+  isWeeklyDocumentWizardKind,
+  visitScopeFromDocumentWizardKind,
+} from "@/lib/field-reports/document-wizard";
 import type {
   ConstructionStage,
   PublicAreaId,
   SupervisionCatalog,
-  VisitScope,
 } from "@/lib/field-reports/schema/types";
 import {
   createSupervisionLocalReport,
@@ -68,7 +73,12 @@ export default function ProjectSupervisionNewReportPage() {
     useState<Record<string, unknown> | null>(null);
   const [constructionStage, setConstructionStage] =
     useState<ConstructionStage | null>(null);
-  const [visitScope, setVisitScope] = useState<VisitScope | null>(null);
+  const [documentKind, setDocumentKind] = useState<DocumentWizardKind | null>(
+    null
+  );
+  const visitScope = documentKind
+    ? visitScopeFromDocumentWizardKind(documentKind)
+    : null;
   const [apartmentSelection, setApartmentSelection] =
     useState<ApartmentSelection | null>(null);
   const [publicAreaId, setPublicAreaId] = useState<PublicAreaId | null>(null);
@@ -160,16 +170,20 @@ export default function ProjectSupervisionNewReportPage() {
   }, [moduleLoading, isEnabled, organizationId, loadCatalog]);
 
   useEffect(() => {
-    if (visitScope !== "APARTMENT") {
+    if (documentKind !== "WEEKLY_APARTMENT") {
       setApartmentSelection(null);
     }
-    if (visitScope !== "PUBLIC_AREA") {
+    if (documentKind !== "WEEKLY_PUBLIC_AREA") {
       setPublicAreaId(null);
     }
-  }, [visitScope]);
+    if (!isWeeklyDocumentWizardKind(documentKind)) {
+      setConstructionStage(null);
+    }
+  }, [documentKind]);
 
   const canSubmit =
     Boolean(catalog)
+    && isWeeklyDocumentWizardKind(documentKind)
     && Boolean(constructionStage)
     && Boolean(visitScope)
     && (visitScope === "APARTMENT"
@@ -185,6 +199,7 @@ export default function ProjectSupervisionNewReportPage() {
       || !catalog
       || !constructionStage
       || !visitScope
+      || !isWeeklyDocumentWizardKind(documentKind)
       || !canSubmit
     ) {
       setError("יש להשלים את כל השלבים");
@@ -213,6 +228,7 @@ export default function ProjectSupervisionNewReportPage() {
         catalog,
         constructionStage,
         visitScope,
+        documentType: documentTypeFromWizardKind(documentKind),
         apartmentId:
           visitScope === "APARTMENT"
             ? apartmentSelection?.apartmentId ?? null
@@ -288,7 +304,7 @@ export default function ProjectSupervisionNewReportPage() {
         </Link>
         <h1 className="of-page-title text-2xl">הפקת דוח</h1>
         <p className="of-page-desc text-sm">
-          בחר שלב, סוג ביקור ויחידה — ואז התחל את הצ&apos;קליסט.
+          בחר סוג מסמך, יחידה ושלב בנייה — ואז התחל את הצ&apos;קליסט.
         </p>
         <p className="text-xs text-zinc-500">
           {fieldReportDataSourceModeLabelHe(dataSourceMode)}
@@ -297,16 +313,9 @@ export default function ProjectSupervisionNewReportPage() {
       </header>
 
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-6">
-        <ConstructionStagePicker
-          value={constructionStage}
-          onChange={setConstructionStage}
-        />
+        <DocumentKindPicker value={documentKind} onChange={setDocumentKind} />
 
-        {constructionStage ? (
-          <VisitScopePicker value={visitScope} onChange={setVisitScope} />
-        ) : null}
-
-        {visitScope === "APARTMENT" ? (
+        {documentKind === "WEEKLY_APARTMENT" ? (
           <ApartmentPicker
             projectId={projectId}
             value={apartmentSelection}
@@ -316,8 +325,15 @@ export default function ProjectSupervisionNewReportPage() {
           />
         ) : null}
 
-        {visitScope === "PUBLIC_AREA" ? (
+        {documentKind === "WEEKLY_PUBLIC_AREA" ? (
           <PublicAreaPicker value={publicAreaId} onChange={setPublicAreaId} />
+        ) : null}
+
+        {isWeeklyDocumentWizardKind(documentKind) ? (
+          <ConstructionStagePicker
+            value={constructionStage}
+            onChange={setConstructionStage}
+          />
         ) : null}
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}

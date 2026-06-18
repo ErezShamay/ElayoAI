@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.schemas.qc_spec import (
+    CANONICAL_DOCS,
     QC_SPEC_DOCUMENTS,
     QC_SPEC_GATE_CRITERIA,
     QC_SPEC_VERSION,
@@ -10,18 +11,19 @@ from app.schemas.qc_spec import (
 
 
 def test_qc_spec_version() -> None:
-    assert QC_SPEC_VERSION == "0.6"
+    assert QC_SPEC_VERSION == "1.2.0"
 
 
 def test_all_gate_criteria_documented() -> None:
-    assert len(QC_SPEC_GATE_CRITERIA) == 6
-    task_ids = {task for _, task in QC_SPEC_GATE_CRITERIA}
-    assert task_ids == {"0.1", "0.2", "0.3", "0.4", "0.5", "0.6"}
+    assert len(QC_SPEC_GATE_CRITERIA) == 7
+    labels = {label for label, _ in QC_SPEC_GATE_CRITERIA}
+    assert "product_spec" in labels
+    assert "finalize_pipeline" in labels
 
 
-def test_qc_spec_documents_exist_on_disk() -> None:
+def test_canonical_docs_exist_on_disk() -> None:
     missing = validate_qc_spec_documents()
-    assert missing == [], f"Missing spec files: {missing}"
+    assert missing == [], f"Missing docs: {missing}"
     assert is_qc_spec_gate_complete() is True
-    assert "qc-platform-spec.md" in QC_SPEC_DOCUMENTS
-    assert "field-supervision-checklist-spec.md" in QC_SPEC_DOCUMENTS
+    assert "PRODUCT-SPEC-LOCKED.md" in CANONICAL_DOCS
+    assert "FIELD-REPORT-FINALIZE-PIPELINE.md" in QC_SPEC_DOCUMENTS

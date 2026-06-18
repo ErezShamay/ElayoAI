@@ -1,7 +1,7 @@
 """
 QC Spec 0.1–0.2 + API schemas (1.1.4) - QualityIssue registry.
 
-See docs/qc-spec/quality-issue-model.md and docs/qc-spec/quality-issue-events.md.
+See docs/PRODUCT-SPEC-LOCKED.md §5 and docs/FIELD-REPORT-FINALIZE-PIPELINE.md.
 """
 
 from __future__ import annotations
@@ -803,6 +803,20 @@ class QualityCriticalStaleAlertResponse(BaseModel):
     organization_id: str
     threshold_days: int = Field(ge=1)
     stale_issue_count: int = Field(ge=0)
+    digest_count: int = Field(ge=0)
+    skipped_issue_ids: list[str] = Field(default_factory=list)
+    deliveries: list[QualityCriticalStaleAlertDelivery] = Field(
+        default_factory=list
+    )
+
+
+class NewCriticalIssueAlertResponse(BaseModel):
+    """Per-report CRITICAL issue alerts from Finalize (N02)."""
+
+    organization_id: str
+    project_id: str
+    report_id: str
+    critical_issue_count: int = Field(ge=0)
     digest_count: int = Field(ge=0)
     skipped_issue_ids: list[str] = Field(default_factory=list)
     deliveries: list[QualityCriticalStaleAlertDelivery] = Field(

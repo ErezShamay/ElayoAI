@@ -434,29 +434,25 @@ describe("phase E gate acceptance (FR-038)", () => {
     expect(dataSource.mode).toBe("hybrid");
   });
 
-  it("§9.4 - inspector guide and launch QA docs cover prep, field, sync, logout", () => {
+  it("§9.4 - inspector guide and sync docs cover prep, field, finalize, logout", () => {
     const inspectorGuide = path.join(
       REPO_ROOT,
       "docs/field-reports-inspector-guide.md"
     );
-    const launchQa = path.join(REPO_ROOT, "docs/field-reports-launch-qa.md");
+    const syncMonitoring = path.join(
+      REPO_ROOT,
+      "docs/field-reports-sync-monitoring.md"
+    );
 
     expect(existsSync(inspectorGuide)).toBe(true);
-    expect(existsSync(launchQa)).toBe(true);
+    expect(existsSync(syncMonitoring)).toBe(true);
 
     const guideText = readFileSync(inspectorGuide, "utf8");
     expect(guideText).toContain("הכנה לא מקוון");
     expect(guideText).toContain("בשטח");
-    expect(guideText).toContain("העלאה לליבה");
+    expect(guideText).toContain("Finalize");
     expect(guideText).toContain("לא ניתן להתנתק");
     expect(guideText).toContain("field-reports-sync-monitoring.md");
-    expect(guideText).toContain("field-reports-apk-install.md");
-
-    const qaText = readFileSync(launchQa, "utf8");
-    expect(qaText).toContain("§9.1");
-    expect(qaText).toContain("§9.2");
-    expect(qaText).toContain("§9.3");
-    expect(qaText).toContain("field-reports-inspector-guide.md");
   });
 
   it("§9.5 - sync error monitor wired: failure logs, success clears (FR-037)", async () => {

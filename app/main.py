@@ -151,6 +151,10 @@ from app.schemas.field_reports import (
     FieldVisitReportUpdateRequest,
     OpenReportReminderResponse,
 )
+from app.schemas.field_report_finalize import (
+    FieldReportFinalizeStartResponse,
+    FieldReportFinalizeStatusResponse,
+)
 
 from app.services.organization_admin_service import (
     OrganizationAdminService,
@@ -178,6 +182,10 @@ from app.services.field_visit_report_export_service import (
 
 from app.services.field_visit_report_service import (
     FieldVisitReportService,
+)
+
+from app.services.field_report_finalize_service import (
+    FieldReportFinalizeService,
 )
 
 from app.services.quality_issue_service import (
@@ -803,12 +811,19 @@ resident_activation_service = ResidentActivationService()
 notification_service = (
     NotificationService()
 )
+workspace_activity_service = (
+    WorkspaceActivityService()
+)
+
+field_report_finalize_service = FieldReportFinalizeService(
+    visit_report_service=field_visit_report_service,
+    notification_service=notification_service,
+    workspace_activity_service=workspace_activity_service,
+    resident_portal_service=resident_portal_service,
+)
 
 report_processing_service = (
     ReportProcessingService()
-)
-workspace_activity_service = (
-    WorkspaceActivityService()
 )
 workspace_connection_manager = (
     WorkspaceConnectionManager()
@@ -1001,6 +1016,13 @@ class CreateProjectRequest(
     structure_documentation_date: str | None = None
     illustration_url: str | None = None
     illustration_source_he: str | None = None
+    developer_email: str | None = None
+    developer_pm_email: str | None = None
+    site_manager_email: str | None = None
+    contractor_email: str | None = None
+    lawyer_email: str | None = None
+    accompanying_lawyer_email: str | None = None
+    architect_email: str | None = None
 
 
 class EditProjectRequest(
@@ -1025,6 +1047,13 @@ class EditProjectRequest(
     structure_documentation_date: str | None = None
     illustration_url: str | None = None
     illustration_source_he: str | None = None
+    developer_email: str | None = None
+    developer_pm_email: str | None = None
+    site_manager_email: str | None = None
+    contractor_email: str | None = None
+    lawyer_email: str | None = None
+    accompanying_lawyer_email: str | None = None
+    architect_email: str | None = None
 
 
 class ProjectTagsRequest(
@@ -2126,6 +2155,52 @@ async def publish_field_visit_report(
         actor_id=auth.user_id,
         source_filename=source_filename,
         source_content=source_content,
+    )
+
+
+@app.post(
+    "/field-reports/visits/{report_id}/finalize",
+    status_code=202,
+    response_model=FieldReportFinalizeStartResponse,
+)
+async def finalize_field_visit_report(
+    report_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    client_report_uuid: str | None = Form(None),
+    auth=Depends(
+        require_permission("field_reports:finalize")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    file_content = await file.read()
+    return field_report_finalize_service.start_finalize(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        actor_id=auth.user_id,
+        source_content=file_content,
+        source_filename=file.filename or f"{report_id}.pdf",
+        idempotency_key=request.headers.get(
+            settings.IDEMPOTENCY_HEADER,
+        ),
+        client_report_uuid=client_report_uuid,
+    )
+
+
+@app.get(
+    "/field-reports/visits/{report_id}/finalize-status",
+    response_model=FieldReportFinalizeStatusResponse,
+)
+def get_field_visit_finalize_status(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return field_report_finalize_service.get_finalize_status(
+        organization_id=auth.org_id,
+        report_id=report_id,
     )
 
 
@@ -3448,6 +3523,13 @@ def edit_project(
         structure_documentation_date=request.structure_documentation_date,
         illustration_url=request.illustration_url,
         illustration_source_he=request.illustration_source_he,
+        developer_email=request.developer_email,
+        developer_pm_email=request.developer_pm_email,
+        site_manager_email=request.site_manager_email,
+        contractor_email=request.contractor_email,
+        lawyer_email=request.lawyer_email,
+        accompanying_lawyer_email=request.accompanying_lawyer_email,
+        architect_email=request.architect_email,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Project not found")

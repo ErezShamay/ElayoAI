@@ -1,6 +1,6 @@
 /**
  * QC Spec 4.2.1 - Contractor persona access profile (limited permissions).
- * See docs/qc-spec/qc-personas-permissions.md §2.2.
+ * See docs/PRODUCT-SPEC-LOCKED.md §5.
  */
 
 import type { QCPermission } from "@/lib/quality-issues/permissions";

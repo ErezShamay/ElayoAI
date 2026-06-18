@@ -12,6 +12,24 @@ import {
   residentStatusLevelLabel,
 } from "@/lib/apartments/types";
 
+function splitOwnerName(ownerName: string): {
+  firstName: string;
+  familyName: string;
+} {
+  const trimmed = ownerName.trim();
+  if (!trimmed) {
+    return { firstName: "", familyName: "" };
+  }
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) {
+    return { firstName: parts[0], familyName: "" };
+  }
+  return {
+    firstName: parts[0],
+    familyName: parts.slice(1).join(" "),
+  };
+}
+
 type ResidentPortalViewProps = {
   data: ResidentPortalPayload;
   title?: string;
@@ -41,6 +59,9 @@ export default function ResidentPortalView({
     gantt_rows,
   } = data;
 
+  const { firstName, familyName } = splitOwnerName(apartment.owner_name ?? "");
+  const residentEmail = apartment.email?.trim() || null;
+
   const handlePdfDownload = async (reportId: string, pdfUrl: string, label: string) => {
     setDownloadingReportId(reportId);
     setDownloadError(null);
@@ -62,7 +83,6 @@ export default function ResidentPortalView({
         <p className="of-page-desc text-sm">
           דירה {apartment.apartment_number}
           {project_name ? ` · ${project_name}` : ""}
-          {apartment.owner_name ? ` · ${apartment.owner_name}` : ""}
         </p>
         <p className="text-sm text-zinc-600 dark:text-zinc-300">
           {pitchMode
@@ -73,6 +93,28 @@ export default function ResidentPortalView({
           <p className="text-xs text-zinc-500">צפייה בלבד — אין אפשרות לערוך נתונים</p>
         ) : null}
       </header>
+
+      <section className="of-card of-card-p6 space-y-3">
+        <h2 className="text-lg font-semibold">פרטים אישיים</h2>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-zinc-500">שם פרטי</dt>
+            <dd className="font-medium">{firstName || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">שם משפחה</dt>
+            <dd className="font-medium">{familyName || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">מייל</dt>
+            <dd className="font-medium">{residentEmail || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">מספר דירה</dt>
+            <dd className="font-medium">{apartment.apartment_number}</dd>
+          </div>
+        </dl>
+      </section>
 
       <section className="of-card of-card-p6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -1,6 +1,6 @@
 /**
  * QC Spec 0.1–0.2 - QualityIssue + quality_issue_events (mirrors backend).
- * See docs/qc-spec/quality-issue-model.md and docs/qc-spec/quality-issue-events.md.
+ * See docs/PRODUCT-SPEC-LOCKED.md §5.
  */
 
 export const QUALITY_ISSUE_SEVERITIES = [

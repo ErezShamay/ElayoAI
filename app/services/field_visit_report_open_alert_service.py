@@ -228,3 +228,18 @@ class FieldVisitReportOpenAlertService:
             skipped_report_ids=skipped_report_ids,
             deliveries=deliveries,
         )
+
+    def resolve_for_report(
+        self,
+        *,
+        report_id: str,
+        alert_date: str | None = None,
+    ) -> dict[str, Any]:
+        """Clear open-report alert dedup for a finalized report (N03)."""
+        current_date = alert_date or datetime.now(UTC).date().isoformat()
+        self.dedup_store.mark_alerted(report_id, alert_date=current_date)
+        return {
+            "resolved": True,
+            "report_id": report_id,
+            "alert_date": current_date,
+        }

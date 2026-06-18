@@ -1,6 +1,10 @@
 import { apiFetch } from "@/lib/api/client";
 import type { SyncQueueRecord } from "@/lib/field-reports/db/schema";
 import {
+  finalizeVisitReport,
+  waitForFinalizeReportStatus,
+} from "@/lib/field-reports/finalize-api";
+import {
   loadVisitReportPdfLocally,
 } from "@/lib/field-reports/pdf/visit-report-pdf-store";
 import { processPendingSendRequest } from "@/lib/field-reports/process-send-queue";
@@ -61,27 +65,6 @@ type SyncVisitReportResponse = {
   };
 };
 
-function buildRequestSendErrorMessage(payload: unknown): string {
-  const apiPayload = (payload || {}) as {
-    error?: {
-      message?: string;
-      details?: {
-        error_code?: string;
-      };
-    };
-    message?: string;
-  };
-  const apiMessage =
-    apiPayload.error?.message
-    || apiPayload.message
-    || "שליחה לליבה נכשלה";
-  const apiErrorCode = apiPayload.error?.details?.error_code;
-  if (!apiErrorCode) {
-    return apiMessage;
-  }
-  return `${apiMessage} (${apiErrorCode})`;
-}
-
 function buildApiErrorMessage(payload: unknown, fallback: string): string {
   const apiPayload = (payload || {}) as {
     error?: { message?: string };
@@ -94,38 +77,30 @@ function buildApiErrorMessage(payload: unknown, fallback: string): string {
   );
 }
 
-async function requestSendToCore(
+async function finalizeReportOnServer(
   serverReportId: string,
   idempotencyKey: string,
-  pdf: { blob: Blob; filename: string }
+  pdf: { blob: Blob; filename: string },
+  clientReportUuid?: string
 ) {
-  const formData = new FormData();
-  formData.set(
-    "file",
-    pdf.blob,
-    pdf.filename || `${serverReportId}.pdf`
-  );
-  const response = await apiFetch(
-    `/field-reports/visits/${serverReportId}/request-send`,
+  await finalizeVisitReport(
+    serverReportId,
     {
-      method: "POST",
-      headers: {
-        "X-Idempotency-Key": idempotencyKey,
-      },
-      body: formData,
+      blob: pdf.blob,
+      filename: pdf.filename || `${serverReportId}.pdf`,
+    },
+    {
+      idempotencyKey,
+      clientReportUuid,
     }
   );
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(buildRequestSendErrorMessage(payload));
+  const status = await waitForFinalizeReportStatus(serverReportId);
+  if (status.status === "FINALIZE_FAILED") {
+    throw new Error("עיבוד הדוח נכשל לאחר סנכרון");
   }
 
-  const payload = await response.json();
-  if (payload?.status !== "LOCKED") {
-    throw new Error("השרת לא אישר נעילת דוח לאחר שליחה לליבה");
-  }
-  return payload;
+  return status;
 }
 
 async function applyServerIdsFromSyncResponse(
@@ -241,7 +216,7 @@ async function closeVisitReportOnServerIfNeeded(
   }
 }
 
-async function runPdfAndRequestSend(
+async function runPdfAndFinalize(
   record: LocalVisitReportRecord,
   serverReportId: string,
   idempotencyKey: string,
@@ -249,13 +224,18 @@ async function runPdfAndRequestSend(
 ): Promise<void> {
   const storedPdf = await loadVisitReportPdfLocally(pdfReportKey);
   if (!storedPdf?.blob) {
-    throw new Error("PDF לא נמצא במכשיר - יש להפיק מחדש לפני שליחה");
+    throw new Error("PDF לא נמצא במכשיר - יש להפיק מחדש לפני עיבוד");
   }
 
-  await requestSendToCore(serverReportId, idempotencyKey, {
-    blob: storedPdf.blob,
-    filename: storedPdf.filename || `${serverReportId}.pdf`,
-  });
+  await finalizeReportOnServer(
+    serverReportId,
+    idempotencyKey,
+    {
+      blob: storedPdf.blob,
+      filename: storedPdf.filename || `${serverReportId}.pdf`,
+    },
+    record.client_report_uuid
+  );
 }
 
 async function markSyncCompleted(
@@ -348,8 +328,8 @@ async function processOfflineSyncQueueRecord(
       (await getLocalReport(clientReportUuid)) ?? workingRecord;
 
     await setPhase("pdf");
-    await setPhase("request_send");
-    await runPdfAndRequestSend(
+    await setPhase("finalize");
+    await runPdfAndFinalize(
       refreshed,
       serverReportId,
       idempotencyKey,

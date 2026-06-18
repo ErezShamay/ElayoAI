@@ -23,6 +23,20 @@ class AutomationRulesEngine:
                 },
             }
 
+        if workflow_type == "FIELD_REPORT_FINALIZED":
+            report_id = str(payload.get("report_id") or "").strip()
+            project_id = str(payload.get("project_id") or "").strip()
+            return {
+                "workflow_type": workflow_type,
+                "should_execute": bool(report_id and project_id),
+                "actions": ["FIELD_REPORT_FINALIZE_SIDE_EFFECTS"],
+                "flags": {
+                    "report_id": report_id,
+                    "project_id": project_id,
+                    "organization_id": payload.get("organization_id"),
+                },
+            }
+
         return {
             "workflow_type": workflow_type,
             "should_execute": True,
