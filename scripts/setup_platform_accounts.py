@@ -21,7 +21,7 @@ from app.services.tenant_manager_module_service import (
     TenantManagerModuleService,
 )
 
-PLATFORM_ADMIN_EMAIL = "erez.shamay.elayoai@gmail.com"
+PLATFORM_ADMIN_EMAIL = "erez.shamay@elayoai.com"
 PLATFORM_ADMIN_NAME = "ארז שמאי - מנהל גלובלי"
 
 DEMO_ORG_NAME = "חברה להדגמה"
@@ -109,6 +109,27 @@ def _find_auth_user_id_by_email(email: str) -> str | None:
             break
 
         page += 1
+
+    profile = _find_profile_by_email(normalized_email)
+    if not profile:
+        return None
+
+    profile_id = str(profile.get("id") or "")
+    if not profile_id:
+        return None
+
+    try:
+        response = supabase.auth.admin.get_user_by_id(profile_id)
+    except Exception:
+        return None
+
+    user = getattr(response, "user", None)
+    if not user:
+        return None
+
+    user_email = str(getattr(user, "email", "") or "").strip().lower()
+    if user_email == normalized_email:
+        return profile_id
 
     return None
 
@@ -301,7 +322,7 @@ def _disable_tenant_manager_module(
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "מגדיר מנהל גלובלי (erez.shamay.elayoai@gmail.com) "
+            "מגדיר מנהל גלובלי (erez.shamay@elayoai.com) "
             "ומנהל לקוח להדגמה (erezshamay@gmail.com)."
         )
     )

@@ -34,7 +34,7 @@ def test_platform_admin_without_org_uses_first_accessible_organization():
     service = ProfileService(
         profile_repository=_FakeProfileRepository({
             "id": "platform-1",
-            "email": "erez.shamay.elayoai@gmail.com",
+            "email": "erez.shamay@elayoai.com",
             "role": "PLATFORM_ADMIN",
         }),
         organization_repository=_FakeOrganizationRepository(),
