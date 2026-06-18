@@ -516,6 +516,8 @@ FRONTEND_URLS = list(
     dict.fromkeys(
         [
             FRONTEND_URL,
+            "https://elayoai.com",
+            "https://www.elayoai.com",
             *settings.get_cors_extra_origins(),
             "http://localhost:3000",
             "http://127.0.0.1:3000",
