@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useState } from "react";
 
-import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
@@ -14,6 +12,8 @@ import PageShell from "@/components/ui/PageShell";
 import PaginationControls from "@/components/ui/Pagination";
 import RetryPanel from "@/components/ui/RetryPanel";
 import SortSelect from "@/components/ui/SortSelect";
+import ProjectOverviewListCard from "@/components/projects/ProjectOverviewListCard";
+import ProjectSchemeSelect from "@/components/projects/ProjectSchemeSelect";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useFiltering } from "@/hooks/useFiltering";
@@ -21,9 +21,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { useSorting } from "@/hooks/useSorting";
 import { apiFetch } from "@/lib/api/client";
 import type { ProjectScheme } from "@/lib/field-reports/schema/types";
-import { ensureOfflinePrepForProject } from "@/lib/field-reports/offline-prep-runner";
 import { showToast } from "@/lib/ui/toast";
-import ProjectSchemeSelect from "@/components/projects/ProjectSchemeSelect";
 import { useI18n } from "@/providers/I18nProvider";
 import { useOffline } from "@/providers/OfflineProvider";
 
@@ -39,13 +37,6 @@ type Project = {
   created_at: string;
 };
 
-function displayStakeholder(
-  value?: string | null
-) {
-  const trimmed = value?.trim();
-  return trimmed || "לא צוין";
-}
-
 type ProjectSortKey = "project_name" | "created_at" | "status";
 
 export default function ProjectsPage() {
@@ -54,6 +45,9 @@ export default function ProjectsPage() {
   const { profile, currentOrgId } = useAuth();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [expandedProjectIds, setExpandedProjectIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [newProject, setNewProject] = useState({
     project_name: "",
     developer_name: "",
@@ -186,16 +180,7 @@ export default function ProjectsPage() {
         throw new Error("Failed to create project");
       }
 
-      const created = (await response.json()) as { id?: string };
-      const organizationId = currentOrgId || profile?.organization_id || "";
-      if (created.id && organizationId) {
-        void ensureOfflinePrepForProject({
-          organizationId,
-          projectId: created.id,
-          userId: profile?.id ?? null,
-          force: true,
-        }).catch(() => undefined);
-      }
+      await response.json();
 
       setNewProject({
         project_name: "",
@@ -219,21 +204,22 @@ export default function ProjectsPage() {
     }
   }
 
-  function getStatusLabel(status: string) {
-    switch (status) {
-      case "ACTIVE":
-        return "פעיל";
-      case "COMPLETED":
-        return "הושלם";
-      default:
-        return status;
-    }
+  function toggleProjectExpanded(projectId: string) {
+    setExpandedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
   }
 
   return (
     <PageShell
       title={t("projects.title")}
-      description="ניהול פרויקטים הנדסיים במערכת"
+      description="סקירה מרוכזת של כל הפרויקטים — לחצו על «הצג מידע נוסף» לפרטים מלאים"
       actions={
         <Button
           variant="primary"
@@ -431,63 +417,12 @@ export default function ProjectsPage() {
       {!loading && !error ? (
         <div className="grid gap-6">
           {pagination.items.map((project) => (
-            <Card key={project.id}>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold">
-                    <Link
-                      href={`/projects/${project.id}`}
-                      className="hover:underline"
-                    >
-                      {project.project_name}
-                    </Link>
-                  </h2>
-                  <p className="mt-2 text-zinc-500">
-                    יזם: {displayStakeholder(project.developer_name)}
-                    {" · "}
-                    קבלן: {displayStakeholder(project.contractor_name)}
-                  </p>
-                </div>
-
-                <Badge variant="success">
-                  {getStatusLabel(project.status)}
-                </Badge>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="mb-2 font-semibold">
-                    עו״ד מלווה
-                  </h3>
-                  <p>{displayStakeholder(project.lawyer_name)}</p>
-                </div>
-
-                <div>
-                  <h3 className="mb-2 font-semibold">
-                    מפקח מלווה
-                  </h3>
-                  <p>{project.supervisor_name}</p>
-                </div>
-
-                <div>
-                  <h3 className="mb-2 font-semibold">
-                    אימייל מפקח מלווה
-                  </h3>
-                  <p>{project.supervisor_email || "-"}</p>
-                </div>
-
-                <div>
-                  <h3 className="mb-2 font-semibold">
-                    תאריך יצירה
-                  </h3>
-                  <p>
-                    {new Date(
-                      project.created_at
-                    ).toLocaleDateString("he-IL")}
-                  </p>
-                </div>
-              </div>
-            </Card>
+            <ProjectOverviewListCard
+              key={project.id}
+              project={project}
+              expanded={expandedProjectIds.has(project.id)}
+              onToggleExpanded={() => toggleProjectExpanded(project.id)}
+            />
           ))}
         </div>
       ) : null}

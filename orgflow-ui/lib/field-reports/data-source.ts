@@ -25,6 +25,8 @@ export type FieldReportDataSourceContext = {
   hasLocalReport?: boolean;
   /** מזהה שרת - מאפשר קריאות API במצב hybrid. */
   serverReportId?: string | null;
+  /** המפקח הפעיל «הכנה לא מקוון» בכוונה. */
+  offlinePrepActive?: boolean;
 };
 
 export type FieldReportDataSource = {
@@ -40,9 +42,9 @@ export type FieldReportDataSource = {
 
 /**
  * קובע מצב מקור נתונים:
- * - `local-only` - אין רשת או ה-API לא נגיש
- * - `hybrid` - רשת + API, ויש עותק מקומי (מקור אמת בשטח)
- * - `remote` - רשת + API, אין עותק מקומי (זרימת משרד / טעינה ראשונה)
+ * - `remote` - ברירת מחדל כשיש רשת (גם לפני ping / כשהשרת לא נגיש)
+ * - `hybrid` - יש עותק מקומי + אפשרות סנכרון
+ * - `local-only` - אין רשת בכלל
  */
 export function resolveFieldReportDataSource(
   network: FieldReportNetworkSnapshot,
@@ -50,10 +52,10 @@ export function resolveFieldReportDataSource(
 ): FieldReportDataSource {
   const hasLocalReport = Boolean(context.hasLocalReport);
   const hasServerReportId = Boolean(context.serverReportId);
-  const networkUp = network.navigatorOnline && network.apiReachable;
+  const offlinePrepActive = Boolean(context.offlinePrepActive);
 
   let mode: FieldReportDataSourceMode;
-  if (!networkUp) {
+  if (!network.navigatorOnline) {
     mode = "local-only";
   } else if (hasLocalReport) {
     mode = "hybrid";
@@ -63,10 +65,14 @@ export function resolveFieldReportDataSource(
 
   const useLocalReports =
     mode === "local-only" || (mode === "hybrid" && hasLocalReport);
-  const useLocalCatalog = mode === "local-only";
+  const useLocalCatalog =
+    offlinePrepActive && !network.navigatorOnline;
   const canCallVisitReportApi =
-    mode === "remote"
-    || (mode === "hybrid" && hasServerReportId);
+    network.navigatorOnline
+    && (
+      mode === "remote"
+      || (mode === "hybrid" && hasServerReportId)
+    );
 
   return {
     mode,

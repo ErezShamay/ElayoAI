@@ -50,7 +50,7 @@ const STATUS_FILTERS = [
 export default function FieldReportsPage() {
   const { status, isEnabled, loading, error, reload } =
     useFieldReportModule();
-  const offlinePrep = useFieldReportOfflinePrep();
+  const offlinePrep = useFieldReportOfflinePrep({ autoPrepare: false });
   const organizationId = status?.organization_id || "";
   const [reports, setReports] = useState<VisitReport[]>([]);
   const [inProgressCount, setInProgressCount] = useState(0);

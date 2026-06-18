@@ -16,10 +16,10 @@ describe("supervision navigation (PRODUCT-SPEC-LOCKED §11)", () => {
   it("defines primary nav without operational review", () => {
     expect(SUPERVISION_PRIMARY_NAV_ITEMS).toHaveLength(4);
     expect(SUPERVISION_PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
+      "סקירת הפרויקטים",
       "דוחות שטח",
       "ליקויים",
       "תיק פיקוח הנדסי",
-      "פרויקטים",
     ]);
   });
 
@@ -36,10 +36,10 @@ describe("supervision navigation (PRODUCT-SPEC-LOCKED §11)", () => {
     const links = getSupervisionPrimaryNavLinks({ role: "SUPERVISOR" });
     expect(links).toHaveLength(4);
     expect(links.map((link) => link.href)).toEqual([
+      "/projects",
       "/field-reports",
       "/issues",
       "/portfolio",
-      "/projects",
     ]);
   });
 
@@ -99,10 +99,12 @@ describe("supervision navigation (PRODUCT-SPEC-LOCKED §11)", () => {
     expect(isSupervisionPrimaryNavActive("/issues/123", "/issues")).toBe(true);
   });
 
-  it("recommends post-login route by persona", () => {
+  it("recommends post-login route by role", () => {
     expect(recommendedPostLoginRoute("SUPERVISOR")).toBe("/field-reports");
-    expect(recommendedPostLoginRoute("ADMIN")).toBe("/portfolio");
-    expect(recommendedPostLoginRoute("CONTRACTOR")).toBe("/settings");
-    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/settings");
+    expect(recommendedPostLoginRoute("ADMIN")).toBe("/projects");
+    expect(recommendedPostLoginRoute("MANAGER")).toBe("/projects");
+    expect(recommendedPostLoginRoute("CONTRACTOR")).toBe("/projects");
+    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/projects");
+    expect(recommendedPostLoginRoute("PLATFORM_ADMIN")).toBe("/admin/platform");
   });
 });

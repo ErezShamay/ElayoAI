@@ -10,7 +10,6 @@ import {
 import { toast } from "sonner";
 
 import { apiFetch } from "@/lib/api/client";
-import { ensureOfflinePrepForProject } from "@/lib/field-reports/offline-prep-runner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   readWorkspaceCache,
@@ -443,28 +442,6 @@ export function useProjectWorkspace(
     loading,
     project,
     loadOperationalSummary,
-  ]);
-
-  // =========================
-  // OFFLINE PREP (Zero Setup Z4)
-  // =========================
-
-  useEffect(() => {
-    if (authLoading || loading || !project?.id || !profile?.organization_id) {
-      return;
-    }
-
-    void ensureOfflinePrepForProject({
-      organizationId: profile.organization_id,
-      projectId: project.id,
-      userId: profile.id,
-    }).catch(() => undefined);
-  }, [
-    authLoading,
-    loading,
-    project?.id,
-    profile?.organization_id,
-    profile?.id,
   ]);
 
   // =========================

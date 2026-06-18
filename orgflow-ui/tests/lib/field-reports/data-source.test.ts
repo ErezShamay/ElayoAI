@@ -16,7 +16,7 @@ describe("field-report data-source (FR-010)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("resolveFieldReportDataSource returns local-only when network or API is down", () => {
+  it("resolveFieldReportDataSource returns local-only only when navigator is offline", () => {
     expect(
       resolveFieldReportDataSource({
         navigatorOnline: false,
@@ -24,19 +24,37 @@ describe("field-report data-source (FR-010)", () => {
       }).mode
     ).toBe("local-only");
 
-    expect(
-      resolveFieldReportDataSource({
-        navigatorOnline: true,
-        apiReachable: false,
-      }).mode
-    ).toBe("local-only");
-
-    const localOnly = resolveFieldReportDataSource({
-      navigatorOnline: false,
+    const apiDownOnline = resolveFieldReportDataSource({
+      navigatorOnline: true,
       apiReachable: false,
     });
+    expect(apiDownOnline.mode).toBe("remote");
+    expect(apiDownOnline.useLocalCatalog).toBe(false);
+    expect(apiDownOnline.canCallVisitReportApi).toBe(true);
+
+    const localOnly = resolveFieldReportDataSource(
+      {
+        navigatorOnline: false,
+        apiReachable: false,
+      },
+      { offlinePrepActive: true }
+    );
     expect(localOnly.useLocalCatalog).toBe(true);
     expect(localOnly.canCallVisitReportApi).toBe(false);
+  });
+
+  it("useLocalCatalog requires offline prep active and no network", () => {
+    const withoutPrep = resolveFieldReportDataSource(
+      { navigatorOnline: false, apiReachable: false },
+      { offlinePrepActive: false }
+    );
+    expect(withoutPrep.useLocalCatalog).toBe(false);
+
+    const withPrep = resolveFieldReportDataSource(
+      { navigatorOnline: false, apiReachable: false },
+      { offlinePrepActive: true }
+    );
+    expect(withPrep.useLocalCatalog).toBe(true);
   });
 
   it("resolveFieldReportDataSource returns hybrid when online and local report exists", () => {

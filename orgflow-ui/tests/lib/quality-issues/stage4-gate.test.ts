@@ -41,7 +41,7 @@ const CRITICAL_PORTFOLIO: QualityPortfolioProjectSummary[] = [
 describe("stage 4 gate (QC portfolio + contractor remediation)", () => {
   it("developer persona is disabled in supervision v1 nav", () => {
     expect(hasQCPermission("DEVELOPER", "quality_portfolio:read")).toBe(true);
-    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/settings");
+    expect(recommendedPostLoginRoute("DEVELOPER")).toBe("/projects");
 
     const ranked = rankProjectsByQcPressure(CRITICAL_PORTFOLIO);
     expect(ranked[0]?.project_id).toBe("proj-hot");

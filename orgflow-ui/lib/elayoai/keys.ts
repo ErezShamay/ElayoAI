@@ -36,6 +36,8 @@ export const ELAYOAI_FIELD_REPORTS_OFFLINE_PREFIX =
   "elayoai-field-reports-offline";
 export const ELAYOAI_FIELD_REPORTS_OFFLINE_UI_DISMISS_PREFIX =
   "elayoai-field-reports-offline-ui-dismiss";
+export const ELAYOAI_FIELD_REPORTS_OFFLINE_PREP_ACTIVE_PREFIX =
+  "elayoai-field-reports-offline-prep-active";
 export const ELAYOAI_FIELD_REPORTS_METADATA_PREFIX =
   "elayoai-field-reports-metadata-draft";
 export const ELAYOAI_FIELD_REPORTS_SEND_QUEUE_PREFIX =

@@ -31,7 +31,7 @@ const translations: Record<
     "common.filter": "סינון",
     "common.previous": "הקודם",
     "common.next": "הבא",
-    "projects.title": "פרויקטים",
+    "projects.title": "סקירת הפרויקטים",
     "projects.empty": "אין פרויקטים",
   },
   en: {

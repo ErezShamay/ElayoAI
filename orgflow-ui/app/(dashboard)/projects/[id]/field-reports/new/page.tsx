@@ -25,7 +25,6 @@ import {
   type OfflinePrepBundle,
 } from "@/lib/field-reports/offline-store";
 import { listApartmentsFromOfflineBundle } from "@/lib/field-reports/offline-prep-apartments";
-import { ensureOfflinePrepForProject } from "@/lib/field-reports/offline-prep-runner";
 import { projectPrefillSourceFromRecord } from "@/lib/field-reports/project-header-prefill";
 import { isExpired } from "@/lib/field-reports/repositories/catalog-repository";
 import { fieldReportDetailPath } from "@/lib/field-reports/routes";
@@ -104,23 +103,10 @@ export default function ProjectSupervisionNewReportPage() {
       setError("");
 
       let bundle = await hydrateOfflinePrepBundle(organizationId);
-      let catalogReady =
+      const catalogReady =
         Boolean(bundle)
         && isOfflinePrepValid(bundle)
         && !isExpired(bundle);
-
-      if (!catalogReady && projectId) {
-        const refreshed = await ensureOfflinePrepForProject({
-          organizationId,
-          projectId,
-          userId: profile?.id ?? null,
-        });
-        if (refreshed) {
-          bundle = refreshed;
-          catalogReady =
-            isOfflinePrepValid(refreshed) && !isExpired(refreshed);
-        }
-      }
 
       setOfflinePrepBundle(bundle);
 
@@ -136,7 +122,7 @@ export default function ProjectSupervisionNewReportPage() {
         } catch {
           if (useLocalCatalog) {
             throw new Error(
-              "אין חבילת נתונים לא מקוונת זמינה. התחבר לרשת ונסה שוב."
+              "אין הכנה לא מקוון. התחבר לרשת ובצע «הכנה לא מקוון» מרשימת הדוחות."
             );
           }
         }
@@ -144,7 +130,7 @@ export default function ProjectSupervisionNewReportPage() {
 
       if (useLocalCatalog) {
         throw new Error(
-          "אין חבילת נתונים לא מקוונת זמינה. התחבר לרשת ונסה שוב."
+          "אין הכנה לא מקוון. התחבר לרשת ובצע «הכנה לא מקוון» מרשימת הדוחות."
         );
       }
 
@@ -171,7 +157,6 @@ export default function ProjectSupervisionNewReportPage() {
   }, [
     organizationId,
     projectId,
-    profile?.id,
     useLocalCatalog,
     canCallVisitReportApi,
   ]);

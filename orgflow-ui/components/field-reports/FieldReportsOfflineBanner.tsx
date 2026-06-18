@@ -11,7 +11,7 @@ import { useOffline } from "@/providers/OfflineProvider";
 export default function FieldReportsOfflineBanner() {
   const pathname = usePathname();
   const { isOnline } = useOffline();
-  const offlinePrep = useFieldReportOfflinePrep();
+  const offlinePrep = useFieldReportOfflinePrep({ autoPrepare: false });
 
   const onFieldReports =
     pathname === "/field-reports"
@@ -28,16 +28,11 @@ export default function FieldReportsOfflineBanner() {
       className="border-b border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100"
     >
       <p>
-        <strong>אין רשת</strong> - עריכת דוחות ומפרט מהנתונים במכשיר.
-        {offlinePrep.isReady
+        <strong>אין רשת</strong> - עריכת דוחות מהנתונים שנשמרו במכשיר.
+        {offlinePrep.isActive
           ? " ההכנה לא מקוון בתוקף."
-          : " ממתין להכנת נתונים לא מקוון כשתחזור רשת."}
+          : " לעבודה מלאה בלי רשת — בצע «הכנה לא מקוון» מרשימת הדוחות כשיש חיבור."}
       </p>
-      {!offlinePrep.isReady ? (
-        <p className="mt-1 text-xs">
-          הנתונים ייטענו אוטומטית כשהרשת תחזור.
-        </p>
-      ) : null}
     </div>
   );
 }

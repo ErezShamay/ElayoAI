@@ -10,6 +10,7 @@ import {
   hasQCPermission,
   resolveQCPersona,
 } from "@/lib/quality-issues/permissions";
+import { isPlatformAdmin } from "@/lib/auth/permissions";
 import { normalizeRole } from "@/lib/auth/role";
 
 export type SupervisionPrimaryNavId =
@@ -58,7 +59,7 @@ export const SUPERVISION_PORTFOLIO_ROUTE = {
 export const SUPERVISION_PROJECTS_ROUTE = {
   id: "projects" as const,
   href: "/projects",
-  label: "פרויקטים",
+  label: "סקירת הפרויקטים",
 };
 
 /** @deprecated */
@@ -96,6 +97,10 @@ export const SUPERVISION_PRIMARY_NAV_ITEMS: ReadonlyArray<
   SupervisionNavItem & { id: SupervisionPrimaryNavId }
 > = [
   {
+    ...SUPERVISION_PROJECTS_ROUTE,
+    requiredPermission: "projects:read",
+  },
+  {
     ...SUPERVISION_FIELD_REPORTS_ROUTE,
     requiredPermission: "field_reports:read",
   },
@@ -106,10 +111,6 @@ export const SUPERVISION_PRIMARY_NAV_ITEMS: ReadonlyArray<
   {
     ...SUPERVISION_PORTFOLIO_ROUTE,
     requiredPermission: "quality_portfolio:read",
-  },
-  {
-    ...SUPERVISION_PROJECTS_ROUTE,
-    requiredPermission: "projects:read",
   },
 ];
 
@@ -362,15 +363,13 @@ export function recommendedPostLoginRoute(role?: string | null): string {
     return RESIDENT_POST_LOGIN_ROUTE;
   }
 
-  const persona = resolveQCPersona(role);
-  if (persona === "SUPERVISOR") {
+  if (isPlatformAdmin(role)) {
+    return "/admin/platform";
+  }
+
+  if (normalizeRole(role) === "SUPERVISOR") {
     return SUPERVISION_FIELD_REPORTS_ROUTE.href;
   }
-  if (persona === "ADMIN") {
-    return SUPERVISION_PORTFOLIO_ROUTE.href;
-  }
-  if (persona !== null && DISABLED_V1_PERSONAS.has(persona)) {
-    return "/settings";
-  }
-  return SUPERVISION_PORTFOLIO_ROUTE.href;
+
+  return SUPERVISION_PROJECTS_ROUTE.href;
 }

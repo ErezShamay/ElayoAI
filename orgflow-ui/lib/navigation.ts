@@ -1,6 +1,7 @@
 import {
   isPlatformAdmin,
 } from "@/lib/auth/permissions";
+import { recommendedPostLoginRoute } from "@/lib/qc-navigation";
 
 export type NavLink = {
   href: string;
@@ -129,9 +130,7 @@ export function getSystemNavLinks(
 export function resolvePostLoginRoute(
   role?: string | null
 ): string {
-  return isPlatformAdmin(role)
-    ? PLATFORM_ADMIN_HOME_ROUTE.href
-    : POST_LOGIN_ROUTE;
+  return recommendedPostLoginRoute(role);
 }
 
 function matchesNavPath(pathname: string, href: string) {
@@ -178,7 +177,7 @@ export function landingSectionHref(sectionId: string) {
 
 export const PUBLIC_ROUTES = ["/"] as const;
 
-export const POST_LOGIN_ROUTE = "/field-reports" as const;
+export const POST_LOGIN_ROUTE = "/projects" as const;
 
 export function isPublicRoute(pathname: string) {
   return (
@@ -194,10 +193,10 @@ export const FIELD_REPORTS_ROUTE = {
 
 /** Supervision primary nav — PRODUCT-SPEC-LOCKED §11. */
 export const GLOBAL_NAV_LINKS: NavLink[] = filterPrimaryNavLinks([
+  { href: "/projects", label: "סקירת הפרויקטים" },
   FIELD_REPORTS_ROUTE,
   { href: "/issues", label: "ליקויים" },
   { href: "/portfolio", label: "תיק פיקוח הנדסי" },
-  { href: "/projects", label: "פרויקטים" },
 ]);
 
 /** Legacy PM navbar - public home until stage 5.8. Upload hidden in 5.2. */

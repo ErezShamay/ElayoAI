@@ -7,6 +7,10 @@ import {
   fetchAndPersistOfflinePrepBundle,
   type OfflinePrepFetchResult,
 } from "@/lib/field-reports/offline-prep-runner";
+import {
+  clearOfflinePrepActive,
+  setOfflinePrepActive,
+} from "@/lib/field-reports/offline-prep-active";
 import { clearOfflinePrepUiDismiss } from "@/lib/field-reports/offline-prep-ui-dismiss";
 import {
   clearOfflinePrepBundle,
@@ -19,6 +23,7 @@ import {
   hydrateOpenIssuesCache,
 } from "@/lib/quality-issues/open-issues-offline";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
+import { useOfflinePrepActive } from "@/hooks/useOfflinePrepActive";
 import { useOffline } from "@/providers/OfflineProvider";
 
 type UseFieldReportOfflinePrepOptions = {
@@ -29,12 +34,13 @@ type UseFieldReportOfflinePrepOptions = {
 export function useFieldReportOfflinePrep(
   options: UseFieldReportOfflinePrepOptions = {}
 ) {
-  const { autoPrepare = true, projectId } = options;
+  const { autoPrepare = false, projectId } = options;
   const { status } = useFieldReportModule();
   const { profile } = useAuth();
   const { isOnline } = useOffline();
   const organizationId = status?.organization_id || "";
   const isModuleEnabled = Boolean(status?.is_enabled);
+  const isActive = useOfflinePrepActive(organizationId);
   const [storedBundle, setStoredBundle] = useState<OfflinePrepBundle | null>(
     null
   );
@@ -110,6 +116,7 @@ export function useFieldReportOfflinePrep(
         organizationId,
         userId: profile?.id ?? null,
       });
+      setOfflinePrepActive(organizationId, true);
       return applyPrepResult(result);
     } catch (err: unknown) {
       setError(
@@ -163,6 +170,7 @@ export function useFieldReportOfflinePrep(
       setCancelling(true);
       setError("");
       await clearOfflinePrepBundle(organizationId);
+      clearOfflinePrepActive(organizationId);
       setPreparedBundle(null);
       setStoredBundle(null);
       setImportSummary(null);
@@ -180,7 +188,8 @@ export function useFieldReportOfflinePrep(
 
   return {
     bundle,
-    isReady: isOfflinePrepValid(bundle),
+    isActive,
+    isReady: isActive && isOfflinePrepValid(bundle),
     expiresAt: bundle?.expires_at || null,
     catalogVersion: bundle?.catalog_version || null,
     importSummary,

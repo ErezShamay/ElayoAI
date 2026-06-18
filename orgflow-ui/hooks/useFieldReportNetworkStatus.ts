@@ -24,10 +24,10 @@ export type UseFieldReportNetworkStatusResult = {
  */
 export function useFieldReportNetworkStatus(): UseFieldReportNetworkStatusResult {
   const { isOnline: navigatorOnline } = useOffline();
-  const [snapshot, setSnapshot] = useState<FieldReportNetworkSnapshot>({
+  const [snapshot, setSnapshot] = useState<FieldReportNetworkSnapshot>(() => ({
     navigatorOnline,
-    apiReachable: false,
-  });
+    apiReachable: navigatorOnline,
+  }));
   const [checking, setChecking] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -41,9 +41,8 @@ export function useFieldReportNetworkStatus(): UseFieldReportNetworkStatusResult
 
   useEffect(() => {
     setSnapshot((current) => ({
-      ...current,
       navigatorOnline,
-      apiReachable: navigatorOnline ? current.apiReachable : false,
+      apiReachable: navigatorOnline,
     }));
   }, [navigatorOnline]);
 

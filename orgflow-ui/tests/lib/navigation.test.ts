@@ -28,22 +28,24 @@ describe("navigation (supervision pivot — stage A)", () => {
   it("defines supervision items in GLOBAL_NAV_LINKS without operational review", () => {
     expect(GLOBAL_NAV_LINKS).toHaveLength(4);
     expect(GLOBAL_NAV_LINKS.map((link) => link.label)).toEqual([
+      "סקירת הפרויקטים",
       "דוחות שטח",
       "ליקויים",
       "תיק פיקוח הנדסי",
-      "פרויקטים",
     ]);
     expect(GLOBAL_NAV_LINKS.map((link) => link.href)).toEqual([
+      "/projects",
       "/field-reports",
       "/issues",
       "/portfolio",
-      "/projects",
     ]);
   });
 
-  it("uses field reports label as first nav item", () => {
-    expect(FIELD_REPORTS_ROUTE.label).toBe("דוחות שטח");
-    expect(GLOBAL_NAV_LINKS[0]).toEqual(FIELD_REPORTS_ROUTE);
+  it("uses project overview as first nav item", () => {
+    expect(GLOBAL_NAV_LINKS[0]).toEqual({
+      href: "/projects",
+      label: "סקירת הפרויקטים",
+    });
   });
 
   it("keeps remaining legacy PM links on public home navbar until stage 5.8", () => {
@@ -115,11 +117,13 @@ describe("navigation (supervision pivot — stage A)", () => {
     expect(isAdminOnlySystemRoute("/portfolio")).toBe(false);
   });
 
-  it("routes platform admin to the usage dashboard after login", () => {
+  it("routes users after login by role", () => {
     expect(resolvePostLoginRoute("PLATFORM_ADMIN")).toBe(
       PLATFORM_ADMIN_HOME_ROUTE.href
     );
-    expect(resolvePostLoginRoute("ADMIN")).toBe(POST_LOGIN_ROUTE);
+    expect(resolvePostLoginRoute("SUPERVISOR")).toBe("/field-reports");
+    expect(resolvePostLoginRoute("ADMIN")).toBe("/projects");
+    expect(POST_LOGIN_ROUTE).toBe("/projects");
     expect(PLATFORM_ADMIN_NAV_LINKS[0]).toEqual(PLATFORM_ADMIN_HOME_ROUTE);
   });
 

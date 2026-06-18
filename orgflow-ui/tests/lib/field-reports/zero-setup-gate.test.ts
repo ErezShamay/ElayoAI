@@ -1,6 +1,6 @@
 /**
  * Gate — Zero Setup Z4 (COMPETITIVE-LAYER-TASKS.md).
- * Auto offline prep after project create / workspace entry — no manual step.
+ * Offline prep is manual from field reports list; send queue handles sync when back online.
  */
 import "fake-indexeddb/auto";
 
@@ -94,27 +94,28 @@ describe("zero setup gate Z4", () => {
     vi.unstubAllGlobals();
   });
 
-  it("wires auto offline prep after project create", () => {
+  it("does not auto offline prep after project create", () => {
     const projectsPage = readSource("app/(dashboard)/projects/page.tsx");
-    expect(projectsPage).toContain("ensureOfflinePrepForProject");
-    expect(projectsPage).toContain("force: true");
+    expect(projectsPage).not.toContain("ensureOfflinePrepForProject");
   });
 
-  it("wires auto offline prep on project workspace entry", () => {
+  it("does not auto offline prep on project workspace entry", () => {
     const workspaceHook = readSource("hooks/useProjectWorkspace.ts");
-    expect(workspaceHook).toContain("ensureOfflinePrepForProject");
+    expect(workspaceHook).not.toContain("ensureOfflinePrepForProject");
   });
 
-  it("hook auto-prepares without manual button requirement", () => {
+  it("requires manual offline prep from field reports list", () => {
     const hook = readSource("hooks/useFieldReportOfflinePrep.ts");
+    const fieldReportsPage = readSource("app/(dashboard)/field-reports/page.tsx");
     const newReportPage = readSource(
       "app/(dashboard)/projects/[id]/field-reports/new/page.tsx"
     );
 
-    expect(hook).toContain("autoPrepare = true");
-    expect(hook).toContain("autoPrepareAttemptedRef");
-    expect(newReportPage).toContain("ensureOfflinePrepForProject");
-    expect(newReportPage).not.toContain("בצע «הכנה לא מקוון»");
+    expect(hook).toContain("autoPrepare = false");
+    expect(fieldReportsPage).toContain("הכנה לא מקוון");
+    expect(fieldReportsPage).toContain("autoPrepare: false");
+    expect(newReportPage).not.toContain("ensureOfflinePrepForProject");
+    expect(newReportPage).toContain("הכנה לא מקוון");
   });
 
   it("backend exposes project-scoped offline prep endpoint", () => {
@@ -127,7 +128,7 @@ describe("zero setup gate Z4", () => {
     expect(service).toContain("build_offline_prep_bundle_for_project");
   });
 
-  it("persists catalog and apartments in IndexedDB without manual click", async () => {
+  it("persists catalog and apartments in IndexedDB when prep is triggered", async () => {
     const result = await fetchAndPersistOfflinePrepBundle({
       organizationId: ORG_ID,
       userId: "user-z4",

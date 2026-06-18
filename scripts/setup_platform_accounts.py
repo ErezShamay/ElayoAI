@@ -25,7 +25,7 @@ PLATFORM_ADMIN_EMAIL = "erez.shamay@elayoai.com"
 PLATFORM_ADMIN_NAME = "ארז שמאי - מנהל גלובלי"
 
 DEMO_ORG_NAME = "חברה להדגמה"
-DEMO_CLIENT_ADMIN_EMAIL = "erezshamay@gmail.com"
+DEMO_CLIENT_ADMIN_EMAIL = "erez.shamay.elayoai@gmail.com"
 DEMO_CLIENT_ADMIN_NAME = "ארז שמאי"
 
 
@@ -68,11 +68,16 @@ def _ensure_demo_organization(
     existing = _find_demo_organization()
     if existing:
         updated_name = existing.get("organization_name")
+        updates: dict = {}
         if updated_name != DEMO_ORG_NAME:
+            updates["organization_name"] = DEMO_ORG_NAME
+        if str(existing.get("contact_email") or "").strip().lower() != contact_email:
+            updates["contact_email"] = contact_email
+        if updates:
             response = (
                 supabase
                 .table("organizations")
-                .update({"organization_name": DEMO_ORG_NAME})
+                .update(updates)
                 .eq("id", existing["id"])
                 .execute()
             )
@@ -139,6 +144,7 @@ def _ensure_auth_user_with_password(
     email: str,
     password: str,
     full_name: str,
+    role: str,
 ) -> str:
     password_errors = validate_password(password)
     if password_errors:
@@ -150,16 +156,18 @@ def _ensure_auth_user_with_password(
     normalized_email = email.strip().lower()
     user_id = _find_auth_user_id_by_email(normalized_email)
 
+    metadata = {
+        "full_name": full_name,
+        "role": role,
+    }
+
     if user_id:
         supabase.auth.admin.update_user_by_id(
             user_id,
             {
                 "password": password,
                 "email_confirm": True,
-                "user_metadata": {
-                    "full_name": full_name,
-                    "role": PLATFORM_ADMIN_ROLE,
-                },
+                "user_metadata": metadata,
             },
         )
         return user_id
@@ -169,10 +177,7 @@ def _ensure_auth_user_with_password(
             "email": normalized_email,
             "password": password,
             "email_confirm": True,
-            "user_metadata": {
-                "full_name": full_name,
-                "role": PLATFORM_ADMIN_ROLE,
-            },
+            "user_metadata": metadata,
         }
     )
 
@@ -323,7 +328,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "מגדיר מנהל גלובלי (erez.shamay@elayoai.com) "
-            "ומנהל לקוח להדגמה (erezshamay@gmail.com)."
+            "ומנהל לקוח להדגמה (erez.shamay.elayoai@gmail.com)."
         )
     )
     parser.add_argument(
@@ -334,6 +339,10 @@ def main() -> int:
     parser.add_argument(
         "--platform-admin-password",
         help="סיסמה למנהל הגלובלי (יוצר/מעדכן משתמש Auth)",
+    )
+    parser.add_argument(
+        "--demo-client-admin-password",
+        help="סיסמה למנהל לקוח של חברה להדגמה (יוצר/מעדכן משתמש Auth)",
     )
     args = parser.parse_args()
 
@@ -356,6 +365,7 @@ def main() -> int:
             email=PLATFORM_ADMIN_EMAIL,
             password=args.platform_admin_password,
             full_name=PLATFORM_ADMIN_NAME,
+            role=PLATFORM_ADMIN_ROLE,
         )
         print(
             "[OK] Auth + סיסמה למנהל גלובלי: "
@@ -382,11 +392,33 @@ def main() -> int:
             f"({platform_admin.get('role')})"
         )
 
+    demo_admin_profile_id = _find_auth_user_id_by_email(
+        DEMO_CLIENT_ADMIN_EMAIL
+    )
+
+    if args.demo_client_admin_password:
+        demo_admin_profile_id = _ensure_auth_user_with_password(
+            email=DEMO_CLIENT_ADMIN_EMAIL,
+            password=args.demo_client_admin_password,
+            full_name=DEMO_CLIENT_ADMIN_NAME,
+            role=ORG_ADMIN_ROLE,
+        )
+        print(
+            "[OK] Auth + סיסמה למנהל לקוח להדגמה: "
+            f"{DEMO_CLIENT_ADMIN_EMAIL}"
+        )
+    elif not demo_admin_profile_id:
+        print(
+            "[WARN] מנהל לקוח להדגמה לא קיים ב-Auth. "
+            "העבר --demo-client-admin-password כדי ליצור אותו."
+        )
+
     demo_admin = _ensure_profile_role(
         email=DEMO_CLIENT_ADMIN_EMAIL,
         full_name=DEMO_CLIENT_ADMIN_NAME,
         role=ORG_ADMIN_ROLE,
         organization_id=demo_organization_id,
+        profile_id=demo_admin_profile_id,
     )
     print(
         "[OK] מנהל לקוח להדגמה: "

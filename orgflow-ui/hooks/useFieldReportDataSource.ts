@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 
+import { useFieldReportModule } from "@/hooks/useFieldReportModule";
+import { useOfflinePrepActive } from "@/hooks/useOfflinePrepActive";
 import {
   resolveFieldReportDataSource,
   type FieldReportDataSource,
@@ -23,15 +25,23 @@ export type UseFieldReportDataSourceResult = FieldReportDataSource & {
 export function useFieldReportDataSource(
   context: FieldReportDataSourceContext = {}
 ): UseFieldReportDataSourceResult {
+  const { status } = useFieldReportModule();
+  const organizationId = status?.organization_id || "";
+  const offlinePrepActive = useOfflinePrepActive(organizationId);
   const { snapshot, checking, refresh } = useFieldReportNetworkStatus();
 
   const dataSource = useMemo(
-    () => resolveFieldReportDataSource(snapshot, context),
+    () =>
+      resolveFieldReportDataSource(snapshot, {
+        ...context,
+        offlinePrepActive,
+      }),
     [
       snapshot.navigatorOnline,
       snapshot.apiReachable,
       context.hasLocalReport,
       context.serverReportId,
+      offlinePrepActive,
     ]
   );
 

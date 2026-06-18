@@ -40,12 +40,14 @@ describe("competitive layer e2e gate L6", () => {
     expect(bootstrap).toContain("bootstrap");
   });
 
-  it("Z4 — auto offline prep without manual step", () => {
+  it("Z4 — manual offline prep from field reports list", () => {
     const hook = readUiSource("hooks/useFieldReportOfflinePrep.ts");
+    const fieldReportsPage = readUiSource("app/(dashboard)/field-reports/page.tsx");
     const runner = readUiSource("lib/field-reports/offline-prep-runner.ts");
     const main = readBackendSource("app/main.py");
 
-    expect(hook).toContain("autoPrepare = true");
+    expect(hook).toContain("autoPrepare = false");
+    expect(fieldReportsPage).toContain("הכנה לא מקוון");
     expect(runner).toContain("ensureOfflinePrepForProject");
     expect(main).toContain("/projects/{project_id}/offline-prep");
   });

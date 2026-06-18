@@ -24,7 +24,6 @@ import {
 } from "@/lib/navigation";
 import {
   getQCPrimaryNavLinks,
-  getQCProjectNavLinks,
   getQCProjectPrimaryNavLinks,
   getQCProjectSecondaryNavLinks,
   getToolsNavLinks,
