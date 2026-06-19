@@ -5,15 +5,18 @@ export default function NavLinkItem({
   label,
   isActive,
   className = "",
+  onNavigate,
 }: {
   href: string;
   label: string;
   isActive: boolean;
   className?: string;
+  onNavigate?: () => void;
 }) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className={
         isActive
           ? `of-nav-link of-nav-link-active ${className}`.trim()

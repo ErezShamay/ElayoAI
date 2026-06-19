@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import FieldReportsOfflineGuide from "@/components/field-reports/FieldReportsOfflineGuide";
+import ProjectPickerDialog from "@/components/field-reports/ProjectPickerDialog";
 import Badge from "@/components/ui/Badge";
 import LoadingState from "@/components/ui/LoadingState";
 import { apiFetch } from "@/lib/api/client";
@@ -59,6 +60,7 @@ export default function FieldReportsPage() {
   const [initialReportsReady, setInitialReportsReady] = useState(false);
   const [reportsError, setReportsError] = useState("");
   const [showOfflineGuide, setShowOfflineGuide] = useState(true);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const importedInProgressCount = offlinePrep.importSummary
     ? offlinePrep.importSummary.imported + offlinePrep.importSummary.updated
     : 0;
@@ -273,21 +275,44 @@ export default function FieldReportsPage() {
 
   return (
     <div className="of-container mx-auto max-w-3xl space-y-6 p-4 md:p-8">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="of-page-title text-2xl">הפקת דוחות</h1>
-          <p className="of-page-desc text-sm">הדוחות שלי</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <header className="space-y-1">
+        <h1 className="of-page-title text-2xl">הפקת דוחות</h1>
+        <p className="of-page-desc text-sm">הדוחות שלי</p>
+      </header>
+
+      <section
+        className="
+          space-y-3
+          rounded-2xl
+          border
+          border-zinc-200
+          bg-white
+          p-4
+          dark:border-zinc-800
+          dark:bg-zinc-900
+          md:p-5
+        "
+      >
+        <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
+          פעולות
+        </h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <button
+            type="button"
+            className={`${FR_PRIMARY_ACTION_BUTTON} w-full sm:w-auto`}
+            onClick={() => setProjectPickerOpen(true)}
+          >
+            הפקת דוח
+          </button>
           <Link
             href={FIELD_REPORTS_UPLOAD_ROUTE.href}
-            className={FR_PRIMARY_ACTION_BUTTON}
+            className={`${FR_FILTER_BUTTON_INACTIVE} w-full sm:w-auto`}
           >
             {FIELD_REPORTS_UPLOAD_ROUTE.label}
           </Link>
           <button
             type="button"
-            className={FR_PRIMARY_ACTION_BUTTON}
+            className={`${FR_FILTER_BUTTON_INACTIVE} w-full sm:w-auto`}
             disabled={offlinePrep.loading}
             onClick={() => void handleOfflinePrep()}
           >
@@ -296,7 +321,12 @@ export default function FieldReportsPage() {
               : "הכנה לא מקוון"}
           </button>
         </div>
-      </header>
+      </section>
+
+      <ProjectPickerDialog
+        open={projectPickerOpen}
+        onClose={() => setProjectPickerOpen(false)}
+      />
 
       {offlinePrep.isReady ? (
         <div
@@ -337,38 +367,54 @@ export default function FieldReportsPage() {
         <p className="text-sm text-red-600">{offlinePrep.error}</p>
       ) : null}
 
-      {inProgressCount > 0 && statusFilter !== "IN_PROGRESS" ? (
-        <p className="text-sm text-zinc-600">
-          {inProgressCount} דוחות בעבודה - ניתן לערוך דוח אחד בכל רגע במכשיר.
-          <button
-            type="button"
-            className="mr-2 text-brand hover:underline"
-            onClick={() => setStatusFilter("IN_PROGRESS")}
-          >
-            הצג רק בעבודה
-          </button>
-        </p>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((filter) => {
-          const isActive = statusFilter === filter.value;
-          return (
+      <section
+        className="
+          space-y-3
+          rounded-2xl
+          border
+          border-zinc-200
+          bg-white
+          p-4
+          dark:border-zinc-800
+          dark:bg-zinc-900
+          md:p-5
+        "
+      >
+        <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
+          סינון
+        </h2>
+        {inProgressCount > 0 && statusFilter !== "IN_PROGRESS" ? (
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            {inProgressCount} דוחות בעבודה - ניתן לערוך דוח אחד בכל רגע במכשיר.
             <button
-              key={filter.value || "all"}
               type="button"
-              className={
-                isActive
-                  ? FR_FILTER_BUTTON_ACTIVE
-                  : FR_FILTER_BUTTON_INACTIVE
-              }
-              onClick={() => setStatusFilter(filter.value)}
+              className="mr-2 text-brand hover:underline"
+              onClick={() => setStatusFilter("IN_PROGRESS")}
             >
-              {filter.label}
+              הצג רק בעבודה
             </button>
-          );
-        })}
-      </div>
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {STATUS_FILTERS.map((filter) => {
+            const isActive = statusFilter === filter.value;
+            return (
+              <button
+                key={filter.value || "all"}
+                type="button"
+                className={
+                  isActive
+                    ? FR_FILTER_BUTTON_ACTIVE
+                    : FR_FILTER_BUTTON_INACTIVE
+                }
+                onClick={() => setStatusFilter(filter.value)}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {reportsLoading ? (
         <p className="text-sm text-zinc-500">טוען דוחות...</p>
@@ -395,8 +441,15 @@ export default function FieldReportsPage() {
         <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center dark:border-zinc-700">
           <p className="text-sm text-zinc-600">אין דוחות עדיין.</p>
           <p className="mt-2 text-sm text-zinc-500">
-            יצירת דוח חדש מתבצעת מדף הפרויקט — «הפקת דוח».
+            ליצירת דוח חדש לחץ על «הפקת דוח» ובחר פרויקט.
           </p>
+          <button
+            type="button"
+            className={`${FR_PRIMARY_ACTION_BUTTON} mt-4`}
+            onClick={() => setProjectPickerOpen(true)}
+          >
+            הפקת דוח
+          </button>
         </div>
       ) : (
         <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">

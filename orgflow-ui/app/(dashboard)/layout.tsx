@@ -4,6 +4,7 @@ import ContractorRouteGuard from "@/components/auth/ContractorRouteGuard";
 import ResidentRouteGuard from "@/components/auth/ResidentRouteGuard";
 import UserMenu from "@/components/auth/UserMenu";
 import DashboardProviders from "@/components/dashboard/DashboardProviders";
+import MobileNavMenu from "@/components/layout/MobileNavMenu";
 import WorkspaceContextBar from "@/components/layout/WorkspaceContextBar";
 
 export default function DashboardLayout({
@@ -13,7 +14,7 @@ export default function DashboardLayout({
 }) {
   return (
     <DashboardProviders>
-    <div className="of-app-bg flex min-h-screen flex-col lg:flex-row">
+    <div className="of-app-bg flex min-h-screen lg:flex-row">
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -28,13 +29,17 @@ export default function DashboardLayout({
             min-h-[4.5rem]
             items-center
             justify-between
-            gap-4
+            gap-3
             px-4
             py-3
+            md:gap-4
             md:px-8
           "
         >
-          <WorkspaceContextBar />
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <MobileNavMenu />
+            <WorkspaceContextBar />
+          </div>
           <div className="shrink-0">
             <UserMenu />
           </div>

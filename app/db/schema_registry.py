@@ -42,7 +42,7 @@ class TableSchema:
     audited: bool = True
 
 
-SCHEMA_VERSION = "2026061803"
+SCHEMA_VERSION = "2026061901"
 
 # Matches deploy/sql/20260604_enable_rls_best_practice.sql (authenticated SELECT + service_role bypass).
 ORGFLOW_TENANT_ISOLATION = (
@@ -899,6 +899,14 @@ MIGRATION_SCRIPTS: list[dict] = [
             "Resident-portal friendly Hebrew status labels on quality issues (L5)"
         ),
         "tables": ["quality_issues"],
+    },
+    {
+        "version": "2026061901",
+        "name": "automation_locks_owner_token",
+        "description": (
+            "Owner token column on automation_locks for safe distributed job locking"
+        ),
+        "tables": ["automation_locks"],
     },
 ]
 

@@ -109,7 +109,25 @@ class AutomationLockRepository:
                 "owner_token",
                 owner_token,
             )
-        response = query.execute()
+        try:
+            response = query.execute()
+        except APIError as error:
+            if (
+                owner_token is None
+                or "owner_token" not in str(error)
+            ):
+                raise
+
+            response = (
+                self.client
+                .table(self.table_name)
+                .delete()
+                .eq(
+                    "lock_key",
+                    lock_key,
+                )
+                .execute()
+            )
         return bool(response.data)
 
     # ==========================================
