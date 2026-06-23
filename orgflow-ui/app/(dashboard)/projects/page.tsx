@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -48,6 +49,8 @@ type ProjectSortKey = "project_name" | "created_at" | "status";
 
 export default function ProjectsPage() {
   const { t } = useI18n();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { isOnline } = useOffline();
   const { profile, currentOrgId } = useAuth();
   const effectiveRole = useEffectiveRole();
@@ -145,6 +148,23 @@ export default function ProjectsPage() {
     );
 
   const pagination = usePagination(sortedItems, 6);
+
+  useEffect(() => {
+    if (searchParams.get("create") !== "1") {
+      return;
+    }
+
+    const projectName = searchParams.get("project_name")?.trim() ?? "";
+    setShowCreateForm(true);
+    if (projectName) {
+      setNewProject((current) => ({
+        ...current,
+        project_name: projectName,
+      }));
+    }
+
+    router.replace("/projects");
+  }, [router, searchParams]);
 
   async function handleCreateProject(event: React.FormEvent) {
     event.preventDefault();

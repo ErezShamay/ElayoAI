@@ -13,7 +13,9 @@ import FinishReportDialog, {
   type ClosePreview,
 } from "@/components/field-reports/FinishReportDialog";
 import VisitReportAlerts from "@/components/field-reports/VisitReportAlerts";
-import VisitReportPdfActions from "@/components/field-reports/VisitReportPdfActions";
+import VisitReportPdfActions, {
+  shouldShowVisitReportPdfActions,
+} from "@/components/field-reports/VisitReportPdfActions";
 import VisitReportPrimaryActions from "@/components/field-reports/VisitReportPrimaryActions";
 import VisitReportEditor from "@/components/field-reports/VisitReportEditor";
 import VisitReportIssueDiffPanel from "@/components/quality-issues/VisitReportIssueDiffPanel";
@@ -497,6 +499,7 @@ export default function FieldVisitReportPage() {
               hasLocalPdf={hasLocalPdf}
               canFinalize={canFinalizeReport}
               isOnline={isOnline}
+              className="max-lg:hidden"
               onCacheChange={setHasLocalPdf}
               onSetNotice={setPdfNotice}
               onSetError={setPdfError}
@@ -522,6 +525,7 @@ export default function FieldVisitReportPage() {
           hasLocalPdf={hasLocalPdf}
           canFinalize={canFinalizeReport}
           isOnline={isOnline}
+          className="max-lg:hidden"
           onCacheChange={setHasLocalPdf}
           onSetNotice={setPdfNotice}
           onSetError={setPdfError}
@@ -621,6 +625,28 @@ export default function FieldVisitReportPage() {
             compact
             onOpenFinishDialog={() => void openFinishDialog()}
             onConfirmReopenReport={() => void confirmReopenReport()}
+          />
+        </section>
+      ) : null}
+
+      {!editSession.blockingSession
+      && shouldShowVisitReportPdfActions(report, isReopenedForEdit) ? (
+        <section className="rounded-xl border border-zinc-200 bg-white/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 lg:hidden">
+          <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+            PDF
+          </h2>
+          <VisitReportPdfActions
+            report={report}
+            isReopenedForEdit={isReopenedForEdit}
+            hasLocalPdf={hasLocalPdf}
+            canFinalize={canFinalizeReport}
+            isOnline={isOnline}
+            stacked
+            onCacheChange={setHasLocalPdf}
+            onSetNotice={setPdfNotice}
+            onSetError={setPdfError}
+            onFinalizeStart={handleFinalizeStart}
+            onFinalizeComplete={handleFinalizeComplete}
           />
         </section>
       ) : null}

@@ -71,7 +71,7 @@ export default function ProjectOverviewListCard({
           ) : null}
         </div>
 
-        <Badge variant="success">
+        <Badge variant="success" className="self-start">
           {getStatusLabel(project.status)}
         </Badge>
       </div>

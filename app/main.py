@@ -105,6 +105,9 @@ from app.repositories.workspace_activity_repository import (
 from app.services.report_processing_service import (
     ReportProcessingService,
 )
+from app.services.report_upload_project_resolver_service import (
+    ReportUploadProjectResolverService,
+)
 
 from app.services.operational_action_service import (
     OperationalActionService,
@@ -866,6 +869,9 @@ field_report_finalize_service = FieldReportFinalizeService(
 
 report_processing_service = (
     ReportProcessingService()
+)
+report_upload_project_resolver_service = (
+    ReportUploadProjectResolverService()
 )
 workspace_connection_manager = (
     WorkspaceConnectionManager()
@@ -3941,6 +3947,32 @@ def add_project_comment(project_id: str, request: ProjectCommentRequest):
     if not comment:
         raise HTTPException(status_code=404, detail="Project not found")
     return comment
+
+
+@app.post("/reports/upload/resolve-project")
+async def resolve_report_upload_project(
+    file: UploadFile = File(...),
+    auth=Depends(require_permission("reports:write")),
+):
+    upload_dir = Path("tmp_uploads")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S%f")
+    target_path = upload_dir / f"{timestamp}_{file.filename or 'report'}"
+
+    with target_path.open("wb") as target_file:
+        shutil.copyfileobj(file.file, target_file)
+
+    try:
+        return report_upload_project_resolver_service.resolve_from_upload(
+            file_path=str(target_path),
+            filename=file.filename or target_path.name,
+            organization_id=auth.org_id,
+            role=auth.role,
+            actor_user_id=auth.actor_user_id,
+        )
+    finally:
+        if target_path.exists():
+            target_path.unlink()
 
 
 @app.post("/reports/upload")

@@ -5,18 +5,27 @@ import {
   Clock,
   FileUp,
   Loader2,
+  Plus,
   Upload,
   X,
   XCircle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import ReportUploadProjectConfirmDialog from "@/components/reports/ReportUploadProjectConfirmDialog";
 import Button from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api/client";
 import {
   normalizeProjectList,
   readApiErrorMessage,
 } from "@/lib/api/read-error-message";
+import {
+  buildCreateProjectHref,
+  NEW_UPLOAD_PROJECT_OPTION,
+  resolveUploadProjectFromFile,
+  type UploadProjectResolution,
+} from "@/lib/reports/upload-project-resolver";
 import { showToast } from "@/lib/ui/toast";
 
 type Project = {
@@ -129,18 +138,107 @@ function StatusIcon({ status }: { status: UploadFileStatus }) {
   }
 }
 
+type UploadWizardStep = 1 | 2 | 3;
+
+const WIZARD_STEPS: Array<{ step: UploadWizardStep; label: string }> = [
+  { step: 1, label: "בחירת פרויקט" },
+  { step: 2, label: "העלאת מסמכים" },
+  { step: 3, label: "שליחה לניתוח" },
+];
+
 type ReportBulkUploadPanelProps = {
   fileInputId?: string;
 };
 
+function UploadWizardStepIndicator({
+  currentStep,
+}: {
+  currentStep: UploadWizardStep;
+}) {
+  return (
+    <ol
+      className="mb-8 flex flex-wrap items-center justify-center gap-2 sm:gap-4"
+      aria-label="שלבי העלאה"
+    >
+      {WIZARD_STEPS.map(({ step, label }, index) => {
+        const isActive = step === currentStep;
+        const isComplete = step < currentStep;
+
+        return (
+          <li key={step} className="flex items-center gap-2 sm:gap-4">
+            <div
+              className={`
+                flex
+                items-center
+                gap-2
+                text-sm
+                ${
+                  isActive
+                    ? "font-semibold text-brand dark:text-brand-light"
+                    : isComplete
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-zinc-500"
+                }
+              `}
+              aria-current={isActive ? "step" : undefined}
+            >
+              <span
+                className={`
+                  flex
+                  h-8
+                  w-8
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-full
+                  text-xs
+                  font-bold
+                  ${
+                    isActive
+                      ? "bg-brand text-white"
+                      : isComplete
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                        : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                  }
+                `}
+              >
+                {isComplete ? (
+                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                ) : (
+                  step
+                )}
+              </span>
+              <span className="hidden sm:inline">{label}</span>
+            </div>
+            {index < WIZARD_STEPS.length - 1 ? (
+              <span
+                className="hidden h-px w-6 bg-zinc-300 sm:block dark:bg-zinc-700"
+                aria-hidden
+              />
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export default function ReportBulkUploadPanel({
   fileInputId = "weekly-report-file",
 }: ReportBulkUploadPanelProps) {
+  const router = useRouter();
+  const [wizardStep, setWizardStep] = useState<UploadWizardStep>(1);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState("");
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [projectResolutionOpen, setProjectResolutionOpen] = useState(false);
+  const [projectResolutionLoading, setProjectResolutionLoading] = useState(false);
+  const [projectResolution, setProjectResolution] =
+    useState<UploadProjectResolution | null>(null);
+  const [projectResolutionError, setProjectResolutionError] = useState("");
+  const [resolvedProjectId, setResolvedProjectId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -279,8 +377,9 @@ export default function ReportBulkUploadPanel({
     throw new Error("העלאת הדוחות נמשכה זמן רב מדי");
   }
 
-  async function uploadReports() {
-    if (!selectedProject || queue.length === 0 || uploading) {
+  async function uploadReports(projectIdOverride?: string) {
+    const targetProjectId = projectIdOverride ?? selectedProject;
+    if (!targetProjectId || queue.length === 0 || uploading) {
       return;
     }
 
@@ -303,7 +402,7 @@ export default function ReportBulkUploadPanel({
     }
 
     const formData = new FormData();
-    formData.append("project_id", selectedProject);
+    formData.append("project_id", targetProjectId);
     for (const item of pendingItems) {
       formData.append("files", item.file);
     }
@@ -334,7 +433,7 @@ export default function ReportBulkUploadPanel({
         initialJob.status === "COMPLETED"
           ? initialJob
           : await pollBulkJob(
-              selectedProject,
+              targetProjectId,
               initialJob.job_id,
               pendingItems
             );
@@ -373,6 +472,92 @@ export default function ReportBulkUploadPanel({
     }
   }
 
+  function resetProjectResolutionDialog() {
+    setProjectResolutionOpen(false);
+    setProjectResolutionLoading(false);
+    setProjectResolution(null);
+    setProjectResolutionError("");
+    setResolvedProjectId("");
+  }
+
+  async function resolveNewUploadProject() {
+    const pendingItems = queue.filter(
+      (item) => item.status === "pending" || item.status === "error"
+    );
+    if (pendingItems.length === 0) {
+      return;
+    }
+
+    setProjectResolutionOpen(true);
+    setProjectResolutionLoading(true);
+    setProjectResolution(null);
+    setProjectResolutionError("");
+
+    try {
+      const resolution = await resolveUploadProjectFromFile(pendingItems[0].file);
+      setProjectResolution(resolution);
+      const defaultProjectId =
+        resolution.match_status === "MULTIPLE_MATCHES"
+          ? resolution.projects[0]?.id ?? ""
+          : resolution.project?.id ?? "";
+      setResolvedProjectId(defaultProjectId);
+
+      if (
+        !resolution.extracted_project_name?.trim()
+        && resolution.match_status === "NOT_FOUND"
+      ) {
+        setProjectResolutionError(
+          "לא ניתן לזהות את שם הפרויקט מהדוח. נסה לבחור פרויקט קיים או להעלות דוח עם שם פרויקט ברור."
+        );
+      }
+    } catch (error) {
+      setProjectResolutionError(
+        error instanceof Error
+          ? error.message
+          : "לא ניתן לזהות את הפרויקט מהדוח"
+      );
+    } finally {
+      setProjectResolutionLoading(false);
+    }
+  }
+
+  async function advanceFromStep2() {
+    if (queue.length === 0 || uploading) {
+      return;
+    }
+
+    if (selectedProject === NEW_UPLOAD_PROJECT_OPTION) {
+      await resolveNewUploadProject();
+      return;
+    }
+
+    setWizardStep(3);
+  }
+
+  async function beginUpload() {
+    if (
+      !selectedProject
+      || selectedProject === NEW_UPLOAD_PROJECT_OPTION
+      || queue.length === 0
+      || uploading
+    ) {
+      return;
+    }
+
+    await uploadReports();
+  }
+
+  function handleConfirmExistingProject(project: { id: string; project_name: string }) {
+    resetProjectResolutionDialog();
+    setSelectedProject(project.id);
+    setWizardStep(3);
+  }
+
+  function handleConfirmCreateProject(projectName: string) {
+    resetProjectResolutionDialog();
+    router.push(buildCreateProjectHref(projectName));
+  }
+
   const pendingCount = queue.filter((item) => item.status === "pending").length;
   const uploadingCount = queue.filter(
     (item) => item.status === "uploading"
@@ -385,142 +570,30 @@ export default function ReportBulkUploadPanel({
   const hasPendingWork =
     pendingCount > 0 || errorCount > 0 || uploadingCount > 0;
   const canSubmit = Boolean(
-    selectedProject && queue.length > 0 && hasPendingWork && !uploading
+    selectedProject
+    && selectedProject !== NEW_UPLOAD_PROJECT_OPTION
+    && queue.length > 0
+    && hasPendingWork
+    && !uploading
   );
+  const isNewProjectMode = selectedProject === NEW_UPLOAD_PROJECT_OPTION;
+  const selectedProjectName =
+    projects.find((project) => project.id === selectedProject)?.project_name
+    ?? "";
 
-  return (
-    <div className="of-card of-card-p8 shadow-sm">
+  function renderFileQueue(options: {
+    allowRemove: boolean;
+    showProgress: boolean;
+  }) {
+    if (queue.length === 0) {
+      return null;
+    }
+
+    return (
       <div className="mb-8">
-        <label
-          htmlFor="upload-project"
-          className="mb-3 block font-semibold"
-        >
-          בחירת פרויקט
-        </label>
-        <select
-          id="upload-project"
-          value={selectedProject}
-          onChange={(event) => setSelectedProject(event.target.value)}
-          disabled={uploading}
-          className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-4 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
-        >
-          <option value="">בחר פרויקט</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.project_name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mb-8">
-        <p className="mb-3 font-semibold">שלב 1 - בחירת מסמכים</p>
-
-        <input
-          ref={fileInputRef}
-          id={fileInputId}
-          type="file"
-          accept={ACCEPTED_EXTENSIONS}
-          multiple
-          className="sr-only"
-          disabled={uploading}
-          onChange={handleFileChange}
-        />
-
-        <label
-          htmlFor={uploading ? undefined : fileInputId}
-          aria-label="אזור העלאת קבצים - לחץ או גרור קבצים"
-          onDragOver={(event) => {
-            event.preventDefault();
-            if (!uploading) {
-              setDragOver(true);
-            }
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragOver(false);
-            if (!uploading) {
-              addFiles(event.dataTransfer.files);
-            }
-          }}
-          className={`
-            flex
-            w-full
-            flex-col
-            items-center
-            justify-center
-            gap-3
-            rounded-3xl
-            border-2
-            border-dashed
-            bg-zinc-50/90
-            px-6
-            py-12
-            text-center
-            transition-all
-            dark:bg-zinc-900/50
-            ${
-              uploading
-                ? "cursor-not-allowed opacity-70"
-                : "cursor-pointer"
-            }
-            ${
-              dragOver
-                ? "border-brand bg-brand/10 shadow-inner dark:border-brand-light"
-                : queue.length > 0
-                  ? "border-emerald-400/80 bg-emerald-50/60 dark:border-emerald-600/60 dark:bg-emerald-950/30"
-                  : "border-zinc-300 hover:border-brand/60 hover:bg-brand/5 dark:border-zinc-600 dark:hover:border-brand-light/50"
-            }
-          `}
-        >
-          <span
-            className={`
-              flex
-              h-16
-              w-16
-              items-center
-              justify-center
-              rounded-2xl
-              ${
-                queue.length > 0
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-                  : "bg-brand/15 text-brand dark:bg-brand/25 dark:text-brand-light"
-              }
-            `}
-          >
-            {queue.length > 0 ? (
-              <FileUp className="h-8 w-8" aria-hidden />
-            ) : (
-              <Upload className="h-8 w-8" aria-hidden />
-            )}
-          </span>
-
-          <div className="flex w-full max-w-md flex-col items-center gap-2">
-            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              {queue.length > 0
-                ? `${queue.length} קבצים נבחרו`
-                : "גרור קבצים לכאן"}
-            </p>
-            <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-              {queue.length > 0
-                ? "לחץ כדי להוסיף עוד קבצים"
-                : "או לחץ באזור זה לבחירת מסמכים מהמחשב"}
-            </p>
-            <p className="text-xs text-zinc-500">
-              PDF · Word · Excel · CSV · תמונות
-            </p>
-            <p className="text-xs text-zinc-500">
-              לבחירת מספר קבצים: החזק Cmd (Mac) או Ctrl (Windows)
-            </p>
-          </div>
-        </label>
-      </div>
-
-      {queue.length > 0 ? (
-        <div className="mb-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="font-semibold">סטטוס קבצים</p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="font-semibold">סטטוס קבצים</p>
+          {options.showProgress ? (
             <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
               {pendingCount > 0 ? <span>{pendingCount} ממתינים</span> : null}
               {uploadingCount > 0 ? (
@@ -537,138 +610,396 @@ export default function ReportBulkUploadPanel({
                 </span>
               ) : null}
             </div>
+          ) : (
+            <span className="text-xs text-zinc-500">
+              {queue.length} קבצים נבחרו
+            </span>
+          )}
+        </div>
+
+        {options.showProgress && (uploading || completedCount > 0) ? (
+          <div className="mb-4">
+            <div className="mb-2 flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
+              <span>התקדמות כללית</span>
+              <span>{overallProgress}%</span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+              role="progressbar"
+              aria-valuenow={overallProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="התקדמות העלאה"
+            >
+              <div
+                className="h-full rounded-full bg-brand transition-all duration-300"
+                style={{ width: `${overallProgress}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        <ul
+          className="max-h-80 space-y-2 overflow-y-auto rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800"
+          aria-live={options.showProgress ? "polite" : undefined}
+          aria-relevant={options.showProgress ? "additions text" : undefined}
+        >
+          {queue.map((item) => (
+            <li
+              key={item.id}
+              className={`
+                flex
+                items-start
+                gap-3
+                rounded-xl
+                px-3
+                py-3
+                ${
+                  item.status === "success"
+                    ? "bg-emerald-50/80 dark:bg-emerald-950/20"
+                    : item.status === "error"
+                      ? "bg-red-50/80 dark:bg-red-950/20"
+                      : item.status === "uploading"
+                        ? "bg-brand/5 dark:bg-brand/10"
+                        : "bg-zinc-50 dark:bg-zinc-900/50"
+                }
+              `}
+            >
+              <StatusIcon status={item.status} />
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  {item.file.name}
+                </p>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  {formatFileSize(item.file.size)}
+                  {options.showProgress
+                    ? ` · ${statusLabel(item.status)}`
+                    : null}
+                </p>
+                {item.errorMessage ? (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    {item.errorMessage}
+                  </p>
+                ) : null}
+              </div>
+
+              {options.allowRemove
+              && !uploading
+              && (item.status === "pending" || item.status === "error") ? (
+                <button
+                  type="button"
+                  onClick={() => removeFile(item.id)}
+                  className="rounded-lg p-1 text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  aria-label={`הסר ${item.file.name}`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+
+        {options.showProgress && successCount > 0 && !uploading ? (
+          <button
+            type="button"
+            onClick={clearCompleted}
+            className="mt-3 text-sm text-zinc-500 underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
+          >
+            נקה קבצים שהושלמו
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="of-card of-card-p8 shadow-sm">
+      <UploadWizardStepIndicator currentStep={wizardStep} />
+
+      {wizardStep === 1 ? (
+        <div>
+          <p className="mb-3 font-semibold">שלב 1 - בחירת פרויקט</p>
+
+          <label htmlFor="upload-project" className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+            בחר פרויקט קיים
+          </label>
+          <select
+            id="upload-project"
+            value={isNewProjectMode ? "" : selectedProject}
+            onChange={(event) => setSelectedProject(event.target.value)}
+            disabled={uploading}
+            className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-4 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+          >
+            <option value="">בחר פרויקט</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.project_name}
+              </option>
+            ))}
+          </select>
+
+          <div className="my-4 flex items-center gap-3">
+            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" aria-hidden />
+            <span className="text-xs text-zinc-500">או</span>
+            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" aria-hidden />
           </div>
 
-          {(uploading || completedCount > 0) && (
-            <div className="mb-4">
-              <div className="mb-2 flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
-                <span>התקדמות כללית</span>
-                <span>{overallProgress}%</span>
-              </div>
-              <div
-                className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-                role="progressbar"
-                aria-valuenow={overallProgress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="התקדמות העלאה"
-              >
-                <div
-                  className="h-full rounded-full bg-brand transition-all duration-300"
-                  style={{ width: `${overallProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          <ul
-            className="max-h-80 space-y-2 overflow-y-auto rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800"
-            aria-live="polite"
-            aria-relevant="additions text"
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => setSelectedProject(NEW_UPLOAD_PROJECT_OPTION)}
+            className={`
+              flex
+              w-full
+              items-center
+              justify-between
+              rounded-xl
+              border
+              border-dashed
+              px-4
+              py-3
+              text-right
+              transition-colors
+              disabled:opacity-60
+              ${
+                isNewProjectMode
+                  ? "border-brand bg-brand/10 text-brand ring-1 ring-brand/30 dark:text-brand-light"
+                  : "border-zinc-300 bg-zinc-50 hover:border-brand/40 hover:bg-brand/5 dark:border-zinc-700 dark:bg-zinc-900/50"
+              }
+            `}
           >
-            {queue.map((item) => (
-              <li
-                key={item.id}
-                className={`
-                  flex
-                  items-start
-                  gap-3
-                  rounded-xl
-                  px-3
-                  py-3
-                  ${
-                    item.status === "success"
-                      ? "bg-emerald-50/80 dark:bg-emerald-950/20"
-                      : item.status === "error"
-                        ? "bg-red-50/80 dark:bg-red-950/20"
-                        : item.status === "uploading"
-                          ? "bg-brand/5 dark:bg-brand/10"
-                          : "bg-zinc-50 dark:bg-zinc-900/50"
-                  }
-                `}
-              >
-                <StatusIcon status={item.status} />
+            <span className="font-medium">הקמת פרויקט חדש</span>
+            <Plus className="h-5 w-5 shrink-0" aria-hidden />
+          </button>
 
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {item.file.name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    {formatFileSize(item.file.size)} · {statusLabel(item.status)}
-                  </p>
-                  {item.errorMessage ? (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      {item.errorMessage}
-                    </p>
-                  ) : null}
-                </div>
-
-                {!uploading &&
-                (item.status === "pending" || item.status === "error") ? (
-                  <button
-                    type="button"
-                    onClick={() => removeFile(item.id)}
-                    className="rounded-lg p-1 text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                    aria-label={`הסר ${item.file.name}`}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-
-          {successCount > 0 && !uploading ? (
-            <button
-              type="button"
-              onClick={clearCompleted}
-              className="mt-3 text-sm text-zinc-500 underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
-            >
-              נקה קבצים שהושלמו
-            </button>
+          {isNewProjectMode ? (
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+              בשלב 2 תעלה את המסמכים, ובמעבר לשלב 3 המערכת תזהה את שם הפרויקט
+              מהדוח ותבדוק אם הוא כבר קיים.
+            </p>
           ) : null}
+
+          <div className="mt-8 flex justify-end border-t border-zinc-200 pt-6 dark:border-zinc-800">
+            <Button
+              type="button"
+              size="lg"
+              disabled={!selectedProject}
+              onClick={() => setWizardStep(2)}
+            >
+              המשך להעלאת מסמכים
+            </Button>
+          </div>
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 border-t border-zinc-200 pt-8 dark:border-zinc-800">
-        <p className="font-semibold">שלב 2 - שליחה לניתוח</p>
+      {wizardStep === 2 ? (
+        <div>
+          <p className="mb-3 font-semibold">שלב 2 - העלאת מסמכים</p>
 
-        <Button
-          type="button"
-          variant="secondary"
-          size="lg"
-          disabled={uploading}
-          onClick={openFilePicker}
-          className="w-full justify-center py-4 text-base"
-        >
-          {queue.length > 0 ? "הוסף קבצים" : "בחר קבצים"}
-        </Button>
+          <input
+            ref={fileInputRef}
+            id={fileInputId}
+            type="file"
+            accept={ACCEPTED_EXTENSIONS}
+            multiple
+            className="sr-only"
+            disabled={uploading}
+            onChange={handleFileChange}
+          />
 
-        <Button
-          variant="primary"
-          size="lg"
-          onClick={() => void uploadReports()}
-          disabled={!canSubmit}
-          className="w-full justify-center py-4 text-lg"
-        >
-          {uploading
-            ? `מעלה דוחות (${completedCount}/${queue.length})...`
-            : queue.length > 1
-              ? `העלאת ${pendingCount || queue.length} דוחות ל-AI`
-              : "העלאת הדוח ל-AI"}
-        </Button>
+          <label
+            htmlFor={uploading ? undefined : fileInputId}
+            aria-label="אזור העלאת קבצים - לחץ או גרור קבצים"
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (!uploading) {
+                setDragOver(true);
+              }
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragOver(false);
+              if (!uploading) {
+                addFiles(event.dataTransfer.files);
+              }
+            }}
+            className={`
+              flex
+              w-full
+              flex-col
+              items-center
+              justify-center
+              gap-3
+              rounded-3xl
+              border-2
+              border-dashed
+              bg-zinc-50/90
+              px-6
+              py-12
+              text-center
+              transition-all
+              dark:bg-zinc-900/50
+              ${
+                uploading
+                  ? "cursor-not-allowed opacity-70"
+                  : "cursor-pointer"
+              }
+              ${
+                dragOver
+                  ? "border-brand bg-brand/10 shadow-inner dark:border-brand-light"
+                  : queue.length > 0
+                    ? "border-emerald-400/80 bg-emerald-50/60 dark:border-emerald-600/60 dark:bg-emerald-950/30"
+                    : "border-zinc-300 hover:border-brand/60 hover:bg-brand/5 dark:border-zinc-600 dark:hover:border-brand-light/50"
+              }
+            `}
+          >
+            <span
+              className={`
+                flex
+                h-16
+                w-16
+                items-center
+                justify-center
+                rounded-2xl
+                ${
+                  queue.length > 0
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                    : "bg-brand/15 text-brand dark:bg-brand/25 dark:text-brand-light"
+                }
+              `}
+            >
+              {queue.length > 0 ? (
+                <FileUp className="h-8 w-8" aria-hidden />
+              ) : (
+                <Upload className="h-8 w-8" aria-hidden />
+              )}
+            </span>
 
-        {!selectedProject ? (
-          <p className="text-center text-xs text-zinc-500">
-            יש לבחור פרויקט לפני שליחה ל-AI
-          </p>
-        ) : null}
-        {selectedProject && queue.length === 0 ? (
-          <p className="text-center text-xs text-zinc-500">
-            יש לבחור לפחות קובץ אחד לפני שליחה ל-AI
-          </p>
-        ) : null}
-      </div>
+            <div className="flex w-full max-w-md flex-col items-center gap-2">
+              <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                {queue.length > 0
+                  ? `${queue.length} קבצים נבחרו`
+                  : "גרור קבצים לכאן"}
+              </p>
+              <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                {queue.length > 0
+                  ? "לחץ כדי להוסיף עוד קבצים"
+                  : "או לחץ באזור זה לבחירת מסמכים מהמחשב"}
+              </p>
+              <p className="text-xs text-zinc-500">
+                PDF · Word · Excel · CSV · תמונות
+              </p>
+              <p className="text-xs text-zinc-500">
+                לבחירת מספר קבצים: החזק Cmd (Mac) או Ctrl (Windows)
+              </p>
+            </div>
+          </label>
+
+          {renderFileQueue({ allowRemove: true, showProgress: false })}
+
+          <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={uploading}
+              onClick={() => setWizardStep(1)}
+            >
+              חזרה
+            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={uploading}
+                onClick={openFilePicker}
+              >
+                {queue.length > 0 ? "הוסף קבצים" : "בחר קבצים"}
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                disabled={queue.length === 0 || uploading}
+                onClick={() => void advanceFromStep2()}
+              >
+                המשך לשליחה לניתוח
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {wizardStep === 3 ? (
+        <div>
+          <p className="mb-3 font-semibold">שלב 3 - שליחה לניתוח</p>
+
+          <div className="mb-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <dl className="space-y-2 text-sm">
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-zinc-500">פרויקט</dt>
+                <dd className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {selectedProjectName}
+                </dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-zinc-500">מסמכים</dt>
+                <dd className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {queue.length} קבצים
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {renderFileQueue({ allowRemove: false, showProgress: true })}
+
+          <div className="mt-8 flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+            <div className="flex flex-wrap justify-between gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={uploading}
+                onClick={() => setWizardStep(2)}
+              >
+                חזרה
+              </Button>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => void beginUpload()}
+                disabled={!canSubmit}
+                className="min-w-48 justify-center py-4 text-lg"
+              >
+                {uploading
+                  ? `שולח לניתוח (${completedCount}/${queue.length})...`
+                  : queue.length > 1
+                    ? `שליחת ${pendingCount || queue.length} דוחות ל-AI`
+                    : "שליחת הדוח ל-AI"}
+              </Button>
+            </div>
+
+            {!canSubmit && !uploading ? (
+              <p className="text-center text-xs text-zinc-500">
+                {successCount === queue.length && queue.length > 0
+                  ? "כל הקבצים נשלחו לניתוח"
+                  : "יש קבצים ממתינים לשליחה"}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <ReportUploadProjectConfirmDialog
+        open={projectResolutionOpen}
+        loading={projectResolutionLoading}
+        resolution={projectResolution}
+        error={projectResolutionError}
+        selectedProjectId={resolvedProjectId}
+        onSelectedProjectIdChange={setResolvedProjectId}
+        onCancel={resetProjectResolutionDialog}
+        onConfirmExisting={handleConfirmExistingProject}
+        onConfirmCreate={handleConfirmCreateProject}
+      />
     </div>
   );
 }

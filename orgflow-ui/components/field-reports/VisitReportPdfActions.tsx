@@ -9,20 +9,47 @@ import {
 } from "@/lib/field-reports/finalize-status-labels";
 import type { VisitReportPdfDownloadSource } from "@/lib/field-reports/pdf/generate-visit-report-pdf";
 import type { PdfVisitReport } from "@/lib/field-reports/pdf/types";
+import { serverVisitReportId } from "@/lib/field-reports/visit-report-view";
 import { downloadFieldVisitReportPdf } from "@/lib/deliverable-reports/api";
 
+export type VisitReportPdfActionsReport = PdfVisitReport & {
+  is_editable: boolean;
+  status: string;
+  is_published?: boolean;
+  server_report_id?: string | null;
+  client_report_uuid?: string;
+};
+
+const PDF_ACTION_STATUSES = new Set([
+  "CLOSED",
+  "PENDING_UPLOAD",
+  "LOCKED",
+  "FINALIZING",
+  "FINALIZED",
+  "FINALIZE_FAILED",
+  "PUBLISHED",
+]);
+
+export function shouldShowVisitReportPdfActions(
+  report: Pick<VisitReportPdfActionsReport, "is_editable" | "status">,
+  isReopenedForEdit: boolean
+): boolean {
+  if (report.is_editable && isReopenedForEdit) {
+    return true;
+  }
+
+  return !report.is_editable && PDF_ACTION_STATUSES.has(report.status);
+}
+
 type VisitReportPdfActionsProps = {
-  report: PdfVisitReport & {
-    is_editable: boolean;
-    status: string;
-    is_published?: boolean;
-    server_report_id?: string | null;
-    client_report_uuid?: string;
-  };
+  report: VisitReportPdfActionsReport;
   isReopenedForEdit: boolean;
   hasLocalPdf: boolean;
   canFinalize?: boolean;
   isOnline?: boolean;
+  className?: string;
+  /** Stack actions vertically for narrow screens (e.g. mobile footer). */
+  stacked?: boolean;
   onCacheChange: (hasLocal: boolean) => void;
   onSetNotice: (message: string) => void;
   onSetError: (message: string) => void;
@@ -36,27 +63,34 @@ export default function VisitReportPdfActions({
   hasLocalPdf,
   canFinalize = false,
   isOnline = true,
+  className = "",
+  stacked = false,
   onCacheChange,
   onSetNotice,
   onSetError,
   onFinalizeStart,
   onFinalizeComplete,
 }: VisitReportPdfActionsProps) {
-  const serverReportId = report.server_report_id?.trim() || null;
+  const serverReportId = serverVisitReportId(report);
   const isFinalizing = isVisitReportFinalizing(report.status);
   const isFinalized = isVisitReportFinalizeComplete(report.status);
   const isFinalizeFailed = isVisitReportFinalizeFailed(report.status);
   const canDownloadArchivedPdf = Boolean(
     (report.is_published || isFinalized) && serverReportId
   );
+  const showGeneratePdfButton =
+    !isFinalizing && (!isFinalized || !canDownloadArchivedPdf);
+  const actionButtonClassName = stacked
+    ? "min-h-12 w-full sm:w-auto"
+    : "min-h-12";
 
   if (report.is_editable && isReopenedForEdit) {
     return (
-      <div className="space-y-1.5">
+      <div className={`space-y-1.5 ${className}`}>
         <GenerateVisitReportPdfButton
           report={report}
           variant="secondary"
-          className="min-h-12"
+          className={actionButtonClassName}
           forceRegenerate
           serverReportId={serverReportId}
           reportStatus={report.status}
@@ -97,21 +131,12 @@ export default function VisitReportPdfActions({
     );
   }
 
-  const canShowPdfActions =
-    !report.is_editable
-    && (report.status === "CLOSED"
-      || report.status === "PENDING_UPLOAD"
-      || report.status === "LOCKED"
-      || report.status === "FINALIZING"
-      || report.status === "FINALIZED"
-      || report.status === "FINALIZE_FAILED");
-
-  if (!canShowPdfActions) {
+  if (!shouldShowVisitReportPdfActions(report, isReopenedForEdit)) {
     return null;
   }
 
   return (
-    <div className="space-y-2 pt-1">
+    <div className={`space-y-2 pt-1 ${className}`}>
       {isFinalizing ? (
         <p className="text-sm text-sky-800 dark:text-sky-300">
           מעלה ומעבד דוח... המייל יישלח אוטומטית בסיום.
@@ -128,11 +153,17 @@ export default function VisitReportPdfActions({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div
+        className={
+          stacked
+            ? "flex flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center"
+            : "flex flex-wrap items-center gap-2.5"
+        }
+      >
         {canDownloadArchivedPdf ? (
           <Button
             type="button"
-            className="min-h-12"
+            className={actionButtonClassName}
             onClick={() => {
               void downloadFieldVisitReportPdf(
                 serverReportId!,
@@ -157,10 +188,11 @@ export default function VisitReportPdfActions({
             הורד PDF מהארכיון
           </Button>
         ) : null}
-        {!isFinalizing && !isFinalized ? (
+        {showGeneratePdfButton ? (
           <GenerateVisitReportPdfButton
             report={report}
-            className="min-h-12"
+            className={actionButtonClassName}
+            label={isFinalized ? "הורד PDF" : undefined}
             serverReportId={serverReportId}
             reportStatus={report.status}
             canFinalize={canFinalize}
