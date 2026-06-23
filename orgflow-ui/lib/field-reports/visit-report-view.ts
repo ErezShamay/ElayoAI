@@ -204,7 +204,9 @@ export function resolveVisitReportApiId(
 }
 
 export function serverVisitReportId(
-  report: Pick<VisitReportView, "id" | "server_report_id" | "client_report_uuid">
+  report: Pick<VisitReportView, "id" | "server_report_id"> & {
+    client_report_uuid?: string;
+  }
 ): string | null {
   if (report.server_report_id) {
     return report.server_report_id;
