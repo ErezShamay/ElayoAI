@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import Button from "@/components/ui/Button";
+import { DEFAULT_ILLUSTRATION_SOURCE_HE } from "@/components/projects/ProjectIllustrationPicker";
 import { apiFetch } from "@/lib/api/client";
+import { uploadProjectIllustration } from "@/lib/projects/upload-project-illustration";
 import { showToast } from "@/lib/ui/toast";
-
-const DEFAULT_ILLUSTRATION_SOURCE_HE =
-  'התמונה נלקחה מאתר מדלן';
 
 type ProjectIllustrationUploadProps = {
   projectId: string;
@@ -127,27 +126,7 @@ export default function ProjectIllustrationUpload({
 
     try {
       setUploading(true);
-      const formData = new FormData();
-      formData.set("file", file, file.name);
-
-      const response = await apiFetch(
-        `/projects/${projectId}/illustration`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(
-          (payload as { error?: { message?: string }; message?: string })
-            .error?.message
-            || (payload as { message?: string }).message
-            || "העלאת תמונת ההדמיה נכשלה"
-        );
-      }
-
+      await uploadProjectIllustration(projectId, file);
       showToast("תמונת ההדמיה נשמרה בפרויקט", "success");
       await onUploaded();
     } catch (error: unknown) {
@@ -171,7 +150,7 @@ export default function ProjectIllustrationUpload({
         <div>
           <h3 className="text-lg font-semibold">הדמיית הפרויקט</h3>
           <p className="mt-1 text-sm text-zinc-500">
-            תמונה אחת לפרויקט - מופיעה בדוח השטח בעמוד ההדמיה (כמו בדוחות הלקוח).
+            שדה אופציונלי — תמונה אחת לפרויקט, מופיעה בדוח השטח בעמוד ההדמיה.
           </p>
         </div>
         {canEdit ? (

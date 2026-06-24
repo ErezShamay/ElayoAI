@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+import ProjectIllustrationPicker, {
+  DEFAULT_ILLUSTRATION_SOURCE_HE,
+} from "@/components/projects/ProjectIllustrationPicker";
 import ProjectSchemeSelect from "@/components/projects/ProjectSchemeSelect";
 import Button from "@/components/ui/Button";
 import type { ProjectScheme } from "@/lib/field-reports/schema/types";
@@ -9,15 +12,15 @@ import {
   EMPTY_PROJECT_CREATE_FORM,
   validateProjectCreateForm,
   type ProjectCreateFormState,
-  type ProjectCreatePayload,
 } from "@/lib/projects/create-project-form";
+import type { ProjectCreateSubmitData } from "@/lib/projects/create-project-submit";
 import { showToast } from "@/lib/ui/toast";
 
 type ProjectCreateFormProps = {
   initialProjectName?: string;
   creating: boolean;
   onCancel: () => void;
-  onSubmit: (payload: ProjectCreatePayload) => Promise<void>;
+  onSubmit: (data: ProjectCreateSubmitData) => Promise<void>;
 };
 
 const inputClassName =
@@ -39,6 +42,10 @@ export default function ProjectCreateForm({
     ...EMPTY_PROJECT_CREATE_FORM,
     project_name: initialProjectName,
   }));
+  const [illustrationFile, setIllustrationFile] = useState<File | null>(null);
+  const [illustrationSourceHe, setIllustrationSourceHe] = useState(
+    DEFAULT_ILLUSTRATION_SOURCE_HE
+  );
 
   function updateField<K extends keyof ProjectCreateFormState>(
     field: K,
@@ -56,11 +63,27 @@ export default function ProjectCreateForm({
       return;
     }
 
-    await onSubmit(result.payload);
+    await onSubmit({
+      payload: result.payload,
+      illustration: illustrationFile
+        ? {
+            file: illustrationFile,
+            sourceHe: illustrationSourceHe.trim() || undefined,
+          }
+        : undefined,
+    });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      <ProjectIllustrationPicker
+        file={illustrationFile}
+        sourceHe={illustrationSourceHe}
+        disabled={creating}
+        onFileChange={setIllustrationFile}
+        onSourceHeChange={setIllustrationSourceHe}
+      />
+
       <DetailsSection title="פרטים כלליים">
         <Field
           label="שם הפרויקט"

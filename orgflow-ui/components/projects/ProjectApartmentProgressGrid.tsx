@@ -57,7 +57,9 @@ function unitIssuesCount(unit: GridUnit): number {
 
 function unitPortalHref(projectId: string, unit: GridUnit): string | null {
   if (unit.kind === "apartment" && unit.apartment_id) {
-    return projectApartmentPortalPath(projectId, unit.apartment_id);
+    return projectApartmentPortalPath(projectId, unit.apartment_id, {
+      from: "overview",
+    });
   }
   return null;
 }

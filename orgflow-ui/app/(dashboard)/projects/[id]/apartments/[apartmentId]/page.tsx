@@ -1,20 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 import ResidentPortalView from "@/components/apartments/ResidentPortalView";
 import Button from "@/components/ui/Button";
 import LoadingState from "@/components/ui/LoadingState";
 import { fetchApartmentPortal } from "@/lib/apartments/api";
 import type { ResidentPortalPayload } from "@/lib/apartments/types";
+import { resolveApartmentPortalBackNavigation } from "@/lib/projects/supervision-dashboard";
 
 export default function ProjectApartmentPortalPage() {
   const params = useParams();
   const projectId = typeof params?.id === "string" ? params.id : "";
   const apartmentId =
     typeof params?.apartmentId === "string" ? params.apartmentId : "";
+  const searchParams = useSearchParams();
+  const backNavigation = useMemo(
+    () =>
+      resolveApartmentPortalBackNavigation(
+        projectId,
+        searchParams.get("from")
+      ),
+    [projectId, searchParams]
+  );
   const [data, setData] = useState<ResidentPortalPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +63,10 @@ export default function ProjectApartmentPortalPage() {
     return (
       <div className="of-container mx-auto max-w-5xl space-y-4 p-8">
         <Link
-          href={`/projects/${projectId}/apartments`}
+          href={backNavigation.href}
           className="text-sm text-brand hover:underline"
         >
-          חזרה לרשימת הדירות
+          {backNavigation.label}
         </Link>
         <p className="text-sm text-red-600">{error || "לא נמצאו נתונים"}</p>
         <Button variant="secondary" onClick={() => void load()}>
@@ -70,10 +80,10 @@ export default function ProjectApartmentPortalPage() {
     <div className="space-y-4">
       <div className="of-container mx-auto max-w-5xl px-4 pt-6 md:px-0">
         <Link
-          href={`/projects/${projectId}/apartments`}
+          href={backNavigation.href}
           className="text-sm text-brand hover:underline"
         >
-          חזרה לרשימת הדירות
+          {backNavigation.label}
         </Link>
       </div>
       <ResidentPortalView

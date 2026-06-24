@@ -366,6 +366,14 @@ export default function ProjectDetailsEditor({
       </div>
 
       <div className="space-y-8">
+        <ProjectIllustrationUpload
+          projectId={project.id}
+          illustrationUrl={project.illustration_url}
+          illustrationSourceHe={project.illustration_source_he}
+          canEdit={canEdit}
+          onUploaded={onSaved}
+        />
+
         <DetailsSection title="פרטים כלליים">
           <Field
             label="שם הפרויקט"

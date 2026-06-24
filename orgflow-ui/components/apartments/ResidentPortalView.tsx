@@ -209,7 +209,7 @@ export default function ResidentPortalView({
       </section>
 
       <section className="of-card of-card-p6 space-y-4">
-        <h2 className="text-lg font-semibold">התקדמות מלאכות — לוח גantt</h2>
+        <h2 className="text-lg font-semibold">התקדמות מלאכות — לוח גאנט</h2>
         <ConstructionProgressGantt rows={gantt_rows ?? []} />
       </section>
 

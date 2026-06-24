@@ -23,7 +23,8 @@ import { useFiltering } from "@/hooks/useFiltering";
 import { usePagination } from "@/hooks/usePagination";
 import { useSorting } from "@/hooks/useSorting";
 import { apiFetch } from "@/lib/api/client";
-import type { ProjectCreatePayload } from "@/lib/projects/create-project-form";
+import type { ProjectCreateSubmitData } from "@/lib/projects/create-project-submit";
+import { uploadProjectIllustration } from "@/lib/projects/upload-project-illustration";
 import {
   canViewProjectSupervisionDashboard,
   fetchProjectSupervisionSummaries,
@@ -152,7 +153,10 @@ export default function ProjectsPage() {
     router.replace("/projects");
   }, [router, searchParams]);
 
-  async function handleCreateProject(payload: ProjectCreatePayload) {
+  async function handleCreateProject({
+    payload,
+    illustration,
+  }: ProjectCreateSubmitData) {
     try {
       setCreating(true);
 
@@ -169,7 +173,26 @@ export default function ProjectsPage() {
         throw new Error("Failed to create project");
       }
 
-      await response.json();
+      const created = (await response.json()) as { id: string };
+
+      if (illustration) {
+        try {
+          await uploadProjectIllustration(
+            created.id,
+            illustration.file,
+            { sourceHe: illustration.sourceHe }
+          );
+        } catch {
+          showToast(
+            "הפרויקט נוצר, אך העלאת תמונת ההדמיה נכשלה — ניתן לנסות שוב בהגדרות הפרויקט",
+            "error"
+          );
+          setCreateProjectName("");
+          setShowCreateForm(false);
+          await retry();
+          return;
+        }
+      }
 
       setCreateProjectName("");
       showToast("הפרויקט נוצר בהצלחה", "success");

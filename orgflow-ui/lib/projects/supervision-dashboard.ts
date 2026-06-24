@@ -146,9 +146,33 @@ export function projectSupervisionPublicAreaVisitReportPath(
   return `/projects/${encodeURIComponent(projectId)}/field-reports/new?${params.toString()}`;
 }
 
+export type ApartmentPortalFrom = "overview";
+
 export function projectApartmentPortalPath(
   projectId: string,
-  apartmentId: string
+  apartmentId: string,
+  options?: { from?: ApartmentPortalFrom }
 ): string {
-  return `/projects/${encodeURIComponent(projectId)}/apartments/${encodeURIComponent(apartmentId)}`;
+  const base = `/projects/${encodeURIComponent(projectId)}/apartments/${encodeURIComponent(apartmentId)}`;
+  if (options?.from === "overview") {
+    return `${base}?from=overview`;
+  }
+  return base;
+}
+
+export function resolveApartmentPortalBackNavigation(
+  projectId: string,
+  from: string | null | undefined
+): { href: string; label: string } {
+  if (from === "overview") {
+    return {
+      href: `/projects/${encodeURIComponent(projectId)}`,
+      label: "חזרה לסקירת הפרויקט",
+    };
+  }
+
+  return {
+    href: `/projects/${encodeURIComponent(projectId)}/apartments`,
+    label: "חזרה לרשימת הדירות",
+  };
 }

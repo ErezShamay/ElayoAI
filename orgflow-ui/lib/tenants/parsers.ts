@@ -2,6 +2,18 @@ import * as XLSX from "xlsx";
 
 import type { Tenant } from "./types";
 
+async function readWorkbookFromFile(file: File) {
+  const name = file.name.toLowerCase();
+
+  if (name.endsWith(".csv")) {
+    const text = await file.text();
+    return XLSX.read(text, { type: "string" });
+  }
+
+  const buffer = await file.arrayBuffer();
+  return XLSX.read(buffer, { type: "array" });
+}
+
 /**
  * Parse file A - the apartments/protocol file.
  * Each row represents ONE apartment with its owner name(s), apartment number,
@@ -10,8 +22,7 @@ import type { Tenant } from "./types";
  * "Cohen, Levy" together; splitting per-owner happens later in the merge step.
  */
 export async function parseApartmentsExcel(file: File): Promise<Tenant[] | null> {
-  const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: "array" });
+  const wb = await readWorkbookFromFile(file);
 
   for (const sheetName of wb.SheetNames) {
     const sheet = wb.Sheets[sheetName];
@@ -113,8 +124,7 @@ export async function parseApartmentsExcel(file: File): Promise<Tenant[] | null>
  * file B is the OLD sub-parcel and must not override file A's apartment).
  */
 export async function parseContactsExcel(file: File): Promise<Tenant[] | null> {
-  const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: "array" });
+  const wb = await readWorkbookFromFile(file);
 
   for (const sheetName of wb.SheetNames) {
     const sheet = wb.Sheets[sheetName];
@@ -227,8 +237,7 @@ export async function parseContactsExcel(file: File): Promise<Tenant[] | null> {
 }
 
 export async function parseExcelToText(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: "array" });
+  const wb = await readWorkbookFromFile(file);
   const lines: string[] = [];
   for (const sheetName of wb.SheetNames) {
     const sheet = wb.Sheets[sheetName];
@@ -242,6 +251,7 @@ export async function parseExcelToText(file: File): Promise<string> {
 // Normalize a header cell for matching (strip spaces, quotes, punctuation).
 function normHeader(s: unknown): string {
   return String(s ?? "")
+    .replace(/^\uFEFF/, "")
     .replace(/["'`׳״]/g, "")
     .replace(/[/\\\-_.()]/g, "")
     .replace(/\s+/g, "")
@@ -287,8 +297,7 @@ function splitMulti(value: unknown): string[] {
  * `parseApartmentsExcel` / `parseContactsExcel` functions instead.
  */
 export async function tryParseExcelToTenants(file: File): Promise<Tenant[] | null> {
-  const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: "array" });
+  const wb = await readWorkbookFromFile(file);
 
   for (const sheetName of wb.SheetNames) {
     const sheet = wb.Sheets[sheetName];
@@ -354,6 +363,8 @@ export async function tryParseExcelToTenants(file: File): Promise<Tenant[] | nul
     ]);
     const colPhone = findCol(headers, ["נייד", "טלפוןנייד", "mobile", "טלפון", "phone"]);
     const colEmail = findCol(headers, ["מייל", "email", "דואל", "אימייל", "דואלקטרוני"]);
+    const colBuilding = findCol(headers, ["בניין", "בנין", "building"]);
+    const colEntrance = findCol(headers, ["כניסה", "entrance"]);
 
     const tenants: Tenant[] = [];
     // Forward-fill state: when an owner has several phone rows in Excel, the
@@ -393,6 +404,8 @@ export async function tryParseExcelToTenants(file: File): Promise<Tenant[] | nul
           name,
           phone: phonesRaw[k] ?? phonesRaw[0] ?? "",
           email: emailsRaw[k] ?? emailsRaw[0] ?? "",
+          building: get(colBuilding),
+          entrance: get(colEntrance),
         });
       }
     }

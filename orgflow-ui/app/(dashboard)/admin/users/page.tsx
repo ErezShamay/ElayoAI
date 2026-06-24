@@ -24,12 +24,30 @@ import {
   isPlatformAdmin,
   organizationHasClientAdmin,
 } from "@/lib/auth/permissions";
+import { isResidentRole } from "@/lib/auth/resident-access";
 import { getRoleLabel } from "@/lib/auth/roleLabels";
+import { listProjectApartments } from "@/lib/apartments/api";
+import type { ProjectApartment } from "@/lib/apartments/types";
 import { apiFetch } from "@/lib/api/client";
+import { normalizeProjectList } from "@/lib/api/read-error-message";
 import { dispatchTenantManagerModuleChanged } from "@/lib/tenant-manager/module-events";
 import { validateEmail } from "@/lib/validation/email";
 
 const ALL_ORGANIZATIONS_SCOPE = "__all__";
+const MAX_VISIBLE_USER_ROWS = 10;
+const USER_LIST_ROW_REM = 3;
+const USER_LIST_SCROLL_MAX_HEIGHT = `calc(${USER_LIST_ROW_REM}rem + ${MAX_VISIBLE_USER_ROWS} * ${USER_LIST_ROW_REM}rem)`;
+
+const APARTMENT_INVITE_STATUS_LABELS: Record<string, string> = {
+  none: "לא הוזמן",
+  pending: "ממתין להפעלה",
+  active: "פעיל",
+};
+
+type TenantProjectOption = {
+  id: string;
+  project_name: string;
+};
 
 type ManagedUser = {
   id: string;
@@ -162,6 +180,16 @@ function AdminUsersContent() {
     string | null
   >(null);
   const [usersScopeId, setUsersScopeId] = useState(ALL_ORGANIZATIONS_SCOPE);
+  const [tenantProjects, setTenantProjects] = useState<TenantProjectOption[]>(
+    []
+  );
+  const [selectedTenantProjectId, setSelectedTenantProjectId] = useState("");
+  const [projectApartments, setProjectApartments] = useState<ProjectApartment[]>(
+    []
+  );
+  const [loadingTenantProjects, setLoadingTenantProjects] = useState(false);
+  const [loadingProjectApartments, setLoadingProjectApartments] =
+    useState(false);
   const [error, setError] = useState("");
 
   const [email, setEmail] = useState("");
@@ -219,6 +247,59 @@ function AdminUsersContent() {
   const activeUsersScopeId = canManageOrganizations
     ? usersScopeId
     : "";
+
+  const employeeUsers = useMemo(
+    () => users.filter((user) => !isResidentRole(user.role)),
+    [users]
+  );
+
+  const showOrganizationColumn =
+    canManageOrganizations
+    && activeUsersScopeId === ALL_ORGANIZATIONS_SCOPE;
+
+  const loadTenantProjects = useCallback(async () => {
+    try {
+      setLoadingTenantProjects(true);
+      const response = await apiFetch("/projects");
+
+      if (!response.ok) {
+        setTenantProjects([]);
+        return;
+      }
+
+      const data = await response.json();
+      const items = normalizeProjectList(data);
+      setTenantProjects(items);
+      setSelectedTenantProjectId((current) => {
+        if (current && items.some((project) => project.id === current)) {
+          return current;
+        }
+
+        return items.length === 1 ? items[0]!.id : "";
+      });
+    } catch {
+      setTenantProjects([]);
+    } finally {
+      setLoadingTenantProjects(false);
+    }
+  }, []);
+
+  const loadProjectApartments = useCallback(async (projectId: string) => {
+    if (!projectId) {
+      setProjectApartments([]);
+      return;
+    }
+
+    try {
+      setLoadingProjectApartments(true);
+      const apartments = await listProjectApartments(projectId);
+      setProjectApartments(apartments);
+    } catch {
+      setProjectApartments([]);
+    } finally {
+      setLoadingProjectApartments(false);
+    }
+  }, []);
 
   function adminUserActionQuery(
     user?: ManagedUser
@@ -294,6 +375,19 @@ function AdminUsersContent() {
     activeUsersScopeId,
     loadUsers,
   ]);
+
+  useEffect(() => {
+    void loadTenantProjects();
+  }, [currentOrgId, loadTenantProjects]);
+
+  useEffect(() => {
+    if (!selectedTenantProjectId) {
+      setProjectApartments([]);
+      return;
+    }
+
+    void loadProjectApartments(selectedTenantProjectId);
+  }, [selectedTenantProjectId, loadProjectApartments]);
 
   async function loadOrganizations() {
     try {
@@ -1524,13 +1618,9 @@ function AdminUsersContent() {
       <section className="of-card of-card-p6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold">
-              {canManageOrganizations
-                ? "משתמשים במערכת"
-                : "משתמשים בארגון"}
-            </h2>
+            <h2 className="text-xl font-semibold">עובדי החברה</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              {users.length} משתמשים
+              {employeeUsers.length} עובדים
             </p>
           </div>
           {!showInviteUserForm ? (
@@ -1707,19 +1797,21 @@ function AdminUsersContent() {
 
         {loading ? (
           <p className="text-sm text-zinc-500">טוען משתמשים...</p>
-        ) : users.length === 0 ? (
+        ) : employeeUsers.length === 0 ? (
           <p className="text-sm text-zinc-500">
-            עדיין לא הוזמנו משתמשים לארגון.
+            עדיין לא הוזמנו עובדים לארגון.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div
+            className="overflow-x-auto overflow-y-auto"
+            style={{ maxHeight: USER_LIST_SCROLL_MAX_HEIGHT }}
+          >
             <table className="min-w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-[var(--of-color-surface)]">
                 <tr className="border-b border-zinc-200 text-right dark:border-zinc-700">
                   <th className="px-3 py-3 font-semibold">שם</th>
                   <th className="px-3 py-3 font-semibold">אימייל</th>
-                  {canManageOrganizations
-                  && activeUsersScopeId === ALL_ORGANIZATIONS_SCOPE ? (
+                  {showOrganizationColumn ? (
                     <th className="px-3 py-3 font-semibold">לקוח</th>
                   ) : null}
                   <th className="px-3 py-3 font-semibold">תפקיד</th>
@@ -1728,7 +1820,7 @@ function AdminUsersContent() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {employeeUsers.map((user) => (
                   <tr
                     key={user.id}
                     className="border-b border-zinc-100 dark:border-zinc-800"
@@ -1737,8 +1829,7 @@ function AdminUsersContent() {
                       {user.full_name || "-"}
                     </td>
                     <td className="px-3 py-3">{user.email}</td>
-                    {canManageOrganizations
-                    && activeUsersScopeId === ALL_ORGANIZATIONS_SCOPE ? (
+                    {showOrganizationColumn ? (
                       <td className="px-3 py-3 text-zinc-600 dark:text-zinc-400">
                         {user.organization_name
                           || user.organization_id
@@ -1825,6 +1916,99 @@ function AdminUsersContent() {
                               : "מחיקה"}
                         </Button>
                       </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="of-card of-card-p6">
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold">דיירים בפרויקט</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            {selectedTenantProjectId
+              ? `${projectApartments.length} דיירים בפרויקט שנבחר`
+              : "בחרו פרויקט כדי לראות את רשימת הדיירים"}
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-2 block text-sm font-medium">פרויקט</label>
+          <select
+            value={selectedTenantProjectId}
+            onChange={(event) => {
+              setSelectedTenantProjectId(event.target.value);
+            }}
+            disabled={loadingTenantProjects || tenantProjects.length === 0}
+            className="of-input of-focus-ring w-full max-w-md text-sm"
+          >
+            <option value="">
+              {loadingTenantProjects
+                ? "טוען פרויקטים..."
+                : tenantProjects.length === 0
+                  ? "אין פרויקטים זמינים"
+                  : "בחר פרויקט"}
+            </option>
+            {tenantProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.project_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {loadingProjectApartments ? (
+          <p className="text-sm text-zinc-500">טוען דיירים...</p>
+        ) : !selectedTenantProjectId ? (
+          <p className="text-sm text-zinc-500">
+            יש לבחור פרויקט כדי להציג את הדיירים.
+          </p>
+        ) : projectApartments.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            אין דיירים רשומים בפרויקט זה.
+          </p>
+        ) : (
+          <div
+            className="overflow-x-auto overflow-y-auto"
+            style={{ maxHeight: USER_LIST_SCROLL_MAX_HEIGHT }}
+          >
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-[var(--of-color-surface)]">
+                <tr className="border-b border-zinc-200 text-right dark:border-zinc-700">
+                  <th className="px-3 py-3 font-semibold">דירה</th>
+                  <th className="px-3 py-3 font-semibold">שם</th>
+                  <th className="px-3 py-3 font-semibold">אימייל</th>
+                  <th className="px-3 py-3 font-semibold">טלפון</th>
+                  <th className="px-3 py-3 font-semibold">חשבון</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectApartments.map((apartment) => (
+                  <tr
+                    key={apartment.id}
+                    className="border-b border-zinc-100 dark:border-zinc-800"
+                  >
+                    <td className="px-3 py-3" dir="ltr">
+                      {apartment.apartment_number}
+                    </td>
+                    <td className="px-3 py-3">
+                      {apartment.owner_name || "-"}
+                    </td>
+                    <td className="px-3 py-3">
+                      {apartment.email || "-"}
+                    </td>
+                    <td className="px-3 py-3" dir="ltr">
+                      {apartment.phone || "-"}
+                    </td>
+                    <td className="px-3 py-3">
+                      <Badge>
+                        {APARTMENT_INVITE_STATUS_LABELS[
+                          apartment.invite_status
+                        ] || apartment.invite_status}
+                      </Badge>
                     </td>
                   </tr>
                 ))}

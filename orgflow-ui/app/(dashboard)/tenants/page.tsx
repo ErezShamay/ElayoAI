@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import TenantExportCards from "@/components/tenants/TenantExportCards";
 import TenantFileUploader from "@/components/tenants/TenantFileUploader";
+import TenantImportTemplateDownloads from "@/components/tenants/TenantImportTemplateDownloads";
 import TenantMergeUploader from "@/components/tenants/TenantMergeUploader";
 import TenantTable from "@/components/tenants/TenantTable";
 import Button from "@/components/ui/Button";
@@ -185,6 +186,7 @@ export default function TenantsPage() {
             איחוד שני קבצים
           </button>
         </div>
+        <TenantImportTemplateDownloads mode={mode} />
         {mode === "single" ? (
           <TenantFileUploader onTenants={setTenants} />
         ) : (

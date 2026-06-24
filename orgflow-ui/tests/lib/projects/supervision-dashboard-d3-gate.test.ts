@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 import {
   canViewProjectSupervisionDashboard,
   parseProjectSupervisionDashboard,
+  projectApartmentPortalPath,
+  resolveApartmentPortalBackNavigation,
 } from "@/lib/projects/supervision-dashboard";
 import {
   SUPERVISION_OVERALL_STATUS_LABELS,
@@ -119,6 +121,22 @@ describe("supervision dashboard D3 gate", () => {
     expect(apartments).toContain("תיעוד ביקור");
     expect(apartments).toContain("ליקויים");
     expect(apartments).toContain("projectApartmentPortalPath");
+  });
+
+  it("links apartment portal back navigation to project overview when opened from overview", () => {
+    expect(
+      projectApartmentPortalPath("proj-1", "apt-1", { from: "overview" })
+    ).toBe("/projects/proj-1/apartments/apt-1?from=overview");
+
+    expect(resolveApartmentPortalBackNavigation("proj-1", "overview")).toEqual({
+      href: "/projects/proj-1",
+      label: "חזרה לסקירת הפרויקט",
+    });
+
+    expect(resolveApartmentPortalBackNavigation("proj-1", null)).toEqual({
+      href: "/projects/proj-1/apartments",
+      label: "חזרה לרשימת הדירות",
+    });
   });
 
   it("maps overall status labels and trade bar colors", () => {
