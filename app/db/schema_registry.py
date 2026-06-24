@@ -827,6 +827,15 @@ MIGRATION_SCRIPTS: list[dict] = [
         "tables": ["projects"],
     },
     {
+        "version": "2026061801",
+        "name": "project_spatial_and_stakeholder_columns",
+        "description": (
+            "Spatial bootstrap public areas, floors_count, illustration "
+            "URLs, and stakeholder email columns on projects"
+        ),
+        "tables": ["projects"],
+    },
+    {
         "version": "2026060702",
         "name": "field_visit_report_pdf_archive",
         "description": (

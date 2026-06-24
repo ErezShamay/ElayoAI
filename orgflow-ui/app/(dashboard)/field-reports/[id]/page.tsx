@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   startTransition,
   useCallback,
@@ -12,6 +12,7 @@ import {
 import FinishReportDialog, {
   type ClosePreview,
 } from "@/components/field-reports/FinishReportDialog";
+import CancelReportCreationDialog from "@/components/field-reports/CancelReportCreationDialog";
 import VisitReportAlerts from "@/components/field-reports/VisitReportAlerts";
 import VisitReportPdfActions, {
   shouldShowVisitReportPdfActions,
@@ -30,6 +31,7 @@ import {
   fieldReportDataSourceModeLabelHe,
 } from "@/lib/field-reports/data-source";
 import { finishLocalVisitReportWithPdf } from "@/lib/field-reports/close-local-visit-report";
+import { discardLocalVisitReport } from "@/lib/field-reports/discard-local-visit-report";
 import { canFinalizeFieldReports } from "@/lib/field-reports/publish-access";
 import { visitReportPipelineStatusLabel } from "@/lib/field-reports/finalize-status-labels";
 import {
@@ -64,6 +66,7 @@ type VisitReport = VisitReportView & {
 
 export default function FieldVisitReportPage() {
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const paramId = typeof params.id === "string" ? params.id : "";
   const reportId = resolveFieldReportRouteId(paramId, searchParams);
@@ -103,6 +106,9 @@ export default function FieldVisitReportPage() {
   const [hasLocalPdf, setHasLocalPdf] = useState(false);
   const [reopenLoading, setReopenLoading] = useState(false);
   const [reopenError, setReopenError] = useState("");
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   const isReopenedForEdit = Boolean(
     report?.is_editable && report?.was_closed
@@ -369,6 +375,38 @@ export default function FieldVisitReportPage() {
     }
   }
 
+  async function confirmCancelReport() {
+    if (!report || !organizationId) {
+      return;
+    }
+
+    try {
+      setCancelLoading(true);
+      setCancelError("");
+
+      await discardLocalVisitReport({
+        organizationId,
+        clientReportUuid: clientVisitReportUuid(report),
+        serverReportId: serverVisitReportId(report),
+      });
+      editSession.release();
+      setCancelDialogOpen(false);
+
+      const projectId = report.project_id?.trim();
+      router.push(
+        projectId
+          ? `/projects/${encodeURIComponent(projectId)}`
+          : "/field-reports"
+      );
+    } catch (err: unknown) {
+      setCancelError(
+        err instanceof Error ? err.message : "ביטול הדוח נכשל"
+      );
+    } finally {
+      setCancelLoading(false);
+    }
+  }
+
   async function confirmReopenReport() {
     if (!report?.can_reopen) {
       return;
@@ -491,6 +529,8 @@ export default function FieldVisitReportPage() {
               isReopenedForEdit={isReopenedForEdit}
               reopenLoading={reopenLoading}
               onOpenFinishDialog={() => void openFinishDialog()}
+              onCancelReport={() => setCancelDialogOpen(true)}
+              cancelDisabled={cancelLoading || finishLoading}
               onConfirmReopenReport={() => void confirmReopenReport()}
             />
             <VisitReportPdfActions
@@ -536,6 +576,7 @@ export default function FieldVisitReportPage() {
           pdfNotice={pdfNotice}
           pdfError={pdfError}
           reopenError={reopenError}
+          cancelError={cancelError}
         />
       </header>
 
@@ -551,6 +592,19 @@ export default function FieldVisitReportPage() {
           }
         }}
         onConfirm={() => void confirmFinishReport()}
+      />
+
+      <CancelReportCreationDialog
+        open={cancelDialogOpen}
+        title="ביטול דוח"
+        confirming={cancelLoading}
+        onStay={() => {
+          if (!cancelLoading) {
+            setCancelDialogOpen(false);
+            setCancelError("");
+          }
+        }}
+        onConfirmCancel={() => void confirmCancelReport()}
       />
 
       {editSession.blockingSession ? (
@@ -609,6 +663,8 @@ export default function FieldVisitReportPage() {
             reopenLoading={reopenLoading}
             compact
             onOpenFinishDialog={() => void openFinishDialog()}
+            onCancelReport={() => setCancelDialogOpen(true)}
+            cancelDisabled={cancelLoading || finishLoading}
             onConfirmReopenReport={() => void confirmReopenReport()}
           />
         </section>

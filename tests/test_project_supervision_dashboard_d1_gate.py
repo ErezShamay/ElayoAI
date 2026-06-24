@@ -265,6 +265,24 @@ def test_resolve_overall_status_levels() -> None:
     assert critical == SupervisionOverallStatus.CRITICAL
 
 
+def test_aggregate_supervision_dashboard_sorts_apartments_numerically() -> None:
+    apartments = [
+        {"id": "apt-10", "apartment_number": "10", "group_key": "apartment:10"},
+        {"id": "apt-2", "apartment_number": "2", "group_key": "apartment:2"},
+        {"id": "apt-1", "apartment_number": "1", "group_key": "apartment:1"},
+    ]
+
+    dashboard = aggregate_supervision_dashboard(
+        project_id="proj-sort",
+        project_name="מיון דירות",
+        apartments=apartments,
+        reports=[],
+        issues=[],
+    )
+
+    assert [row.apartment_number for row in dashboard.apartments] == ["1", "2", "10"]
+
+
 def test_service_build_dashboard_uses_repositories() -> None:
     project_repo = InMemoryProjectRepository()
     apartment_repo = InMemoryProjectApartmentRepository()

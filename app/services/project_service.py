@@ -49,7 +49,7 @@ class ProjectService:
         contractor_name: str,
         lawyer_name: str,
         supervisor_name: str,
-        supervisor_email: str | None = None,
+        supervisor_email: str,
         organization_id: str | None = None,
         owner_id: str | None = None,
         tags: list[str] | None = None,
@@ -65,11 +65,22 @@ class ProjectService:
         project_end_date: str | None = None,
         project_grace_end_date: str | None = None,
         structure_documentation_date: str | None = None,
+        developer_email: str | None = None,
+        developer_pm_email: str | None = None,
+        site_manager_email: str | None = None,
+        contractor_email: str | None = None,
+        lawyer_email: str | None = None,
+        accompanying_lawyer_email: str | None = None,
+        architect_email: str | None = None,
     ):
         normalized_tags = self._normalize_tags(tags)
         normalized_scheme = _require_project_scheme(scheme)
         if floors_count is not None and floors_count < 1:
             raise ValidationError("floors_count must be a positive integer")
+        if housing_units_count is not None and housing_units_count < 1:
+            raise ValidationError(
+                "housing_units_count must be a positive integer"
+            )
 
         project = (
             self.project_repository
@@ -136,6 +147,27 @@ class ProjectService:
 
                 structure_documentation_date=
                     structure_documentation_date,
+
+                developer_email=
+                    developer_email,
+
+                developer_pm_email=
+                    developer_pm_email,
+
+                site_manager_email=
+                    site_manager_email,
+
+                contractor_email=
+                    contractor_email,
+
+                lawyer_email=
+                    lawyer_email,
+
+                accompanying_lawyer_email=
+                    accompanying_lawyer_email,
+
+                architect_email=
+                    architect_email,
 
                 status=
                     "ACTIVE",

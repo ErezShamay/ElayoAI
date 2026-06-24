@@ -16,6 +16,8 @@ type VisitReportPrimaryActionsProps = {
   reopenLoading: boolean;
   compact?: boolean;
   onOpenFinishDialog: () => void;
+  onCancelReport?: () => void;
+  cancelDisabled?: boolean;
   onConfirmReopenReport: () => void;
 };
 
@@ -27,6 +29,8 @@ export default function VisitReportPrimaryActions({
   reopenLoading,
   compact = false,
   onOpenFinishDialog,
+  onCancelReport,
+  cancelDisabled = false,
   onConfirmReopenReport,
 }: VisitReportPrimaryActionsProps) {
   if (report.is_editable) {
@@ -40,6 +44,17 @@ export default function VisitReportPrimaryActions({
         >
           {isReopenedForEdit ? "סגור דוח שוב" : "סיום דוח"}
         </Button>
+        {onCancelReport ? (
+          <Button
+            size="lg"
+            variant="secondary"
+            className="min-h-12"
+            onClick={onCancelReport}
+            disabled={cancelDisabled}
+          >
+            ביטול
+          </Button>
+        ) : null}
         {!isOnline && !canCloseOffline ? (
           <span className="self-center text-sm text-amber-800">סגירה דורשת רשת</span>
         ) : null}

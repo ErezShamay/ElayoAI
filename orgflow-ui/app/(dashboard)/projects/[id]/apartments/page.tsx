@@ -4,24 +4,16 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import ProjectTabs from "@/app/components/project-tabs";
 import Button from "@/components/ui/Button";
 import LoadingState from "@/components/ui/LoadingState";
-import { useEffectiveRole } from "@/hooks/useEffectiveRole";
+import ProjectApartmentsTable from "@/components/apartments/ProjectApartmentsTable";
 import { useTenantManagerModule } from "@/hooks/useTenantManagerModule";
 import { listProjectApartments } from "@/lib/apartments/api";
 import type { ProjectApartment } from "@/lib/apartments/types";
 
-const INVITE_STATUS_LABELS: Record<string, string> = {
-  none: "לא הוזמן",
-  pending: "ממתין להפעלה",
-  active: "פעיל",
-};
-
 export default function ProjectApartmentsPage() {
   const params = useParams();
   const projectId = typeof params?.id === "string" ? params.id : "";
-  const role = useEffectiveRole();
   const { isEnabled, loading: moduleLoading } = useTenantManagerModule();
   const [apartments, setApartments] = useState<ProjectApartment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,11 +69,10 @@ export default function ProjectApartmentsPage() {
       <header>
         <h1 className="of-page-title text-2xl md:text-3xl">דיירים בפרויקט</h1>
         <p className="of-page-desc text-sm">
-          רשימת דירות ופרטי בעלי הדירות. לחץ על מספר דירה לצפייה בתיק ההנדסי.
+          רשימת דירות ופרטי בעלי הדירות. לחץ על מספר דירה לצפייה בתיק ההנדסי,
+          או על «עריכה» לעדכון פרטי הדייר.
         </p>
       </header>
-
-      <ProjectTabs projectId={projectId} role={role} />
 
       {error ? (
         <div className="space-y-3">
@@ -103,43 +94,11 @@ export default function ProjectApartmentsPage() {
           </p>
         </div>
       ) : (
-        <div className="of-card of-card-p6 max-h-[70vh] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[var(--of-color-surface)]">
-              <tr className="border-b text-right">
-                <th className="px-3 py-2 font-medium">דירה</th>
-                <th className="px-3 py-2 font-medium">בעל דירה</th>
-                <th className="px-3 py-2 font-medium">טלפון</th>
-                <th className="px-3 py-2 font-medium">מייל</th>
-                <th className="px-3 py-2 font-medium">חשבון</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apartments.map((apartment) => (
-                <tr
-                  key={apartment.id}
-                  className="border-b border-zinc-200/60 last:border-0 dark:border-zinc-700/60"
-                >
-                  <td className="px-3 py-3">
-                    <Link
-                      href={`/projects/${projectId}/apartments/${apartment.id}`}
-                      className="font-semibold text-brand hover:underline"
-                    >
-                      {apartment.apartment_number}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-3">{apartment.owner_name}</td>
-                  <td className="px-3 py-3">{apartment.phone || "—"}</td>
-                  <td className="px-3 py-3">{apartment.email || "—"}</td>
-                  <td className="px-3 py-3">
-                    {INVITE_STATUS_LABELS[apartment.invite_status] ||
-                      apartment.invite_status}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ProjectApartmentsTable
+          projectId={projectId}
+          apartments={apartments}
+          onApartmentsChange={setApartments}
+        />
       )}
     </div>
   );

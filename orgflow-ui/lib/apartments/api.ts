@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import { readApiErrorMessage } from "@/lib/api/read-error-message";
+import { sortByApartmentNumber } from "@/lib/apartments/sort";
 import type { ProjectApartment, ResidentPortalPayload } from "@/lib/apartments/types";
 import type { Tenant } from "@/lib/tenants/types";
 
@@ -21,7 +22,7 @@ export async function listProjectApartments(
   }
 
   const data = (await response.json()) as { apartments?: ProjectApartment[] };
-  return data.apartments ?? [];
+  return sortByApartmentNumber(data.apartments ?? []);
 }
 
 export async function bulkUpsertProjectApartments(
@@ -47,6 +48,42 @@ export async function bulkUpsertProjectApartments(
   }
 
   return response.json();
+}
+
+export type UpdateProjectApartmentInput = {
+  apartment_number: string;
+  owner_name: string;
+  phone?: string | null;
+  email?: string | null;
+};
+
+export async function updateProjectApartment(
+  projectId: string,
+  apartmentId: string,
+  input: UpdateProjectApartmentInput
+): Promise<ProjectApartment> {
+  const response = await apiFetch(
+    `/projects/${projectId}/apartments/${apartmentId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        apartment_number: input.apartment_number.trim(),
+        owner_name: input.owner_name.trim(),
+        phone: input.phone?.trim() || null,
+        email: input.email?.trim() || null,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    return parseApartmentsApiError(response, "שגיאה בעדכון פרטי הדירה");
+  }
+
+  const data = (await response.json()) as { apartment?: ProjectApartment };
+  if (!data.apartment) {
+    throw new Error("שגיאה בעדכון פרטי הדירה");
+  }
+  return data.apartment;
 }
 
 export async function inviteApartmentResident(

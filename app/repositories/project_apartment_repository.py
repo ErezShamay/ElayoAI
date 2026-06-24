@@ -206,6 +206,66 @@ class ProjectApartmentRepository:
         )
         return response.data[0], True
 
+    def get_by_project_and_number(
+        self,
+        *,
+        project_id: str,
+        apartment_number: str,
+    ) -> dict | None:
+        if not self.is_storage_available():
+            return None
+
+        normalized_number = apartment_number.strip()
+        response = (
+            self.client
+            .table(self.TABLE)
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("apartment_number", normalized_number)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return response.data[0]
+
+    def update_apartment_by_id(
+        self,
+        *,
+        apartment_id: str,
+        apartment_number: str,
+        owner_name: str,
+        phone: str | None = None,
+        email: str | None = None,
+    ) -> dict | None:
+        if not self.is_storage_available():
+            raise RuntimeError(
+                f"Table {self.TABLE} is not available. "
+                "Apply db/migrations/2026061201_project_apartments.sql"
+            )
+
+        normalized_number = apartment_number.strip()
+        now = datetime.now(UTC).isoformat()
+        payload = {
+            "apartment_number": normalized_number,
+            "group_key": build_apartment_group_key(normalized_number),
+            "owner_name": owner_name.strip(),
+            "phone": (phone or "").strip() or None,
+            "email": (email or "").strip().lower() or None,
+            "updated_at": now,
+        }
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .update(payload)
+            .eq("id", apartment_id)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return response.data[0]
+
     def link_resident_profile(
         self,
         *,

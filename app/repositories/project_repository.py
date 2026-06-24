@@ -105,6 +105,13 @@ class ProjectRepository:
         project_end_date: str | None = None,
         project_grace_end_date: str | None = None,
         structure_documentation_date: str | None = None,
+        developer_email: str | None = None,
+        developer_pm_email: str | None = None,
+        site_manager_email: str | None = None,
+        contractor_email: str | None = None,
+        lawyer_email: str | None = None,
+        accompanying_lawyer_email: str | None = None,
+        architect_email: str | None = None,
         status: str = "ACTIVE",
     ):
 
@@ -262,6 +269,56 @@ class ProjectRepository:
                     if project
                     and hasattr(project, "structure_documentation_date")
                     else structure_documentation_date
+                ),
+
+            "developer_email":
+                (
+                    project.developer_email
+                    if project and hasattr(project, "developer_email")
+                    else developer_email
+                ),
+
+            "developer_pm_email":
+                (
+                    project.developer_pm_email
+                    if project and hasattr(project, "developer_pm_email")
+                    else developer_pm_email
+                ),
+
+            "site_manager_email":
+                (
+                    project.site_manager_email
+                    if project and hasattr(project, "site_manager_email")
+                    else site_manager_email
+                ),
+
+            "contractor_email":
+                (
+                    project.contractor_email
+                    if project and hasattr(project, "contractor_email")
+                    else contractor_email
+                ),
+
+            "lawyer_email":
+                (
+                    project.lawyer_email
+                    if project and hasattr(project, "lawyer_email")
+                    else lawyer_email
+                ),
+
+            "accompanying_lawyer_email":
+                (
+                    project.accompanying_lawyer_email
+                    if project
+                    and hasattr(project, "accompanying_lawyer_email")
+                    else accompanying_lawyer_email
+                ),
+
+            "architect_email":
+                (
+                    project.architect_email
+                    if project and hasattr(project, "architect_email")
+                    else architect_email
                 ),
 
             "status":
@@ -497,17 +554,14 @@ class ProjectRepository:
                     optional_columns.discard(missing_column)
                     current_payload.pop(missing_column, None)
                     if not current_payload:
-                        raise APIError(
-                            {
-                                "message": (
-                                    "No project columns available for update. "
-                                    "Run deploy/sql/"
-                                    "2026060701_project_field_report_metadata_columns.sql "
-                                    "in Supabase SQL Editor."
-                                ),
-                                "code": "PGRST204",
-                            }
-                        ) from error
+                        return (
+                            self.client
+                            .table("projects")
+                            .select("*")
+                            .eq("id", project_id)
+                            .limit(1)
+                            .execute()
+                        )
                     continue
 
                 raise

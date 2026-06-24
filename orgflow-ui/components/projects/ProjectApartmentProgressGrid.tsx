@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import Badge from "@/components/ui/Badge";
+import { compareApartmentNumbers } from "@/lib/apartments/sort";
 import {
   projectApartmentPortalPath,
   projectSupervisionPublicAreaVisitReportPath,
@@ -27,14 +28,19 @@ function buildGridUnits(
   apartments: SupervisionApartmentProgress[],
   publicAreas: SupervisionPublicAreaProgress[]
 ): GridUnit[] {
-  const apartmentUnits: GridUnit[] = apartments.map((apartment) => ({
+  const sortedApartments = [...apartments].sort((left, right) =>
+    compareApartmentNumbers(left.apartment_number, right.apartment_number)
+  );
+  const apartmentUnits: GridUnit[] = sortedApartments.map((apartment) => ({
     kind: "apartment",
     ...apartment,
   }));
-  const publicUnits: GridUnit[] = publicAreas.map((area) => ({
-    kind: "public_area",
-    ...area,
-  }));
+  const publicUnits: GridUnit[] = [...publicAreas]
+    .sort((left, right) => left.label_he.localeCompare(right.label_he, "he"))
+    .map((area) => ({
+      kind: "public_area",
+      ...area,
+    }));
   return [...apartmentUnits, ...publicUnits];
 }
 
@@ -72,6 +78,7 @@ export default function ProjectApartmentProgressGrid({
   apartments,
   publicAreas = [],
 }: ProjectApartmentProgressGridProps) {
+  const router = useRouter();
   const units = buildGridUnits(apartments, publicAreas);
 
   return (
@@ -95,8 +102,37 @@ export default function ProjectApartmentProgressGrid({
                 ? `apt-${unit.apartment_number}`
                 : `area-${unit.area_key}`;
 
-            const cardBody = (
-              <>
+            const cardClassName =
+              "rounded-2xl border border-zinc-200/80 bg-white/90 p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80";
+
+            const interactiveCardClassName = portalHref
+              ? `${cardClassName} cursor-pointer transition hover:border-brand/30 hover:shadow-md`
+              : cardClassName;
+
+            const navigateToPortal = () => {
+              if (portalHref) {
+                router.push(portalHref);
+              }
+            };
+
+            return (
+              <article
+                key={cardKey}
+                className={interactiveCardClassName}
+                onClick={portalHref ? navigateToPortal : undefined}
+                onKeyDown={
+                  portalHref
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          navigateToPortal();
+                        }
+                      }
+                    : undefined
+                }
+                role={portalHref ? "link" : undefined}
+                tabIndex={portalHref ? 0 : undefined}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                     {unitLabel(unit)}
@@ -133,36 +169,19 @@ export default function ProjectApartmentProgressGrid({
                 </div>
 
                 {visitHref ? (
-                  <div className="mt-4" onClick={(event) => event.stopPropagation()}>
-                    <Link
-                      href={visitHref}
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        router.push(visitHref);
+                      }}
                       className="of-focus-ring inline-flex w-full items-center justify-center rounded-xl bg-brand px-3 py-1.5 text-sm font-semibold text-white transition-all hover:bg-brand-dark dark:bg-brand-light dark:text-brand-dark dark:hover:bg-brand"
                     >
                       תיעוד ביקור
-                    </Link>
+                    </button>
                   </div>
                 ) : null}
-              </>
-            );
-
-            if (portalHref) {
-              return (
-                <Link
-                  key={cardKey}
-                  href={portalHref}
-                  className="block rounded-2xl border border-zinc-200/80 bg-white/90 p-5 shadow-sm transition hover:border-brand/30 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900/80"
-                >
-                  {cardBody}
-                </Link>
-              );
-            }
-
-            return (
-              <article
-                key={cardKey}
-                className="rounded-2xl border border-zinc-200/80 bg-white/90 p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80"
-              >
-                {cardBody}
               </article>
             );
           })}

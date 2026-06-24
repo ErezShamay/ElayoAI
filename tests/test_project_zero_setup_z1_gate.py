@@ -8,6 +8,7 @@ from app.config.field_report_project_scheme import parse_project_scheme
 from app.exceptions.exceptions import ValidationError
 from app.main import app
 from app.services.project_service import ProjectService
+from tests.fixtures.project_create_payload import valid_create_project_payload
 
 
 class RecordingProjectService:
@@ -33,14 +34,7 @@ def _auth_headers() -> dict[str, str]:
 
 
 def _valid_create_payload() -> dict:
-    return {
-        "project_name": "Tower Z1",
-        "developer_name": "Dev Co",
-        "contractor_name": "Build Co",
-        "lawyer_name": "Legal Co",
-        "supervisor_name": "Noa",
-        "scheme": "TAMA38_STRENGTHENING",
-    }
+    return valid_create_project_payload()
 
 
 def test_parse_project_scheme_accepts_all_four_schemes() -> None:
@@ -127,6 +121,7 @@ def test_project_service_create_rejects_missing_scheme() -> None:
             contractor_name="Build",
             lawyer_name="Legal",
             supervisor_name="Noa",
+            supervisor_email="noa@example.com",
             scheme=None,
         )
     except ValidationError as error:

@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import Button from "@/components/ui/Button";
+import CancelReportCreationDialog from "@/components/field-reports/CancelReportCreationDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFieldReportDataSource } from "@/hooks/useFieldReportDataSource";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
@@ -63,6 +64,7 @@ export default function NewFieldVisitReportPage() {
   );
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -240,6 +242,11 @@ export default function NewFieldVisitReportPage() {
     }
   }
 
+  function handleConfirmCancel() {
+    setCancelDialogOpen(false);
+    router.push("/field-reports");
+  }
+
   if (moduleLoading || (isEnabled && loading)) {
     return (
       <div className="of-container mx-auto max-w-xl p-8 text-sm text-zinc-500">
@@ -337,13 +344,22 @@ export default function NewFieldVisitReportPage() {
           <Button type="submit" disabled={submitting}>
             {submitting ? "יוצר..." : "צור דוח"}
           </Button>
-          <Link href="/field-reports">
-            <Button variant="secondary" type="button">
-              ביטול
-            </Button>
-          </Link>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => setCancelDialogOpen(true)}
+            disabled={submitting}
+          >
+            ביטול
+          </Button>
         </div>
       </form>
+
+      <CancelReportCreationDialog
+        open={cancelDialogOpen}
+        onStay={() => setCancelDialogOpen(false)}
+        onConfirmCancel={handleConfirmCancel}
+      />
     </div>
   );
 }

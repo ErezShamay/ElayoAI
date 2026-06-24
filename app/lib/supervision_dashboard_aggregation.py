@@ -7,6 +7,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.lib.apartment_number_sort import apartment_number_sort_key
 from app.repositories.project_apartment_repository import (
     build_apartment_group_key,
 )
@@ -465,7 +466,7 @@ def aggregate_supervision_dashboard(
 
     for apartment_number, report in sorted(
         latest_by_apartment.items(),
-        key=lambda item: item[0],
+        key=lambda item: apartment_number_sort_key(item[0]),
     ):
         seen_apartment_numbers.add(apartment_number)
         apartment_row = apartments_by_number.get(apartment_number, {})
@@ -528,7 +529,7 @@ def aggregate_supervision_dashboard(
 
     for apartment_number, apartment_row in sorted(
         apartments_by_number.items(),
-        key=lambda item: item[0],
+        key=lambda item: apartment_number_sort_key(item[0]),
     ):
         if apartment_number in seen_apartment_numbers:
             continue
@@ -637,7 +638,7 @@ def aggregate_supervision_dashboard(
         has_critical_open_issue=state.has_critical_open_issue,
     )
 
-    apartment_rows.sort(key=lambda row: row.apartment_number)
+    apartment_rows.sort(key=lambda row: apartment_number_sort_key(row.apartment_number))
 
     return ProjectSupervisionDashboardResponse(
         project_id=project_id,
@@ -751,7 +752,7 @@ def aggregate_supervision_trade_detail(
 
     for apartment_number, report in sorted(
         pick_latest_reports_by_apartment(reports).items(),
-        key=lambda item: item[0],
+        key=lambda item: apartment_number_sort_key(item[0]),
     ):
         apartment_row = apartments_by_number.get(apartment_number, {})
         apartment_id = (

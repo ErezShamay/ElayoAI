@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 import app.main as main_module
 from app.auth.jwt_service import JWTService
 from app.main import app
+from tests.fixtures.project_create_payload import valid_create_project_payload
 
 
 class FakeProjectService:
@@ -230,15 +231,10 @@ def test_create_project_flow(monkeypatch):
     client = _client_with_fake_service(monkeypatch)
     response = client.post(
         "/projects",
-        json={
-            "project_name": "Beta Site",
-            "developer_name": "Dev Co",
-            "contractor_name": "Build Co",
-            "lawyer_name": "Legal Co",
-            "supervisor_name": "Noa",
-            "scheme": "TAMA38_STRENGTHENING",
-            "tags": ["Critical"],
-        },
+        json=valid_create_project_payload(
+            project_name="Beta Site",
+            tags=["Critical"],
+        ),
         headers=_auth_headers(),
     )
     assert response.status_code == 200

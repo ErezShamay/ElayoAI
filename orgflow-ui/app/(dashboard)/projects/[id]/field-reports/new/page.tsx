@@ -7,6 +7,7 @@ import { FormEvent, startTransition, useCallback, useEffect, useMemo, useState }
 import ApartmentPicker, {
   type ApartmentSelection,
 } from "@/components/field-reports/supervision/ApartmentPicker";
+import CancelReportCreationDialog from "@/components/field-reports/CancelReportCreationDialog";
 import ConstructionStagePicker from "@/components/field-reports/supervision/ConstructionStagePicker";
 import DocumentKindPicker from "@/components/field-reports/supervision/DocumentKindPicker";
 import PublicAreaPicker from "@/components/field-reports/supervision/PublicAreaPicker";
@@ -106,6 +107,7 @@ export default function ProjectSupervisionNewReportPage() {
   const [visitDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -354,6 +356,11 @@ export default function ProjectSupervisionNewReportPage() {
     }
   }
 
+  function handleConfirmCancel() {
+    setCancelDialogOpen(false);
+    router.push(`/projects/${encodeURIComponent(projectId)}`);
+  }
+
   if (moduleLoading || projectLoading || (isEnabled && loading)) {
     return (
       <div className="of-container mx-auto max-w-xl p-8 text-sm text-zinc-500">
@@ -442,13 +449,22 @@ export default function ProjectSupervisionNewReportPage() {
           <Button type="submit" disabled={submitting || !canSubmit}>
             {submitting ? "יוצר..." : "התחל ביקור"}
           </Button>
-          <Link href={`/projects/${encodeURIComponent(projectId)}`}>
-            <Button variant="secondary" type="button">
-              ביטול
-            </Button>
-          </Link>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => setCancelDialogOpen(true)}
+            disabled={submitting}
+          >
+            ביטול
+          </Button>
         </div>
       </form>
+
+      <CancelReportCreationDialog
+        open={cancelDialogOpen}
+        onStay={() => setCancelDialogOpen(false)}
+        onConfirmCancel={handleConfirmCancel}
+      />
     </div>
   );
 }

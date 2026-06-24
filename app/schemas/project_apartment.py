@@ -44,6 +44,17 @@ class BulkUpsertProjectApartmentsResponse(BaseModel):
     updated: int
 
 
+class UpdateProjectApartmentRequest(BaseModel):
+    apartment_number: str = Field(min_length=1, max_length=40)
+    owner_name: str = Field(min_length=1, max_length=200)
+    phone: str | None = Field(default=None, max_length=40)
+    email: str | None = Field(default=None, max_length=200)
+
+
+class UpdateProjectApartmentResponse(BaseModel):
+    apartment: ProjectApartmentRecord
+
+
 class ProjectApartmentListResponse(BaseModel):
     apartments: list[ProjectApartmentRecord]
     total: int

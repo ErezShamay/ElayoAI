@@ -288,6 +288,8 @@ from app.schemas.project_apartment import (
     InviteResidentResponse,
     ProjectApartmentListResponse,
     ResidentPortalPayload,
+    UpdateProjectApartmentRequest,
+    UpdateProjectApartmentResponse,
 )
 from app.schemas.project_spatial_bootstrap import (
     ProjectSpatialBootstrapResponse,
@@ -1047,31 +1049,29 @@ class CreateProjectRequest(
     contractor_name: str
     lawyer_name: str
     supervisor_name: str
-    supervisor_email: str | None = None
+    supervisor_email: str
     organization_id: str | None = None
     owner_id: str | None = None
     tags: list[str] = Field(default_factory=list)
     scheme: str
-    developer_pm_name: str | None = None
-    accompanying_lawyer: str | None = None
-    architect_name: str | None = None
-    site_manager_name: str | None = None
-    city: str | None = None
-    housing_units_count: int | None = None
-    floors_count: int | None = None
-    project_start_date: str | None = None
-    project_end_date: str | None = None
-    project_grace_end_date: str | None = None
-    structure_documentation_date: str | None = None
-    illustration_url: str | None = None
-    illustration_source_he: str | None = None
-    developer_email: str | None = None
-    developer_pm_email: str | None = None
-    site_manager_email: str | None = None
-    contractor_email: str | None = None
-    lawyer_email: str | None = None
-    accompanying_lawyer_email: str | None = None
-    architect_email: str | None = None
+    developer_pm_name: str
+    accompanying_lawyer: str
+    architect_name: str
+    site_manager_name: str
+    city: str
+    housing_units_count: int
+    floors_count: int
+    project_start_date: str
+    project_end_date: str
+    project_grace_end_date: str
+    structure_documentation_date: str
+    developer_email: str
+    developer_pm_email: str
+    site_manager_email: str
+    contractor_email: str
+    lawyer_email: str
+    accompanying_lawyer_email: str
+    architect_email: str
 
     @field_validator("scheme")
     @classmethod
@@ -1082,10 +1082,50 @@ class CreateProjectRequest(
 
     @field_validator("floors_count", "housing_units_count")
     @classmethod
-    def validate_positive_counts(cls, value: int | None) -> int | None:
-        if value is not None and value < 1:
+    def validate_positive_counts(cls, value: int) -> int:
+        if value < 1:
             raise ValueError("count must be a positive integer")
         return value
+
+    @field_validator(
+        "supervisor_email",
+        "developer_email",
+        "developer_pm_email",
+        "site_manager_email",
+        "contractor_email",
+        "lawyer_email",
+        "accompanying_lawyer_email",
+        "architect_email",
+    )
+    @classmethod
+    def validate_email_fields(cls, value: str) -> str:
+        normalized = value.strip()
+        if "@" not in normalized or not normalized.split("@", 1)[1]:
+            raise ValueError("invalid email address")
+        return normalized
+
+    @field_validator(
+        "project_name",
+        "developer_name",
+        "contractor_name",
+        "lawyer_name",
+        "supervisor_name",
+        "developer_pm_name",
+        "accompanying_lawyer",
+        "architect_name",
+        "site_manager_name",
+        "city",
+        "project_start_date",
+        "project_end_date",
+        "project_grace_end_date",
+        "structure_documentation_date",
+    )
+    @classmethod
+    def validate_non_empty_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("field is required")
+        return normalized
 
 
 class EditProjectRequest(
@@ -1810,6 +1850,30 @@ def bulk_upsert_project_apartments(
         organization_id=auth.org_id,
         project_id=project_id,
         apartments=[item.model_dump() for item in request.apartments],
+        actor_role=auth.role,
+        actor_user_id=auth.actor_user_id,
+    )
+
+
+@app.patch(
+    "/projects/{project_id}/apartments/{apartment_id}",
+    response_model=UpdateProjectApartmentResponse,
+)
+def update_project_apartment(
+    project_id: str,
+    apartment_id: str,
+    request: UpdateProjectApartmentRequest,
+    auth=Depends(require_permission("apartments:write")),
+    _module=Depends(require_tenant_manager_module),
+):
+    return project_apartment_service.update_apartment(
+        organization_id=auth.org_id,
+        project_id=project_id,
+        apartment_id=apartment_id,
+        apartment_number=request.apartment_number,
+        owner_name=request.owner_name,
+        phone=request.phone,
+        email=request.email,
         actor_role=auth.role,
         actor_user_id=auth.actor_user_id,
     )
@@ -3596,6 +3660,13 @@ def create_project(
         project_end_date=request.project_end_date,
         project_grace_end_date=request.project_grace_end_date,
         structure_documentation_date=request.structure_documentation_date,
+        developer_email=request.developer_email,
+        developer_pm_email=request.developer_pm_email,
+        site_manager_email=request.site_manager_email,
+        contractor_email=request.contractor_email,
+        lawyer_email=request.lawyer_email,
+        accompanying_lawyer_email=request.accompanying_lawyer_email,
+        architect_email=request.architect_email,
     )
 
 

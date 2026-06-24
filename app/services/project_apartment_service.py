@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.exceptions.exceptions import NotFoundError, ValidationError
+from app.lib.apartment_number_sort import apartment_number_sort_key
 from app.repositories.project_apartment_repository import (
     ProjectApartmentRepository,
 )
@@ -69,6 +70,11 @@ class ProjectApartmentService:
             for row in rows
             if str(row.get("organization_id")) == organization_id
         ]
+        apartments.sort(
+            key=lambda row: apartment_number_sort_key(
+                str(row.get("apartment_number") or "")
+            )
+        )
         return {
             "apartments": apartments,
             "total": len(apartments),
@@ -125,6 +131,61 @@ class ProjectApartmentService:
             "apartments": saved,
             "created": created,
             "updated": updated,
+        }
+
+    def update_apartment(
+        self,
+        *,
+        organization_id: str,
+        project_id: str,
+        apartment_id: str,
+        apartment_number: str,
+        owner_name: str,
+        phone: str | None = None,
+        email: str | None = None,
+        actor_role: str | None = None,
+        actor_user_id: str | None = None,
+    ) -> dict:
+        self._ensure_project_in_org(
+            organization_id=organization_id,
+            project_id=project_id,
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+        )
+
+        apartment_number = str(apartment_number or "").strip()
+        owner_name = str(owner_name or "").strip()
+        if not apartment_number:
+            raise ValidationError(message="Apartment number is required")
+        if not owner_name:
+            raise ValidationError(message="Owner name is required")
+
+        apartment = self.get_apartment_in_org(
+            organization_id=organization_id,
+            apartment_id=apartment_id,
+        )
+        if str(apartment.get("project_id")) != project_id:
+            raise NotFoundError(message="Apartment not found")
+
+        duplicate = self.apartment_repository.get_by_project_and_number(
+            project_id=project_id,
+            apartment_number=apartment_number,
+        )
+        if duplicate and str(duplicate.get("id")) != apartment_id:
+            raise ValidationError(message="Apartment number already exists in project")
+
+        updated = self.apartment_repository.update_apartment_by_id(
+            apartment_id=apartment_id,
+            apartment_number=apartment_number,
+            owner_name=owner_name,
+            phone=phone,
+            email=email,
+        )
+        if updated is None:
+            raise NotFoundError(message="Apartment not found")
+
+        return {
+            "apartment": ProjectApartmentRecord.model_validate(updated).model_dump(),
         }
 
     def get_apartment_in_org(
