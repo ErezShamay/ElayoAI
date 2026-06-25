@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from typing import Annotated
+from typing import Annotated, Self
 
 from fastapi import (
     FastAPI,
@@ -26,7 +26,7 @@ from fastapi.middleware.cors import (
     CORSMiddleware
 )
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from postgrest.exceptions import APIError
 
 from app.auth.password_policy import get_password_policy
@@ -40,6 +40,7 @@ from app.lib.email_validation import (
     require_valid_email,
     validate_optional_email,
 )
+from app.lib.project_date_validation import validate_project_dates
 from app.auth import (
     APIAuthorizationMiddleware,
     JWTService,
@@ -1128,6 +1129,15 @@ class CreateProjectRequest(
             raise ValueError("field is required")
         return normalized
 
+    @model_validator(mode="after")
+    def validate_project_date_order(self) -> Self:
+        validate_project_dates(
+            self.project_start_date,
+            self.project_end_date,
+            self.project_grace_end_date,
+        )
+        return self
+
 
 class EditProjectRequest(
     BaseModel
@@ -1192,6 +1202,15 @@ class EditProjectRequest(
         if isinstance(value, str):
             return validate_optional_email(value)
         return value
+
+    @model_validator(mode="after")
+    def validate_project_date_order(self) -> Self:
+        validate_project_dates(
+            self.project_start_date,
+            self.project_end_date,
+            self.project_grace_end_date,
+        )
+        return self
 
 
 class ProjectTagsRequest(

@@ -17,6 +17,9 @@ from app.lib.field_report_client_ids import (
     normalize_client_line_uuid,
     normalize_client_report_uuid,
 )
+from app.lib.project_date_validation import (
+    validate_header_fields_project_dates,
+)
 from app.repositories.field_visit_report_line_photo_repository import (
     FieldVisitReportLinePhotoRepository,
 )
@@ -1003,10 +1006,17 @@ class FieldVisitReportService:
             payload["visit_date"] = visit_date
 
         if header_fields is not None:
-            payload["header_fields"] = {
+            merged_header_fields = {
                 **(record.get("header_fields") or {}),
                 **header_fields,
             }
+            try:
+                validate_header_fields_project_dates(
+                    merged_header_fields
+                )
+            except ValueError as error:
+                raise ValidationError(str(error)) from error
+            payload["header_fields"] = merged_header_fields
 
         if catalog_version is not None:
             payload["catalog_version"] = catalog_version
@@ -2262,10 +2272,17 @@ class FieldVisitReportService:
         }
 
         if header_fields is not None:
-            update_payload["header_fields"] = {
+            merged_header_fields = {
                 **(existing.get("header_fields") or {}),
                 **header_fields,
             }
+            try:
+                validate_header_fields_project_dates(
+                    merged_header_fields
+                )
+            except ValueError as error:
+                raise ValidationError(str(error)) from error
+            update_payload["header_fields"] = merged_header_fields
 
         if catalog_version is not None:
             update_payload["catalog_version"] = catalog_version
@@ -2975,7 +2992,12 @@ def _merge_header_fields(
         merge_project_prefill_into_header_fields,
     )
 
-    return merge_project_prefill_into_header_fields(project, merged)
+    merged = merge_project_prefill_into_header_fields(project, merged)
+    try:
+        validate_header_fields_project_dates(merged)
+    except ValueError as error:
+        raise ValidationError(str(error)) from error
+    return merged
 
 
 def _apply_catalog_issue_defaults(

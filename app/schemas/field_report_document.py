@@ -9,9 +9,11 @@ as a strict API envelope (header_fields remains a dict on requests).
 from __future__ import annotations
 
 import warnings
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.lib.project_date_validation import validate_project_dates
 
 ProjectScheme = Literal[
     "TAMA38_STRENGTHENING",
@@ -119,6 +121,15 @@ class ProjectMetadata(BaseModel):
     illustration_source_he: str | None = None
     illustration_url: str | None = None
     tenant_changes_notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_project_date_order(self) -> Self:
+        validate_project_dates(
+            self.project_start_date,
+            self.project_end_date,
+            self.project_grace_end_date,
+        )
+        return self
 
 
 class Stakeholder(BaseModel):

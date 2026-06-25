@@ -12,6 +12,7 @@ import type { ProjectScheme } from "@/lib/field-reports/schema/types";
 import { PROJECT_SCHEME_OPTIONS } from "@/lib/field-reports/project-scheme-labels";
 import { showToast } from "@/lib/ui/toast";
 import { validateOptionalProjectEmails } from "@/lib/validation/email";
+import { validateProjectDates } from "@/lib/validation/project-dates";
 
 export type EditableProjectDetails = {
   id: string;
@@ -29,6 +30,10 @@ export type EditableProjectDetails = {
   scheme?: string | null;
   housing_units_count?: number | null;
   floors_count?: number | null;
+  project_start_date?: string | null;
+  project_end_date?: string | null;
+  project_grace_end_date?: string | null;
+  structure_documentation_date?: string | null;
   illustration_url?: string | null;
   illustration_source_he?: string | null;
   developer_email?: string | null;
@@ -61,6 +66,10 @@ type FormState = {
   scheme: ProjectScheme | "";
   housing_units_count: string;
   floors_count: string;
+  project_start_date: string;
+  project_end_date: string;
+  project_grace_end_date: string;
+  structure_documentation_date: string;
   developer_email: string;
   developer_pm_email: string;
   site_manager_email: string;
@@ -95,6 +104,12 @@ function toFormState(project: EditableProjectDetails): FormState {
         : "",
     floors_count:
       project.floors_count != null ? String(project.floors_count) : "",
+    project_start_date: toDateInputValue(project.project_start_date),
+    project_end_date: toDateInputValue(project.project_end_date),
+    project_grace_end_date: toDateInputValue(project.project_grace_end_date),
+    structure_documentation_date: toDateInputValue(
+      project.structure_documentation_date
+    ),
     developer_email: project.developer_email?.trim() ?? "",
     developer_pm_email: project.developer_pm_email?.trim() ?? "",
     site_manager_email: project.site_manager_email?.trim() ?? "",
@@ -108,6 +123,37 @@ function toFormState(project: EditableProjectDetails): FormState {
 function displayValue(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed || "לא צוין";
+}
+
+function formatDisplayDate(value?: string | null) {
+  const inputValue = toDateInputValue(value);
+  if (!inputValue) {
+    return "לא צוין";
+  }
+
+  try {
+    return new Date(`${inputValue}T00:00:00`).toLocaleDateString("he-IL");
+  } catch {
+    return inputValue;
+  }
+}
+
+function toDateInputValue(value?: string | null): string {
+  if (!value) {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toISOString().slice(0, 10);
 }
 
 const inputClassName =
@@ -127,6 +173,11 @@ export default function ProjectDetailsEditor({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(() => toFormState(project));
+  const dateValidationError = validateProjectDates({
+    project_start_date: form.project_start_date,
+    project_end_date: form.project_end_date,
+    project_grace_end_date: form.project_grace_end_date,
+  });
 
   function startEditing() {
     setForm(toFormState(project));
@@ -186,6 +237,11 @@ export default function ProjectDetailsEditor({
       return;
     }
 
+    if (dateValidationError) {
+      showToast(dateValidationError, "error");
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -206,6 +262,11 @@ export default function ProjectDetailsEditor({
           scheme: form.scheme,
           housing_units_count,
           floors_count,
+          project_start_date: form.project_start_date.trim() || null,
+          project_end_date: form.project_end_date.trim() || null,
+          project_grace_end_date: form.project_grace_end_date.trim() || null,
+          structure_documentation_date:
+            form.structure_documentation_date.trim() || null,
           developer_email: form.developer_email.trim() || null,
           developer_pm_email: form.developer_pm_email.trim() || null,
           site_manager_email: form.site_manager_email.trim() || null,
@@ -288,6 +349,22 @@ export default function ProjectDetailsEditor({
                   ? String(project.housing_units_count)
                   : "לא צוין"
               }
+            />
+            <InfoCard
+              title="תאריך תחילת פרויקט"
+              value={formatDisplayDate(project.project_start_date)}
+            />
+            <InfoCard
+              title="תאריך סיום פרויקט"
+              value={formatDisplayDate(project.project_end_date)}
+            />
+            <InfoCard
+              title="תאריך סיום תקופת חסד"
+              value={formatDisplayDate(project.project_grace_end_date)}
+            />
+            <InfoCard
+              title="תאריך תיעוד מבנה"
+              value={formatDisplayDate(project.structure_documentation_date)}
             />
           </DetailsSection>
 
@@ -425,6 +502,52 @@ export default function ProjectDetailsEditor({
             type="number"
             min={0}
           />
+          <Field
+            label="תאריך תחילת פרויקט"
+            value={form.project_start_date}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, project_start_date: value }))
+            }
+            type="date"
+          />
+          <Field
+            label="תאריך סיום פרויקט"
+            value={form.project_end_date}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, project_end_date: value }))
+            }
+            type="date"
+          />
+          <Field
+            label="תאריך סיום תקופת חסד"
+            value={form.project_grace_end_date}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                project_grace_end_date: value,
+              }))
+            }
+            type="date"
+          />
+          <Field
+            label="תאריך תיעוד מבנה"
+            value={form.structure_documentation_date}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                structure_documentation_date: value,
+              }))
+            }
+            type="date"
+          />
+          {dateValidationError ? (
+            <p
+              className="text-sm text-red-600 sm:col-span-2 xl:col-span-3"
+              role="alert"
+            >
+              {dateValidationError}
+            </p>
+          ) : null}
         </DetailsSection>
 
         <DetailsSection title="יזם וקבלן">
@@ -569,7 +692,7 @@ export default function ProjectDetailsEditor({
           type="submit"
           variant="primary"
           size="lg"
-          disabled={saving}
+          disabled={saving || Boolean(dateValidationError)}
         >
           {saving ? "שומר..." : "שמירה"}
         </Button>

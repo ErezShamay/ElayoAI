@@ -89,6 +89,39 @@ def test_create_project_rejects_invalid_scheme(monkeypatch) -> None:
     assert response.status_code == 422
 
 
+def test_create_project_rejects_invalid_project_dates(monkeypatch) -> None:
+    monkeypatch.setattr(main_module, "project_service", RecordingProjectService())
+    client = TestClient(app)
+
+    payload = _valid_create_payload()
+    payload["project_start_date"] = "2028-12-01"
+    payload["project_end_date"] = "2026-01-01"
+
+    response = client.post(
+        "/projects",
+        json=payload,
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 422
+
+
+def test_create_project_rejects_grace_before_end(monkeypatch) -> None:
+    monkeypatch.setattr(main_module, "project_service", RecordingProjectService())
+    client = TestClient(app)
+
+    payload = _valid_create_payload()
+    payload["project_grace_end_date"] = "2026-01-01"
+
+    response = client.post(
+        "/projects",
+        json=payload,
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 422
+
+
 def test_create_project_with_valid_scheme_passes_to_service(monkeypatch) -> None:
     service = RecordingProjectService()
     monkeypatch.setattr(main_module, "project_service", service)

@@ -3,6 +3,10 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.lib.project_date_validation import (
+    validate_header_fields_project_dates,
+)
+
 from app.schemas.field_report_document import (
     HEADER_FIELDS_DOC,
     warn_unknown_header_field_keys,
@@ -72,6 +76,7 @@ class FieldVisitReportCreateRequest(BaseModel):
     @model_validator(mode="after")
     def _warn_unknown_header_keys(self) -> Self:
         warn_unknown_header_field_keys(self.header_fields)
+        validate_header_fields_project_dates(self.header_fields)
         return self
 
 
@@ -123,6 +128,7 @@ class FieldVisitReportSyncRequest(BaseModel):
     @model_validator(mode="after")
     def _warn_unknown_header_keys(self) -> Self:
         warn_unknown_header_field_keys(self.header_fields)
+        validate_header_fields_project_dates(self.header_fields)
         return self
 
 
@@ -144,6 +150,8 @@ class FieldVisitReportUpdateRequest(BaseModel):
     @model_validator(mode="after")
     def _warn_unknown_header_keys(self) -> Self:
         warn_unknown_header_field_keys(self.header_fields)
+        if self.header_fields is not None:
+            validate_header_fields_project_dates(self.header_fields)
         return self
 
 

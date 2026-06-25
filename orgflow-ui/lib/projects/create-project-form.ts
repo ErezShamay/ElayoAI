@@ -1,5 +1,6 @@
 import type { ProjectScheme } from "@/lib/field-reports/schema/types";
 import { validateProjectEmails } from "@/lib/validation/email";
+import { validateProjectDates } from "@/lib/validation/project-dates";
 
 export type ProjectCreateFormState = {
   project_name: string;
@@ -148,6 +149,18 @@ export function validateProjectCreateForm(
     return {
       ok: false,
       message: emailError,
+    };
+  }
+
+  const dateError = validateProjectDates({
+    project_start_date: form.project_start_date.trim(),
+    project_end_date: form.project_end_date.trim(),
+    project_grace_end_date: form.project_grace_end_date.trim(),
+  });
+  if (dateError) {
+    return {
+      ok: false,
+      message: dateError,
     };
   }
 

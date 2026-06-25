@@ -26,4 +26,10 @@ describe("deliverable reports date range", () => {
     expect(range.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(range.startDate <= range.endDate).toBe(true);
   });
+
+  it("rejects an inverted date range", () => {
+    expect(() =>
+      buildDeliverableReportsQuery("2026-06-15", "2026-06-01")
+    ).toThrow("תאריך ההתחלה חייב להיות לפני תאריך הסיום");
+  });
 });

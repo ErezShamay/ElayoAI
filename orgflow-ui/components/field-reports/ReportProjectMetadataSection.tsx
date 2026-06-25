@@ -5,6 +5,7 @@ import {
   projectSchemeLabelHe,
 } from "@/lib/field-reports/project-scheme-labels";
 import type { ProjectMetadata, ProjectScheme } from "@/lib/field-reports/schema/types";
+import { validateProjectDates } from "@/lib/validation/project-dates";
 import {
   FR_TOUCH_INPUT,
   FR_TOUCH_SELECT,
@@ -37,6 +38,8 @@ export default function ReportProjectMetadataSection({
       scheme_label_he: projectSchemeLabelHe(scheme),
     });
   }
+
+  const dateValidationError = validateProjectDates(metadata);
 
   return (
     <section className="space-y-4 rounded-xl border border-zinc-200 p-4 md:p-5">
@@ -127,6 +130,12 @@ export default function ReportProjectMetadataSection({
           />
         </label>
       </div>
+
+      {dateValidationError ? (
+        <p className="text-sm text-red-600" role="alert">
+          {dateValidationError}
+        </p>
+      ) : null}
     </section>
   );
 }

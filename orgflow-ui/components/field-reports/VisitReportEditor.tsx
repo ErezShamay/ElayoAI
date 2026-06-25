@@ -72,6 +72,10 @@ import {
 import { syncSupervisionDefectDraftsForReport } from "@/lib/field-reports/checklist-defect-draft";
 import { isSupervisionChecklistReport } from "@/lib/field-reports/supervision-checklist-builder";
 import { resolveInspectMode } from "@/lib/field-reports/quick-inspect";
+import {
+  extractProjectDatesFromHeaderFields,
+  validateProjectDates,
+} from "@/lib/validation/project-dates";
 import type { SupervisionChecklistBlock } from "@/lib/field-reports/schema/types";
 import {
   deleteLine as deleteLocalLine,
@@ -200,6 +204,17 @@ export default function VisitReportEditor({
       return;
     }
 
+    const dateError = validateProjectDates(
+      extractProjectDatesFromHeaderFields(
+        headerFields as Record<string, unknown>
+      )
+    );
+    if (dateError) {
+      setError(dateError);
+      setSaveState("idle");
+      return;
+    }
+
     try {
       setSaving(true);
       setError("");
@@ -252,6 +267,17 @@ export default function VisitReportEditor({
 
   const debouncedSaveHeader = useDebouncedCallback(() => {
     if (!report.is_editable) {
+      return;
+    }
+
+    const dateError = validateProjectDates(
+      extractProjectDatesFromHeaderFields(
+        headerFields as Record<string, unknown>
+      )
+    );
+    if (dateError) {
+      setError(dateError);
+      setSaveState("idle");
       return;
     }
 

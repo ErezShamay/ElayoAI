@@ -12,6 +12,7 @@ import {
   getDeliverableReportsDashboard,
 } from "@/lib/deliverable-reports/api";
 import { defaultDeliverableReportRange } from "@/lib/deliverable-reports/date-range";
+import { validateDateRange } from "@/lib/validation/project-dates";
 import {
   formatComplianceRate,
   formatDeliverablePeriod,
@@ -53,8 +54,14 @@ export default function DeliverableReportsPanel() {
   );
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState("");
+  const dateRangeError = validateDateRange(startDate, endDate);
 
   const loadDashboard = useCallback(async () => {
+    const rangeError = validateDateRange(startDate, endDate);
+    if (rangeError) {
+      throw new Error(rangeError);
+    }
+
     return getDeliverableReportsDashboard({
       startDate,
       endDate,
@@ -70,7 +77,7 @@ export default function DeliverableReportsPanel() {
     `portfolio/deliverable-reports:${startDate}:${endDate}`,
     loadDashboard,
     {
-      enabled: canReadPortfolio,
+      enabled: canReadPortfolio && !dateRangeError,
       showErrorToast: false,
     }
   );
@@ -127,10 +134,21 @@ export default function DeliverableReportsPanel() {
             className="block rounded-xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </label>
-        <Button type="button" variant="secondary" onClick={() => void reload()}>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={Boolean(dateRangeError)}
+          onClick={() => void reload()}
+        >
           רענון
         </Button>
       </div>
+
+      {dateRangeError ? (
+        <div className="of-card of-card-p8 text-sm text-red-600 dark:text-red-400">
+          {dateRangeError}
+        </div>
+      ) : null}
 
       {loading && !dashboard ? (
         <LoadingState message="טוען דוחות שנשלחו..." />

@@ -1,3 +1,5 @@
+import { validateDateRange } from "@/lib/validation/project-dates";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function formatIsoDate(value: Date): string {
@@ -21,6 +23,11 @@ export function buildDeliverableReportsQuery(
   endDate: string,
   projectId?: string | null
 ): string {
+  const rangeError = validateDateRange(startDate, endDate);
+  if (rangeError) {
+    throw new Error(rangeError);
+  }
+
   const params = new URLSearchParams({
     start_date: startDate,
     end_date: endDate,

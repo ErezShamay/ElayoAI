@@ -33,6 +33,10 @@ type Project = {
   scheme?: string | null;
   housing_units_count?: number | null;
   floors_count?: number | null;
+  project_start_date?: string | null;
+  project_end_date?: string | null;
+  project_grace_end_date?: string | null;
+  structure_documentation_date?: string | null;
   illustration_url?: string | null;
   illustration_source_he?: string | null;
   developer_email?: string | null;

@@ -9,6 +9,7 @@ from app.config.field_report_project_scheme import (
     parse_project_scheme,
 )
 from app.exceptions.exceptions import ValidationError
+from app.lib.project_date_validation import validate_project_dates
 from app.services.project_illustration_service import (
     ProjectIllustrationService,
 )
@@ -26,6 +27,22 @@ def _normalized_project_scheme(scheme: str | None) -> str | None:
 def _require_project_scheme(scheme: str | None) -> str:
     try:
         return parse_project_scheme(scheme)
+    except ValueError as error:
+        raise ValidationError(str(error)) from error
+
+
+def _validate_project_date_fields(
+    *,
+    project_start_date: str | None,
+    project_end_date: str | None,
+    project_grace_end_date: str | None,
+) -> None:
+    try:
+        validate_project_dates(
+            project_start_date,
+            project_end_date,
+            project_grace_end_date,
+        )
     except ValueError as error:
         raise ValidationError(str(error)) from error
 
@@ -81,6 +98,12 @@ class ProjectService:
             raise ValidationError(
                 "housing_units_count must be a positive integer"
             )
+
+        _validate_project_date_fields(
+            project_start_date=project_start_date,
+            project_end_date=project_end_date,
+            project_grace_end_date=project_grace_end_date,
+        )
 
         project = (
             self.project_repository
@@ -230,6 +253,34 @@ class ProjectService:
         )
         if floors_count is not None and floors_count < 1:
             raise ValidationError("floors_count must be a positive integer")
+
+        date_fields = (
+            project_start_date,
+            project_end_date,
+            project_grace_end_date,
+        )
+        if any(value is not None for value in date_fields):
+            existing = self.project_repository.get_project_by_id(project_id)
+            if not existing:
+                return None
+
+            _validate_project_date_fields(
+                project_start_date=(
+                    project_start_date
+                    if project_start_date is not None
+                    else existing.get("project_start_date")
+                ),
+                project_end_date=(
+                    project_end_date
+                    if project_end_date is not None
+                    else existing.get("project_end_date")
+                ),
+                project_grace_end_date=(
+                    project_grace_end_date
+                    if project_grace_end_date is not None
+                    else existing.get("project_grace_end_date")
+                ),
+            )
 
         updates = {
             "project_name": project_name,
