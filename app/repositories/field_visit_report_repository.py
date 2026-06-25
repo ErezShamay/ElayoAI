@@ -306,3 +306,19 @@ class FieldVisitReportRepository:
             return None
 
         return response.data[0]
+
+    def delete(self, report_id: str) -> bool:
+        if not self.is_storage_available():
+            raise RuntimeError(
+                f"Table {self.TABLE} is not available. "
+                "Apply db/migrations/2026060102_field_visit_reports.sql"
+            )
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .delete()
+            .eq("id", report_id)
+            .execute()
+        )
+        return bool(response.data)

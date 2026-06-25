@@ -102,3 +102,39 @@ class WeeklyReportRepository:
             .execute()
         )
         return response.data or []
+
+    def get_by_id(self, report_id: str) -> dict | None:
+        response = (
+            self.client
+            .table("weekly_reports")
+            .select("*")
+            .eq("id", report_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return response.data[0]
+
+    def get_for_project(
+        self,
+        *,
+        project_id: str,
+        report_id: str,
+    ) -> dict | None:
+        record = self.get_by_id(report_id)
+        if record is None:
+            return None
+        if str(record.get("project_id")) != str(project_id):
+            return None
+        return record
+
+    def delete(self, report_id: str) -> bool:
+        response = (
+            self.client
+            .table("weekly_reports")
+            .delete()
+            .eq("id", report_id)
+            .execute()
+        )
+        return bool(response.data)

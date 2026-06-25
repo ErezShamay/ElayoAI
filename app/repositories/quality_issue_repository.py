@@ -421,6 +421,67 @@ class QualityIssueRepository:
         )
         return response.data or []
 
+    def list_linked_to_field_visit_report(
+        self,
+        report_id: str,
+    ) -> list[dict]:
+        if not self.is_storage_available():
+            return []
+
+        by_reference = (
+            self.client
+            .table(self.TABLE)
+            .select("*")
+            .or_(
+                f"first_seen_report_id.eq.{report_id},"
+                f"last_seen_report_id.eq.{report_id}"
+            )
+            .execute()
+        )
+        merged: dict[str, dict] = {}
+        for record in by_reference.data or []:
+            issue_id = str(record.get("id") or "")
+            if issue_id:
+                merged[issue_id] = record
+
+        return list(merged.values())
+
+    def list_by_materialization_prefix(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+    ) -> list[dict]:
+        if not self.is_storage_available():
+            return []
+
+        prefix = f"{report_id}:"
+        response = (
+            self.client
+            .table(self.TABLE)
+            .select("*")
+            .eq("organization_id", organization_id)
+            .like("materialization_key", f"{prefix}%")
+            .execute()
+        )
+        return response.data or []
+
+    def delete(self, issue_id: str) -> bool:
+        if not self.is_storage_available():
+            raise RuntimeError(
+                f"Table {self.TABLE} is not available. "
+                f"Apply {QUALITY_ISSUES_MIGRATION}"
+            )
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .delete()
+            .eq("id", issue_id)
+            .execute()
+        )
+        return bool(response.data)
+
 
 class QualityIssueEventRepository:
     TABLE = "quality_issue_events"
@@ -517,3 +578,16 @@ class QualityIssueEventRepository:
             .execute()
         )
         return response.data or []
+
+    def delete_by_issue_id(self, issue_id: str) -> int:
+        if not self.is_storage_available():
+            return 0
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .delete()
+            .eq("issue_id", issue_id)
+            .execute()
+        )
+        return len(response.data or [])

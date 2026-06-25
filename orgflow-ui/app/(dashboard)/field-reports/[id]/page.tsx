@@ -13,6 +13,7 @@ import FinishReportDialog, {
   type ClosePreview,
 } from "@/components/field-reports/FinishReportDialog";
 import CancelReportCreationDialog from "@/components/field-reports/CancelReportCreationDialog";
+import DeleteReportDialog from "@/components/reports/DeleteReportDialog";
 import VisitReportAlerts from "@/components/field-reports/VisitReportAlerts";
 import VisitReportPdfActions, {
   shouldShowVisitReportPdfActions,
@@ -58,7 +59,12 @@ import {
   resolveFieldReportRouteId,
 } from "@/lib/field-reports/routes";
 import { shouldShowVisitIssueDiff } from "@/lib/quality-issues/visit-issue-diff";
+import {
+  deleteFieldVisitReport,
+  fetchFieldVisitReportDeleteEligibility,
+} from "@/lib/reports/delete-report-api";
 import { useOffline } from "@/providers/OfflineProvider";
+import { toast } from "sonner";
 
 type VisitReport = VisitReportView & {
   organization_profile_snapshot?: OrganizationProfileSnapshot | null;
@@ -109,6 +115,10 @@ export default function FieldVisitReportPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteEligible, setDeleteEligible] = useState(false);
 
   const isReopenedForEdit = Boolean(
     report?.is_editable && report?.was_closed
@@ -189,6 +199,32 @@ export default function FieldVisitReportPage() {
       active = false;
     };
   }, [pdfStorageKey, report?.status]);
+
+  useEffect(() => {
+    const serverId = report ? serverVisitReportId(report) : null;
+    if (!serverId || !canCallVisitReportApi) {
+      setDeleteEligible(false);
+      return;
+    }
+
+    let active = true;
+
+    void fetchFieldVisitReportDeleteEligibility(serverId)
+      .then((eligibility) => {
+        if (active) {
+          setDeleteEligible(eligibility.deletable);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setDeleteEligible(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [report, canCallVisitReportApi]);
 
   async function openFinishDialog() {
     if (!report?.is_editable) {
@@ -407,6 +443,45 @@ export default function FieldVisitReportPage() {
     }
   }
 
+  async function confirmDeleteReport() {
+    if (!report || !organizationId) {
+      return;
+    }
+
+    try {
+      setDeleteLoading(true);
+      setDeleteError("");
+
+      const serverId = serverVisitReportId(report);
+      if (serverId && canCallVisitReportApi) {
+        await deleteFieldVisitReport(serverId);
+      }
+
+      await discardLocalVisitReport({
+        organizationId,
+        clientReportUuid: clientVisitReportUuid(report),
+        serverReportId: serverId,
+      });
+      editSession.release();
+      setDeleteDialogOpen(false);
+      toast.success("הדוח נמחק");
+
+      const projectId = report.project_id?.trim();
+      router.push(
+        projectId
+          ? `/projects/${encodeURIComponent(projectId)}`
+          : "/field-reports"
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "מחיקת הדוח נכשלה";
+      setDeleteError(message);
+      toast.error(message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
   async function confirmReopenReport() {
     if (!report?.can_reopen) {
       return;
@@ -520,6 +595,18 @@ export default function FieldVisitReportPage() {
             {visitReportPipelineStatusLabel(report)}
           </span>
         </p>
+        {deleteEligible ? (
+          <div className="pt-1">
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={deleteLoading || cancelLoading || finishLoading}
+            >
+              מחק דוח
+            </Button>
+          </div>
+        ) : null}
         {report.is_editable && !editSession.blockingSession ? (
           <div>
             <VisitReportPrimaryActions
@@ -606,6 +693,23 @@ export default function FieldVisitReportPage() {
         }}
         onConfirmCancel={() => void confirmCancelReport()}
       />
+
+      <DeleteReportDialog
+        open={deleteDialogOpen}
+        reportTitle={report.project_name || report.visit_type_label_he || "דוח ביקור"}
+        deleting={deleteLoading}
+        onCancel={() => {
+          if (!deleteLoading) {
+            setDeleteDialogOpen(false);
+            setDeleteError("");
+          }
+        }}
+        onConfirm={() => void confirmDeleteReport()}
+      />
+
+      {deleteError ? (
+        <p className="text-sm text-red-600">{deleteError}</p>
+      ) : null}
 
       {editSession.blockingSession ? (
         <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100 md:px-5 md:py-5">

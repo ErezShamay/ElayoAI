@@ -110,6 +110,9 @@ from app.repositories.workspace_activity_repository import (
 from app.services.report_processing_service import (
     ReportProcessingService,
 )
+from app.services.report_deletion_service import (
+    ReportDeletionService,
+)
 from app.services.report_upload_project_resolver_service import (
     ReportUploadProjectResolverService,
 )
@@ -876,6 +879,12 @@ field_report_finalize_service = FieldReportFinalizeService(
 
 report_processing_service = (
     ReportProcessingService()
+)
+report_deletion_service = ReportDeletionService(
+    field_visit_report_repository=field_visit_report_service.report_repository,
+    line_repository=field_visit_report_service.line_repository,
+    line_photo_repository=field_visit_report_service.line_photo_repository,
+    photo_service=field_visit_report_service.photo_service,
 )
 report_upload_project_resolver_service = (
     ReportUploadProjectResolverService()
@@ -2158,6 +2167,35 @@ def get_field_visit_report(
     return field_visit_report_service.get_report(
         organization_id=auth.org_id,
         report_id=report_id,
+    )
+
+
+@app.get("/field-reports/visits/{report_id}/delete-eligibility")
+def get_field_visit_report_delete_eligibility(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:read")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return report_deletion_service.check_field_visit_report_deletable(
+        organization_id=auth.org_id,
+        report_id=report_id,
+    )
+
+
+@app.delete("/field-reports/visits/{report_id}")
+def delete_field_visit_report(
+    report_id: str,
+    auth=Depends(
+        require_permission("field_reports:write")
+    ),
+    _module=Depends(require_field_report_module),
+):
+    return report_deletion_service.delete_field_visit_report(
+        organization_id=auth.org_id,
+        report_id=report_id,
+        actor_id=auth.user_id,
     )
 
 
@@ -4300,6 +4338,51 @@ def delete_report_attachment(project_id: str, report_id: str, attachment_id: str
     if not deleted:
         raise HTTPException(status_code=404, detail="Attachment not found")
     return {"deleted": True, "attachment_id": attachment_id}
+
+
+@app.get(
+    "/projects/{project_id}/reports/{report_id}/delete-eligibility"
+)
+def get_weekly_report_delete_eligibility(
+    project_id: str,
+    report_id: str,
+    auth=Depends(require_permission("reports:read")),
+):
+    project = tenant_scope_service.get_organization_scoped_project(
+        project_id,
+        auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return report_deletion_service.check_weekly_report_deletable(
+        organization_id=auth.org_id,
+        project_id=project_id,
+        report_id=report_id,
+    )
+
+
+@app.delete("/projects/{project_id}/reports/{report_id}")
+def delete_weekly_report(
+    project_id: str,
+    report_id: str,
+    auth=Depends(require_permission("reports:write")),
+):
+    project = tenant_scope_service.get_organization_scoped_project(
+        project_id,
+        auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return report_deletion_service.delete_weekly_report(
+        organization_id=auth.org_id,
+        project_id=project_id,
+        report_id=report_id,
+        actor_id=auth.user_id,
+    )
 
 
 @app.patch("/projects/{project_id}/reports/{report_id}/tags")

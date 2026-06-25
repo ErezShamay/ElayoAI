@@ -2,10 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import DeleteReportDialog from "@/components/reports/DeleteReportDialog";
 import Button from "@/components/ui/Button";
 import LoadingState from "@/components/ui/LoadingState";
 import { useFieldReportModule } from "@/hooks/useFieldReportModule";
 import { apiFetch } from "@/lib/api/client";
+import {
+  deleteWeeklyReport,
+  fetchWeeklyReportDeleteEligibility,
+} from "@/lib/reports/delete-report-api";
+import { toast } from "sonner";
 
 type ArchivedFieldReport = {
   id: string;
@@ -174,6 +180,14 @@ export default function ProjectDocumentsArchive({
   );
   const [openYears, setOpenYears] = useState<Record<number, boolean>>({});
   const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
+  const [deletableUploadIds, setDeletableUploadIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [deleteDialogReport, setDeleteDialogReport] =
+    useState<UploadedReport | null>(null);
+  const [deletingUploadId, setDeletingUploadId] = useState<string | null>(
+    null
+  );
 
   const loadArchive = useCallback(async () => {
     try {
@@ -199,6 +213,27 @@ export default function ProjectDocumentsArchive({
       const uploadsPayload =
         (await uploadsResponse.json()) as UploadedReportsArchive;
       setUploadArchive(uploadsPayload);
+
+      const eligibilityResults = await Promise.all(
+        uploadsPayload.reports.map(async (report) => {
+          try {
+            const eligibility = await fetchWeeklyReportDeleteEligibility(
+              projectId,
+              report.id
+            );
+            return eligibility.deletable ? report.id : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      setDeletableUploadIds(
+        new Set(
+          eligibilityResults.filter(
+            (reportId): reportId is string => Boolean(reportId)
+          )
+        )
+      );
 
       if (fieldReportsEnabled) {
         if (!fieldResponse?.ok) {
@@ -230,6 +265,7 @@ export default function ProjectDocumentsArchive({
     } catch (err: unknown) {
       setFieldArchive(null);
       setUploadArchive(null);
+      setDeletableUploadIds(new Set());
       setError(
         err instanceof Error
           ? err.message
@@ -323,6 +359,26 @@ export default function ProjectDocumentsArchive({
     }
   }
 
+  async function confirmDeleteUpload() {
+    if (!deleteDialogReport) {
+      return;
+    }
+
+    try {
+      setDeletingUploadId(deleteDialogReport.id);
+      await deleteWeeklyReport(projectId, deleteDialogReport.id);
+      setDeleteDialogReport(null);
+      toast.success("הדוח נמחק");
+      await loadArchive();
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "מחיקת הדוח נכשלה"
+      );
+    } finally {
+      setDeletingUploadId(null);
+    }
+  }
+
   if (moduleLoading) {
     return null;
   }
@@ -407,25 +463,43 @@ export default function ProjectDocumentsArchive({
         <UploadedReportsSection
           reports={uploadArchive?.reports ?? []}
           expandedUploadId={expandedUploadId}
+          deletableUploadIds={deletableUploadIds}
+          deletingUploadId={deletingUploadId}
           onToggleExpanded={(reportId) =>
             setExpandedUploadId((current) =>
               current === reportId ? null : reportId
             )
           }
+          onDelete={(report) => setDeleteDialogReport(report)}
         />
       ) : (
         <UnifiedDocumentsList
           items={filteredUnifiedDocuments}
           downloadingId={downloadingId}
           expandedUploadId={expandedUploadId}
+          deletableUploadIds={deletableUploadIds}
+          deletingUploadId={deletingUploadId}
           onDownload={(report) => void handleDownload(report)}
           onToggleExpanded={(reportId) =>
             setExpandedUploadId((current) =>
               current === reportId ? null : reportId
             )
           }
+          onDeleteUpload={(report) => setDeleteDialogReport(report)}
         />
       )}
+
+      <DeleteReportDialog
+        open={deleteDialogReport !== null}
+        reportTitle={deleteDialogReport?.title || "דוח מועלה"}
+        deleting={deletingUploadId !== null}
+        onCancel={() => {
+          if (!deletingUploadId) {
+            setDeleteDialogReport(null);
+          }
+        }}
+        onConfirm={() => void confirmDeleteUpload()}
+      />
     </div>
   );
 }
@@ -445,16 +519,22 @@ type UnifiedDocumentsListProps = {
   >;
   downloadingId: string | null;
   expandedUploadId: string | null;
+  deletableUploadIds: Set<string>;
+  deletingUploadId: string | null;
   onDownload: (report: ArchivedFieldReport) => void;
   onToggleExpanded: (reportId: string) => void;
+  onDeleteUpload: (report: UploadedReport) => void;
 };
 
 function UnifiedDocumentsList({
   items,
   downloadingId,
   expandedUploadId,
+  deletableUploadIds,
+  deletingUploadId,
   onDownload,
   onToggleExpanded,
+  onDeleteUpload,
 }: UnifiedDocumentsListProps) {
   if (items.length === 0) {
     return (
@@ -518,18 +598,30 @@ function UnifiedDocumentsList({
                 </div>
               </div>
 
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!hasPreview}
-                onClick={() => onToggleExpanded(report.id)}
-              >
-                {!hasPreview
-                  ? "אין תקציר"
-                  : isExpanded
-                    ? "הסתר תקציר"
-                    : "צפה בתקציר"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!hasPreview}
+                  onClick={() => onToggleExpanded(report.id)}
+                >
+                  {!hasPreview
+                    ? "אין תקציר"
+                    : isExpanded
+                      ? "הסתר תקציר"
+                      : "צפה בתקציר"}
+                </Button>
+                {deletableUploadIds.has(report.id) ? (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={deletingUploadId === report.id}
+                    onClick={() => onDeleteUpload(report)}
+                  >
+                    {deletingUploadId === report.id ? "מוחק..." : "מחק"}
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             {isExpanded && hasPreview ? (
@@ -652,13 +744,19 @@ function FieldReportsSection({
 type UploadedReportsSectionProps = {
   reports: UploadedReport[];
   expandedUploadId: string | null;
+  deletableUploadIds: Set<string>;
+  deletingUploadId: string | null;
   onToggleExpanded: (reportId: string) => void;
+  onDelete: (report: UploadedReport) => void;
 };
 
 function UploadedReportsSection({
   reports,
   expandedUploadId,
+  deletableUploadIds,
+  deletingUploadId,
   onToggleExpanded,
+  onDelete,
 }: UploadedReportsSectionProps) {
   if (reports.length === 0) {
     return (
@@ -686,18 +784,30 @@ function UploadedReportsSection({
                 </p>
               </div>
 
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!hasPreview}
-                onClick={() => onToggleExpanded(report.id)}
-              >
-                {!hasPreview
-                  ? "אין תקציר"
-                  : isExpanded
-                    ? "הסתר תקציר"
-                    : "צפה בתקציר"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!hasPreview}
+                  onClick={() => onToggleExpanded(report.id)}
+                >
+                  {!hasPreview
+                    ? "אין תקציר"
+                    : isExpanded
+                      ? "הסתר תקציר"
+                      : "צפה בתקציר"}
+                </Button>
+                {deletableUploadIds.has(report.id) ? (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={deletingUploadId === report.id}
+                    onClick={() => onDelete(report)}
+                  >
+                    {deletingUploadId === report.id ? "מוחק..." : "מחק"}
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             {isExpanded && hasPreview ? (

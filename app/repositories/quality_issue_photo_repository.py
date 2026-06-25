@@ -113,3 +113,16 @@ class QualityIssuePhotoRepository:
             .execute()
         )
         return response.data[0]
+
+    def delete_by_issue_id(self, issue_id: str) -> int:
+        if not self.is_storage_available():
+            return 0
+
+        response = (
+            self.client
+            .table(self.TABLE)
+            .delete()
+            .eq("issue_id", issue_id)
+            .execute()
+        )
+        return len(response.data or [])

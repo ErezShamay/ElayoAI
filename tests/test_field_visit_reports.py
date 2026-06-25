@@ -301,6 +301,9 @@ class FakeVisitReportRepository:
         record.update(payload)
         return record
 
+    def delete(self, report_id: str) -> bool:
+        return self.records.pop(report_id, None) is not None
+
 
 class FakeProjectRepository:
     def get_project_by_id(self, project_id: str) -> dict | None:

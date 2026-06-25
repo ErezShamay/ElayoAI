@@ -276,6 +276,34 @@ class InMemoryQualityIssueRepository:
             and record.get("status") in OPEN_ISSUE_STATUSES
         ]
 
+    def list_linked_to_field_visit_report(
+        self,
+        report_id: str,
+    ) -> list[dict]:
+        return [
+            record
+            for record in self.records.values()
+            if record.get("first_seen_report_id") == report_id
+            or record.get("last_seen_report_id") == report_id
+        ]
+
+    def list_by_materialization_prefix(
+        self,
+        *,
+        organization_id: str,
+        report_id: str,
+    ) -> list[dict]:
+        prefix = f"{report_id}:"
+        return [
+            record
+            for record in self.records.values()
+            if record.get("organization_id") == organization_id
+            and str(record.get("materialization_key") or "").startswith(prefix)
+        ]
+
+    def delete(self, issue_id: str) -> bool:
+        return self.records.pop(issue_id, None) is not None
+
 
 class InMemoryQualityIssueEventRepository:
     def __init__(self) -> None:
@@ -322,6 +350,16 @@ class InMemoryQualityIssueEventRepository:
             for record in self.records.values()
             if record.get("report_id") == report_id
         ]
+
+    def delete_by_issue_id(self, issue_id: str) -> int:
+        to_delete = [
+            event_id
+            for event_id, record in self.records.items()
+            if record.get("issue_id") == issue_id
+        ]
+        for event_id in to_delete:
+            self.records.pop(event_id, None)
+        return len(to_delete)
 
 
 class FakeFieldVisitReportRepository:
@@ -439,3 +477,13 @@ class InMemoryQualityIssuePhotoRepository:
         photo_id = str(payload["id"])
         self.records[photo_id] = dict(payload)
         return self.records[photo_id]
+
+    def delete_by_issue_id(self, issue_id: str) -> int:
+        to_delete = [
+            photo_id
+            for photo_id, record in self.records.items()
+            if record.get("issue_id") == issue_id
+        ]
+        for photo_id in to_delete:
+            self.records.pop(photo_id, None)
+        return len(to_delete)
