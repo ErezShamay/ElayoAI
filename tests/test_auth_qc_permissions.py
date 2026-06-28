@@ -25,6 +25,8 @@ from app.auth.permissions import (
         ("DEVELOPER", "quality_issues:write", False),
         ("ADMIN", "quality_issues:write", True),
         ("ADMIN", "users:write", True),
+        ("ADMIN", "projects:delete", True),
+        ("MANAGER", "projects:delete", False),
         ("VIEWER", "quality_issues:read", True),
         ("VIEWER", "quality_portfolio:read", True),
         ("VIEWER", "users:write", False),

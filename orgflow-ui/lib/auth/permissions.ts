@@ -121,3 +121,9 @@ export function canEditProjects(
     normalizeRole(role) as typeof PROJECT_WRITE_ROLES[number]
   );
 }
+
+export function canDeleteProjects(
+  role?: string | null
+) {
+  return isOrgAdmin(role);
+}

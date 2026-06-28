@@ -260,10 +260,39 @@ def test_archive_project_flow(monkeypatch):
 
 
 def test_delete_project_flow(monkeypatch):
+    class FakeProjectDeletionService:
+        def delete_project(self, **kwargs):
+            assert kwargs["confirm_project_name"] == "Alpha Tower"
+            return {
+                "status": "deleted",
+                "project_id": "p1",
+                "project_name": "Alpha Tower",
+            }
+
+    monkeypatch.setattr(
+        main_module,
+        "project_deletion_service",
+        FakeProjectDeletionService(),
+    )
     client = _client_with_fake_service(monkeypatch)
-    response = client.delete("/projects/p1", headers=_auth_headers())
+    token = JWTService().issue_access_token(
+        user_id="admin-1",
+        org_id="org-1",
+        role="ADMIN",
+        token_id="project-delete-test",
+    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Organization-ID": "org-1",
+    }
+    response = client.request(
+        "DELETE",
+        "/projects/p1",
+        headers=headers,
+        json={"confirm_project_name": "Alpha Tower"},
+    )
     assert response.status_code == 200
-    assert response.json()["deleted"] is True
+    assert response.json()["status"] == "deleted"
 
 
 def test_project_search(monkeypatch):

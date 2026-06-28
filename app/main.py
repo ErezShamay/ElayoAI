@@ -73,6 +73,9 @@ from app.services.project_insights_service import (
     ProjectInsightsService,
 )
 
+from app.services.project_deletion_service import (
+    ProjectDeletionService,
+)
 from app.services.project_service import (
     ProjectService,
 )
@@ -721,6 +724,10 @@ project_service = (
     ProjectService()
 )
 
+project_deletion_service = (
+    ProjectDeletionService()
+)
+
 project_template_service = (
     ProjectTemplateService()
 )
@@ -1238,6 +1245,12 @@ class ProjectLifecycleRequest(
     BaseModel
 ):
     lifecycle_phase: str
+
+
+class DeleteProjectRequest(
+    BaseModel
+):
+    confirm_project_name: str
 
 
 class ProjectAttachmentRequest(
@@ -3912,11 +3925,26 @@ def archive_project(project_id: str):
 
 
 @app.delete("/projects/{project_id}")
-def delete_project(project_id: str):
-    deleted = project_service.delete_project(project_id)
-    if not deleted:
+def delete_project(
+    project_id: str,
+    request: DeleteProjectRequest,
+    auth=Depends(require_permission("projects:delete")),
+):
+    if not tenant_scope_service.get_organization_scoped_project(
+        project_id,
+        auth.org_id,
+        role=auth.role,
+        actor_user_id=auth.actor_user_id,
+    ):
         raise HTTPException(status_code=404, detail="Project not found")
-    return {"deleted": True, "project_id": project_id}
+
+    return project_deletion_service.delete_project(
+        organization_id=auth.org_id,
+        project_id=project_id,
+        confirm_project_name=request.confirm_project_name,
+        actor_user_id=auth.user_id,
+        actor_role=auth.role,
+    )
 
 
 @app.get("/projects/search")
