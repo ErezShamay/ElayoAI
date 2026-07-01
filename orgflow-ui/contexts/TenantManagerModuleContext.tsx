@@ -12,7 +12,7 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api/client";
-import { TENANT_MANAGER_MODULE_CHANGED_EVENT } from "@/lib/tenant-manager/module-events";
+import { TENANT_MANAGER_MODULE_CHANGED_EVENT } from "@/lib/tenant-manager-module/module-events";
 
 type ModuleStatus = {
   organization_id: string;

@@ -65,7 +65,7 @@ describe("stage 5.3 gate (hide /actions and /escalations from primary nav)", () 
   });
 
   it("wires project tabs to QC project nav without legacy PM tabs", () => {
-    const projectTabs = readSource("app/components/project-tabs.tsx");
+    const projectTabs = readSource("components/layout/ProjectTabs.tsx");
 
     expect(projectTabs).toContain("getQCProjectNavLinks");
     expect(projectTabs).not.toContain("/escalations");

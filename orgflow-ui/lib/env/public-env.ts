@@ -1,4 +1,5 @@
 import { isCapacitorAndroid } from "@/lib/capacitor/platform";
+import { getPublicEnv } from "@/lib/env/schema";
 
 /**
  * Supabase ל-UI (anon בלבד).
@@ -7,17 +8,16 @@ import { isCapacitorAndroid } from "@/lib/capacitor/platform";
  * - `SUPABASE_URL` / `SUPABASE_ANON_KEY` (בלי NEXT_PUBLIC) - fallback ל-SSR/build בלבד;
  *   לא מחליף את הצורך ב-NEXT_PUBLIC_* ב-Vercel ל-login בדפדפן.
  * - לעולם לא להשתמש ב-`SUPABASE_KEY` (service_role) כאן.
+ *
+ * הערכים עצמם מגיעים מ-getPublicEnv() (lib/env/schema.ts), שמאמת ומנרמל
+ * (trim) את process.env דרך zod פעם אחת לכל תהליך - הפונקציה הזו רק
+ * מיישמת את סדר-העדיפויות (NEXT_PUBLIC_* קודם, fallback אחריו).
  */
 export function getSupabasePublicConfig() {
-  const url =
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-    || process.env.SUPABASE_URL?.trim()
-    || "";
+  const env = getPublicEnv();
 
-  const anonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-    || process.env.SUPABASE_ANON_KEY?.trim()
-    || "";
+  const url = env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL || "";
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || "";
 
   return { url, anonKey };
 }
@@ -32,10 +32,9 @@ export function isSupabaseConfigured(): boolean {
  * ב-Android: `localhost` → `10.0.2.2` (אמולטור); במכשיר פיזי השתמשו ב-IP של המחשב ב-.env.
  */
 export function getApiBaseUrl(): string {
+  const env = getPublicEnv();
   const configured =
-    process.env.NEXT_PUBLIC_API_URL_ANDROID?.trim()
-    || process.env.NEXT_PUBLIC_API_URL?.trim()
-    || "http://localhost:8000";
+    env.NEXT_PUBLIC_API_URL_ANDROID || env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   if (typeof window === "undefined" || !isCapacitorAndroid()) {
     return configured;
@@ -47,6 +46,7 @@ export function getApiBaseUrl(): string {
 }
 
 export function describeMobileAuthConfig(): string | null {
+  const env = getPublicEnv();
   const problems: string[] = [];
 
   if (!isSupabaseConfigured()) {
@@ -56,10 +56,7 @@ export function describeMobileAuthConfig(): string | null {
   }
 
   if (typeof window !== "undefined" && isCapacitorAndroid()) {
-    const raw =
-      process.env.NEXT_PUBLIC_API_URL_ANDROID?.trim()
-      || process.env.NEXT_PUBLIC_API_URL?.trim()
-      || "";
+    const raw = env.NEXT_PUBLIC_API_URL_ANDROID || env.NEXT_PUBLIC_API_URL || "";
 
     if (!raw || /localhost|127\.0\.0\.1/.test(raw)) {
       problems.push(

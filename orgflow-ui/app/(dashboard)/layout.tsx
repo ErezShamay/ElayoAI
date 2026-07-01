@@ -1,4 +1,4 @@
-import Sidebar from "@/app/components/sidebar";
+import Sidebar from "@/components/layout/Sidebar";
 
 import ContractorRouteGuard from "@/components/auth/ContractorRouteGuard";
 import ResidentRouteGuard from "@/components/auth/ResidentRouteGuard";

@@ -34,7 +34,7 @@ import {
 import type { ProjectApartment } from "@/lib/apartments/types";
 import { apiFetch } from "@/lib/api/client";
 import { normalizeProjectList } from "@/lib/api/read-error-message";
-import { dispatchTenantManagerModuleChanged } from "@/lib/tenant-manager/module-events";
+import { dispatchTenantManagerModuleChanged } from "@/lib/tenant-manager-module/module-events";
 import { validateEmail, validateOptionalEmail } from "@/lib/validation/email";
 
 const ALL_ORGANIZATIONS_SCOPE = "__all__";

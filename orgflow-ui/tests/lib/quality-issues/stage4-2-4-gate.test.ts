@@ -27,7 +27,7 @@ describe("stage 4.2.4 gate (contractor no field reports / catalog)", () => {
 
   it("wires contractor route guard and limited project overview", () => {
     const layout = readSource("app/(dashboard)/layout.tsx");
-    const sidebar = readSource("app/components/sidebar.tsx");
+    const sidebar = readSource("components/layout/Sidebar.tsx");
     const projectPage = readSource("app/(dashboard)/projects/[id]/page.tsx");
     const guard = readSource("components/auth/ContractorRouteGuard.tsx");
 
