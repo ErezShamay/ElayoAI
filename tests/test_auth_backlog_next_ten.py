@@ -10,6 +10,7 @@ from app.auth.jwt_service import JWTService
 from app.config import config_manager
 from app.main import app
 import app.dependencies as deps
+from tests.route_introspection import has_route_path
 
 
 def _build_access_token(
@@ -142,7 +143,7 @@ def test_permission_matrix_endpoint_available():
     response = client.get("/auth/permission-matrix")
     assert response.status_code == 401
     # Endpoint is auth-protected by middleware but still registered.
-    assert any(route.path == "/auth/permission-matrix" for route in app.routes)
+    assert has_route_path(app, "/auth/permission-matrix")
 
 
 def test_auth_exchange_issues_access_token(monkeypatch):

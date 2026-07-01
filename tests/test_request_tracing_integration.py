@@ -3,10 +3,11 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.route_introspection import has_route_path
 
 
 def ensure_test_routes():
-    if not any(route.path == "/__test/error" for route in app.routes):
+    if not has_route_path(app, "/__test/error"):
 
         @app.get("/__test/error")
         def test_error_route():

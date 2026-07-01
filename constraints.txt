@@ -1,2 +1,11 @@
-# Temporary constraints to resolve dependency conflicts during CI runs
-cachetools==5.5.0
+# Temporary constraints to resolve dependency conflicts during CI runs.
+#
+# Historically cachetools was pinned here to stay under the ceiling
+# imposed by an old, unrelated google-auth==2.27.0 pin (<6.0). That pin
+# has since been bumped to google-auth==2.42.1 (allows cachetools<7.0),
+# and pyiceberg==0.11.1 independently caps cachetools<7.0 - so 6.2.6 is
+# the highest version compatible with every direct/transitive consumer
+# in requirements.txt today. Kept in sync with requirements.txt's pin so
+# `pip install -r requirements.txt -c constraints.txt` (used in CI)
+# doesn't hit a contradictory constraint.
+cachetools==6.2.6

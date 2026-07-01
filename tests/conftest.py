@@ -1,10 +1,17 @@
 import os
 
-import pytest
-import app.dependencies as deps
-
+# These must be set before `import app.dependencies` below: app.dependencies
+# eagerly constructs the process-wide Settings singleton (and everything it
+# wires up) at import time, so anything that reads os.environ inside that
+# construction needs its defaults in place first. Getting this backwards is
+# a latent bug that a real .env file (with ENVIRONMENT already set) can mask
+# - it only surfaces as ENVIRONMENT resolving to "local" instead of "test"
+# when no .env file is present (e.g. a clean checkout/CI without one).
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("ORG_FLOW_LLM_MODE", "mock")
+
+import pytest
+import app.dependencies as deps
 
 
 @pytest.fixture(autouse=True)
