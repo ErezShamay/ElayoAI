@@ -4,7 +4,6 @@ import logging
 
 from postgrest.exceptions import APIError
 
-from app.db.supabase_client import supabase
 from app.repositories.organization_repository import (
     OrganizationRepository,
 )
@@ -31,6 +30,7 @@ class TenantMigrationService:
         self.organization_repository = (
             organization_repository or OrganizationRepository()
         )
+        self.client = self.organization_repository.client
 
     def get_status(self) -> dict:
         profiles_ready = (
@@ -47,7 +47,7 @@ class TenantMigrationService:
 
         try:
             organizations_response = (
-                supabase.table("organizations")
+                self.client.table("organizations")
                 .select("id", count="exact")
                 .execute()
             )
@@ -59,7 +59,7 @@ class TenantMigrationService:
 
         if profiles_ready:
             profiles_response = (
-                supabase.table("profiles")
+                self.client.table("profiles")
                 .select("id, organization_id")
                 .execute()
             )
@@ -73,7 +73,7 @@ class TenantMigrationService:
 
         try:
             projects_response = (
-                supabase.table("projects")
+                self.client.table("projects")
                 .select("id, organization_id")
                 .execute()
             )
@@ -130,7 +130,7 @@ class TenantMigrationService:
         owners_updated = 0
 
         profiles_response = (
-            supabase.table("profiles")
+            self.client.table("profiles")
             .select("*")
             .execute()
         )
@@ -157,7 +157,7 @@ class TenantMigrationService:
             ):
                 try:
                     response = (
-                        supabase.table("organizations")
+                        self.client.table("organizations")
                         .update(
                             {"owner_profile_id": profile_id}
                         )
@@ -172,7 +172,7 @@ class TenantMigrationService:
 
         try:
             projects_response = (
-                supabase.table("projects")
+                self.client.table("projects")
                 .select("id, organization_id")
                 .execute()
             )
@@ -187,7 +187,7 @@ class TenantMigrationService:
                     continue
 
                 (
-                    supabase.table("projects")
+                    self.client.table("projects")
                     .update({"organization_id": org_id})
                     .eq("id", project_id)
                     .execute()

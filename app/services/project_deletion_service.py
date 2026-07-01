@@ -7,7 +7,6 @@ from pathlib import Path
 from postgrest.exceptions import APIError
 
 from app.auth.roles import is_org_admin
-from app.db.supabase_client import supabase
 from app.exceptions.exceptions import (
     ForbiddenError,
     NotFoundError,
@@ -90,12 +89,12 @@ class ProjectDeletionService:
         field_pdf_service: FieldVisitReportPdfService | None = None,
         quality_photo_service: QualityIssuePhotoService | None = None,
         illustration_service: ProjectIllustrationService | None = None,
-        client=supabase,
+        client=None,
     ) -> None:
-        self.client = client
         self.project_repository = (
             project_repository or ProjectRepository()
         )
+        self.client = client or self.project_repository.client
         self.field_visit_report_repository = (
             field_visit_report_repository or FieldVisitReportRepository()
         )

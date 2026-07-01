@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from postgrest.exceptions import APIError
 
-from app.db.supabase_client import supabase
 from app.exceptions.exceptions import ForbiddenError, NotFoundError
 from app.repositories.field_visit_report_line_repository import (
     FieldVisitReportLineRepository,
@@ -10,6 +9,7 @@ from app.repositories.field_visit_report_line_repository import (
 from app.repositories.project_apartment_repository import (
     ProjectApartmentRepository,
 )
+from app.repositories.generic_table_repository import GenericTableRepository
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.quality_issue_repository import QualityIssueRepository
 from app.schemas.project_apartment import (
@@ -52,6 +52,7 @@ class ResidentPortalService:
         project_repository: ProjectRepository | None = None,
         line_repository: FieldVisitReportLineRepository | None = None,
         issue_repository: QualityIssueRepository | None = None,
+        generic_repository: GenericTableRepository | None = None,
     ) -> None:
         self.apartment_repository = (
             apartment_repository or ProjectApartmentRepository()
@@ -59,6 +60,7 @@ class ResidentPortalService:
         self.project_repository = project_repository or ProjectRepository()
         self.line_repository = line_repository or FieldVisitReportLineRepository()
         self.issue_repository = issue_repository or QualityIssueRepository()
+        self.generic_repository = generic_repository or GenericTableRepository()
 
     def get_portal_for_apartment(
         self,
@@ -363,7 +365,7 @@ class ResidentPortalService:
             _ = source
             try:
                 query = (
-                    supabase
+                    self.generic_repository.client
                     .table(table)
                     .select("*")
                     .eq("project_id", project_id)
@@ -447,21 +449,16 @@ class ResidentPortalService:
 
         return summaries, lines_out
 
-    @staticmethod
-    def _load_findings_by_report(project_id: str) -> dict[str, list[dict]]:
+    def _load_findings_by_report(self, project_id: str) -> dict[str, list[dict]]:
         try:
-            response = (
-                supabase
-                .table("findings")
-                .select("*")
-                .eq("project_id", project_id)
-                .execute()
+            findings = self.generic_repository.select_column(
+                "findings", "*", eq=("project_id", project_id)
             )
         except APIError:
             return {}
 
         grouped: dict[str, list[dict]] = {}
-        for finding in response.data or []:
+        for finding in findings:
             report_id = str(finding.get("report_id") or "")
             if not report_id:
                 continue

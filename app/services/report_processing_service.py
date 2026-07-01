@@ -5,9 +5,6 @@ import re
 from uuid import uuid4
 from datetime import UTC, datetime
 
-from app.db.supabase_client import supabase
-
-logger = logging.getLogger(__name__)
 from app.repositories.workspace_activity_repository import WorkspaceActivityRepository
 from app.repositories.weekly_report_repository import WeeklyReportRepository
 from app.services.quality_issue_upload_finding_service import (
@@ -15,6 +12,8 @@ from app.services.quality_issue_upload_finding_service import (
 )
 from app.services.report_text_extraction_service import ReportTextExtractionService
 from app.services.report_visit_date_extraction import extract_visit_date
+
+logger = logging.getLogger(__name__)
 
 
 class ReportProcessingService:
@@ -25,6 +24,7 @@ class ReportProcessingService:
 
     def __init__(self):
         self.report_repository = WeeklyReportRepository()
+        self.client = self.report_repository.client
         self.upload_finding_materialization = QualityIssueUploadFindingService()
         self.report_attachments: dict[str, list[dict]] = {}
         self.report_tags: dict[str, list[str]] = {}
@@ -479,7 +479,7 @@ class ReportProcessingService:
     def _get_existing_interpretation_previews(self, project_id: str) -> list[str]:
         try:
             response = (
-                supabase.table("ai_interpretations")
+                self.client.table("ai_interpretations")
                 .select("business_impact")
                 .eq("project_id", project_id)
                 .limit(100)
@@ -504,7 +504,7 @@ class ReportProcessingService:
 
         try:
             findings_response = (
-                supabase.table("findings")
+                self.client.table("findings")
                 .select("id, report_id, metadata, created_at")
                 .in_("report_id", report_ids)
                 .order("created_at", desc=True)
@@ -533,7 +533,7 @@ class ReportProcessingService:
 
         try:
             response = (
-                supabase.table("ai_interpretations")
+                self.client.table("ai_interpretations")
                 .select(
                     "finding_id, business_impact, recommended_action, "
                     "tenant_risk, review_status"
@@ -585,7 +585,7 @@ class ReportProcessingService:
         category = classification.get("category", "GENERAL")
 
         finding_response = (
-            supabase.table("findings")
+            self.client.table("findings")
             .insert(
                 {
                     "report_id": report_id,
@@ -619,7 +619,7 @@ class ReportProcessingService:
             )
 
         interpretation_response = (
-            supabase.table("ai_interpretations")
+            self.client.table("ai_interpretations")
             .insert(
                 {
                     "finding_id": created_finding.get("id"),
@@ -668,7 +668,7 @@ class ReportProcessingService:
             "qc_materialized": True,
         }
         try:
-            supabase.table("findings").update(
+            self.client.table("findings").update(
                 {"metadata": merged_metadata}
             ).eq("id", finding_id).execute()
         except Exception:
@@ -786,7 +786,7 @@ class ReportProcessingService:
     def get_project_report_ai_insights(self, project_id: str, limit: int = 20) -> dict:
         try:
             reports = (
-                supabase.table("weekly_reports")
+                self.client.table("weekly_reports")
                 .select("id, email_subject, report_source, created_at")
                 .eq("project_id", project_id)
                 .order("created_at", desc=True)
@@ -798,7 +798,7 @@ class ReportProcessingService:
 
         try:
             interpretations = (
-                supabase.table("ai_interpretations")
+                self.client.table("ai_interpretations")
                 .select("id, business_impact, tenant_risk, recommended_action, review_status, created_at")
                 .eq("project_id", project_id)
                 .order("created_at", desc=True)

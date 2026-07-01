@@ -307,3 +307,14 @@ class ProfileRepository:
                 for key in PROFILE_ORG_ID_KEYS
             )
         )
+
+    def get_profiles_by_roles(self, roles: list[str]) -> list[dict]:
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("*")
+            .in_("role", roles)
+            .execute()
+        )
+
+        return response.data or []

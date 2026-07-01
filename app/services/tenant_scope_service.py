@@ -1,6 +1,3 @@
-from app.db.supabase_client import (
-    supabase,
-)
 from app.repositories.finding_repository import (
     FindingRepository,
 )
@@ -9,6 +6,9 @@ from app.repositories.profile_repository import (
 )
 from app.repositories.project_repository import (
     ProjectRepository,
+)
+from app.repositories.report_repository import (
+    ReportRepository,
 )
 from app.services.supervisor_project_scope import (
     filter_supervised_projects,
@@ -25,10 +25,12 @@ class TenantScopeService:
         project_repository: ProjectRepository | None = None,
         finding_repository: FindingRepository | None = None,
         profile_repository: ProfileRepository | None = None,
+        report_repository: ReportRepository | None = None,
     ):
         self.project_repository = project_repository or ProjectRepository()
         self.finding_repository = finding_repository or FindingRepository()
         self.profile_repository = profile_repository or ProfileRepository()
+        self.report_repository = report_repository or ReportRepository()
 
     def get_organization_scoped_project(
         self,
@@ -120,22 +122,7 @@ class TenantScopeService:
         if not report_id:
             return None
 
-        response = (
-            supabase
-            .table("reports")
-            .select("project_id")
-            .eq(
-                "id",
-                report_id,
-            )
-            .limit(1)
-            .execute()
-        )
-
-        if not response.data:
-            return None
-
-        return response.data[0].get("project_id")
+        return self.report_repository.get_project_id_for_report(report_id)
 
     def action_belongs_to_organization(
         self,

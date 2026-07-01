@@ -6,7 +6,6 @@ import shutil
 from postgrest.exceptions import APIError
 
 from app.auth.roles import is_platform_admin
-from app.db.supabase_client import supabase
 from app.exceptions.exceptions import (
     ForbiddenError,
     NotFoundError,
@@ -64,12 +63,12 @@ class OrganizationDeletionService:
         project_repository: ProjectRepository | None = None,
         photo_service: FieldVisitReportPhotoService | None = None,
         pdf_service: FieldVisitReportPdfService | None = None,
-        client=supabase,
+        client=None,
     ) -> None:
-        self.client = client
         self.organization_repository = (
             organization_repository or OrganizationRepository()
         )
+        self.client = client or self.organization_repository.client
         self.profile_repository = (
             profile_repository or ProfileRepository()
         )

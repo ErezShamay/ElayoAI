@@ -1,15 +1,19 @@
 from postgrest.exceptions import APIError
 
-from app.db.supabase_client import (
-    supabase
-)
-
 from app.repositories.ai_execution_log_repository import (
     AIExecutionLogRepository
 )
 
 from app.repositories.ai_log_repository import (
     AILogRepository,
+)
+
+from app.repositories.automation_run_repository import (
+    AutomationRunRepository,
+)
+
+from app.repositories.circuit_breaker_repository import (
+    CircuitBreakerRepository,
 )
 
 from app.repositories.postgrest_errors import (
@@ -30,8 +34,16 @@ class AutomationMonitoringService:
 
     def __init__(self):
 
+        self.automation_run_repository = (
+            AutomationRunRepository()
+        )
+
+        self.circuit_breaker_repository = (
+            CircuitBreakerRepository()
+        )
+
         self.client = (
-            supabase
+            self.automation_run_repository.client
         )
 
         self.ai_execution_log_repository = (
@@ -866,18 +878,7 @@ class AutomationMonitoringService:
         if organization_id:
             return []
 
-        response = (
-            self.client
-            .table("circuit_breakers")
-            .select("*")
-            .order(
-                "breaker_key",
-                desc=False
-            )
-            .execute()
-        )
-
-        return response.data or []
+        return self.circuit_breaker_repository.list_breakers()
 
     # ==========================================
     # GET AI RECOVERY MONITORING

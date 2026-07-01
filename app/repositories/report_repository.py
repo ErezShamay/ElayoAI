@@ -54,3 +54,18 @@ class ReportRepository:
             return None
 
         return response.data[0]
+
+    def get_project_id_for_report(self, report_id: str) -> str | None:
+        response = (
+            self.client
+            .table("reports")
+            .select("project_id")
+            .eq("id", report_id)
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data:
+            return None
+
+        return response.data[0].get("project_id")

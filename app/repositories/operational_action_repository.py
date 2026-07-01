@@ -411,3 +411,30 @@ class OperationalActionRepository:
         )
 
         return response.data[0]
+
+    def count_open_actions_for_assignee(self, profile_id: str) -> int:
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("id")
+            .eq("assigned_to", profile_id)
+            .in_("status", ["OPEN", "IN_PROGRESS", "BLOCKED"])
+            .execute()
+        )
+
+        return len(response.data or [])
+
+    def get_assignees_for_open_actions(self, profile_ids: list[str]) -> list[dict]:
+        if not profile_ids:
+            return []
+
+        response = (
+            self.client
+            .table(self.table_name)
+            .select("assigned_to")
+            .in_("assigned_to", profile_ids)
+            .in_("status", ["OPEN", "IN_PROGRESS", "BLOCKED"])
+            .execute()
+        )
+
+        return response.data or []

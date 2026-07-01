@@ -145,7 +145,7 @@ def test_resident_activation_skips_non_resident():
     repository.activate_resident_by_profile_id.assert_not_called()
 
 
-@patch("app.services.resident_portal_service.supabase")
+@patch("app.repositories.generic_table_repository.supabase")
 def test_collect_legacy_weekly_reports_filters_by_apartment(mock_supabase):
     from app.services.resident_portal_service import ResidentPortalService
 
